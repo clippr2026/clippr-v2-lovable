@@ -17,6 +17,7 @@ import {
   Camera,
   Pencil,
   DollarSign,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -166,6 +167,7 @@ type PendingProfessional = {
     approvalMode?: "auto" | "manual";
     canAddTurno?: boolean;
     canCancelTurno?: boolean;
+    showWhatsapp?: boolean;
   };
   isNew: boolean;
 };
@@ -249,6 +251,7 @@ type NewProForm = {
   approvalMode: "auto" | "manual";
   canAddTurno: boolean;
   canCancelTurno: boolean;
+  showWhatsapp: boolean;
   // Multi-sucursal (fundación) — null = "usar la sucursal activa" (ver
   // saveProfessional, solo importa para alta nueva; al editar un
   // profesional existente queda explícito, nunca se le cambia la
@@ -299,6 +302,7 @@ const EMPTY_FORM: NewProForm = {
   approvalMode: "auto",
   canAddTurno: false,
   canCancelTurno: false,
+  showWhatsapp: false,
   branchId: null,
 };
 
@@ -459,6 +463,8 @@ function ApprovalModeCard({
   onToggleCanAddTurno,
   canCancelTurno,
   onToggleCanCancelTurno,
+  showWhatsapp,
+  onToggleShowWhatsapp,
 }: {
   enabled: boolean;
   mode: "auto" | "manual";
@@ -468,6 +474,8 @@ function ApprovalModeCard({
   onToggleCanAddTurno: (v: boolean) => void;
   canCancelTurno: boolean;
   onToggleCanCancelTurno: (v: boolean) => void;
+  showWhatsapp: boolean;
+  onToggleShowWhatsapp: (v: boolean) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -486,6 +494,14 @@ function ApprovalModeCard({
         description="Puede cancelar los turnos de su agenda."
         on={canCancelTurno}
         onChange={onToggleCanCancelTurno}
+      />
+      <PermissionToggleRow
+        icon={MessageCircle}
+        tone="emerald"
+        title="Mostrar el WhatsApp del cliente"
+        description="Si está apagado, no ve el botón de WhatsApp en sus turnos."
+        on={showWhatsapp}
+        onChange={onToggleShowWhatsapp}
       />
 
       <PermissionToggleRow
@@ -1058,6 +1074,9 @@ export function EquipoSection() {
   const [employeeCanCancelTurnoMap, setEmployeeCanCancelTurnoMap] = useState<
     Record<string, boolean>
   >({});
+  const [employeeShowWhatsappMap, setEmployeeShowWhatsappMap] = useState<
+    Record<string, boolean>
+  >({});
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [employeeOnlineMap, setEmployeeOnlineMap] = useState<
     Record<string, boolean>
@@ -1334,6 +1353,11 @@ export function EquipoSection() {
             : {}
         ) as Record<string, boolean>;
         setEmployeeCanCancelTurnoMap(loadedCanCancelTurno);
+        setEmployeeShowWhatsappMap(
+          (schedule._employeeShowWhatsapp && typeof schedule._employeeShowWhatsapp === "object"
+            ? schedule._employeeShowWhatsapp
+            : {}) as Record<string, boolean>,
+        );
         const loadedCommissions = (
           schedule._employeeCommissions &&
           typeof schedule._employeeCommissions === "object"
@@ -1401,6 +1425,8 @@ export function EquipoSection() {
             ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
           const existingCanCancelTurno = (existingSchedule
             ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
+          const existingShowWhatsapp = (existingSchedule
+            ._employeeShowWhatsapp ?? {}) as Record<string, boolean>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -1442,6 +1468,10 @@ export function EquipoSection() {
                 _employeeAgendaCancel: {
                   ...existingCanCancelTurno,
                   [inserted.id]: payload.canCancelTurno === true,
+                },
+                _employeeShowWhatsapp: {
+                  ...existingShowWhatsapp,
+                  [inserted.id]: payload.showWhatsapp === true,
                 },
                 _employeeSchedules: payload.schedule
                   ? {
@@ -1502,6 +1532,8 @@ export function EquipoSection() {
             ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
           const existingCanCancelTurno = (existingSchedule
             ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
+          const existingShowWhatsapp = (existingSchedule
+            ._employeeShowWhatsapp ?? {}) as Record<string, boolean>;
           const visibility = getPublicVisibility(existingSchedule);
           const employeesVisibility = normalizePublicBooleanMap(
             visibility.employees ?? existingSchedule._employeeOnline,
@@ -1543,6 +1575,10 @@ export function EquipoSection() {
                 _employeeAgendaCancel: {
                   ...existingCanCancelTurno,
                   [payload.id]: payload.canCancelTurno === true,
+                },
+                _employeeShowWhatsapp: {
+                  ...existingShowWhatsapp,
+                  [payload.id]: payload.showWhatsapp === true,
                 },
                 _employeeSchedules: payload.schedule
                   ? {
@@ -1859,6 +1895,8 @@ export function EquipoSection() {
           ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
         const existingCanCancelTurno = (existingSchedule
           ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
+        const existingShowWhatsapp = (existingSchedule
+          ._employeeShowWhatsapp ?? {}) as Record<string, boolean>;
         const existingEmpScheds = (existingSchedule._employeeSchedules ??
           {}) as Record<string, unknown>;
         const existingEmpSpecial = (existingSchedule
@@ -1903,6 +1941,10 @@ export function EquipoSection() {
                 _employeeAgendaCancel: {
                   ...existingCanCancelTurno,
                   [editingEmp.id]: form.canCancelTurno,
+                },
+                _employeeShowWhatsapp: {
+                  ...existingShowWhatsapp,
+                  [editingEmp.id]: form.showWhatsapp,
                 },
                 _employeeSchedules: {
                   ...existingEmpScheds,
@@ -1973,6 +2015,10 @@ export function EquipoSection() {
         setEmployeeCanCancelTurnoMap((current) => ({
           ...current,
           [editingEmp.id]: form.canCancelTurno,
+        }));
+        setEmployeeShowWhatsappMap((current) => ({
+          ...current,
+          [editingEmp.id]: form.showWhatsapp,
         }));
         setEmployeeCommissionsMap((current) => ({
           ...current,
@@ -2069,6 +2115,8 @@ export function EquipoSection() {
         ._employeeAgendaAdd ?? {}) as Record<string, boolean>;
       const existingCanCancelTurno = (existingSchedule
         ._employeeAgendaCancel ?? {}) as Record<string, boolean>;
+      const existingShowWhatsapp = (existingSchedule
+        ._employeeShowWhatsapp ?? {}) as Record<string, boolean>;
       const existingEmpScheds = (existingSchedule._employeeSchedules ??
         {}) as Record<string, unknown>;
       const visibility = getPublicVisibility(existingSchedule);
@@ -2108,6 +2156,10 @@ export function EquipoSection() {
               _employeeAgendaCancel: {
                 ...existingCanCancelTurno,
                 [newId]: form.canCancelTurno,
+              },
+              _employeeShowWhatsapp: {
+                ...existingShowWhatsapp,
+                [newId]: form.showWhatsapp,
               },
               _employeeSchedules: {
                 ...existingEmpScheds,
@@ -2169,6 +2221,10 @@ export function EquipoSection() {
       setEmployeeCanCancelTurnoMap((current) => ({
         ...current,
         [newId]: form.canCancelTurno,
+      }));
+      setEmployeeShowWhatsappMap((current) => ({
+        ...current,
+        [newId]: form.showWhatsapp,
       }));
       setEmployeeCommissionsMap((current) => ({
         ...current,
@@ -2344,6 +2400,7 @@ export function EquipoSection() {
         approvalMode: employeeApprovalModeMap[emp.id] === "manual" ? "manual" : "auto",
         canAddTurno: employeeCanAddTurnoMap[emp.id] === true,
         canCancelTurno: employeeCanCancelTurnoMap[emp.id] === true,
+        showWhatsapp: employeeShowWhatsappMap[emp.id] === true,
         commissions: employeeCommissionsMap[emp.id] ?? {},
         serviceOverrides: employeeServiceOverridesMap[emp.id] ?? {},
         branchId: emp.branch_id ?? null,
@@ -3982,6 +4039,10 @@ export function EquipoSection() {
                     canCancelTurno={form.canCancelTurno}
                     onToggleCanCancelTurno={(v) =>
                       setForm({ ...form, canCancelTurno: v })
+                    }
+                    showWhatsapp={form.showWhatsapp}
+                    onToggleShowWhatsapp={(v) =>
+                      setForm({ ...form, showWhatsapp: v })
                     }
                   />
                   </DlgSection>

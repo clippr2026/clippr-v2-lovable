@@ -4300,6 +4300,8 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
   onDepositChanged,
   ocultarFicha = false,
   ocultarEmail = false,
+  ocultarWhatsapp = false,
+  ocultarRecurrencia = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -4328,6 +4330,9 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
   /** Mi Agenda no muestra la Ficha del cliente ni el Email. */
   ocultarFicha?: boolean;
   ocultarEmail?: boolean;
+  /** Mi Panel: el WhatsApp del cliente solo se muestra si Equipo lo permite para ese profesional. */
+  ocultarWhatsapp?: boolean;
+  ocultarRecurrencia?: boolean;
 }) {
   // El detalle es un Dialog no modal (modal={false}): sin esto la pantalla de atrás sigue scrolleando.
   useBodyScrollLock(open && !!appointment);
@@ -4531,10 +4536,10 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
 
             <div className="relative mt-3 flex flex-nowrap items-stretch gap-2 sm:mt-4 sm:gap-2.5">
               {[
-                { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-5 w-5" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
+                { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-5 w-5" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) && !ocultarWhatsapp },
                 { key: "mail", label: "Email", icon: <Mail className="h-5 w-5" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) && !ocultarEmail },
                 { key: "ficha", label: "Ficha", icon: <UserRound className="h-5 w-5" />, color: "#e5e7eb", onClick: () => onFicha(appointment), show: !ocultarFicha },
-                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-5 w-5" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
+                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-5 w-5" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) && !ocultarRecurrencia },
               ]
                 .filter((b) => b.show)
                 .map((b) => {

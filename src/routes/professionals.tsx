@@ -294,6 +294,7 @@ function ProfessionalsPage() {
   const [employeeCanAddTurnoMap, setEmployeeCanAddTurnoMap] = useState<
     Record<string, boolean>
   >({});
+  const [employeeShowWhatsappMap, setEmployeeShowWhatsappMap] = useState<Record<string, boolean>>({});
   const [employeeCanCancelTurnoMap, setEmployeeCanCancelTurnoMap] = useState<
     Record<string, boolean>
   >({});
@@ -354,6 +355,9 @@ function ProfessionalsPage() {
         );
         setEmployeeCanCancelTurnoMap(
           (schedule._employeeAgendaCancel as Record<string, boolean>) ?? {},
+        );
+        setEmployeeShowWhatsappMap(
+          (schedule._employeeShowWhatsapp as Record<string, boolean>) ?? {},
         );
         const visibility = getPublicVisibility(schedule);
         setEmployeeOnlineMap(
@@ -630,6 +634,7 @@ function ProfessionalsPage() {
         <TurnosView
           businessId={businessId}
           empId={empId}
+          showWhatsapp={!!empId && employeeShowWhatsappMap[empId] === true}
           fromDate={fromDate}
           toDate={fromDate}
           approvalMode={approvalMode}
@@ -1052,8 +1057,9 @@ function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProp
   };
 }
 
-function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl }: {
+function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl, showWhatsapp = false }: {
   businessId: string | null; empId: string | null;
+  showWhatsapp?: boolean;
   fromDate: string;
   toDate: string;
   approvalMode: "auto" | "manual" | "disabled";
@@ -1950,6 +1956,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               senasConfigRaw={senasConfigRaw}
               ocultarFicha
               ocultarEmail
+              ocultarRecurrencia
+              ocultarWhatsapp={!showWhatsapp}
             />
           );
         }
