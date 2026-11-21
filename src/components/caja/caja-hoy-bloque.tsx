@@ -5,6 +5,32 @@ import { TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
 // caja y dinero en banco), para que Caja muestre exactamente lo mismo.
 const pesos = (n: number) => `$${Math.round(n || 0).toLocaleString("es-AR")}`;
 const CARGANDO = "···";
+const OCULTO = "••••••";
+const OCULTAR_KEY = "clippr_caja_montos_ocultos";
+
+// Como en el banco: tocar un número lo oculta (y otro toque lo muestra). Se acuerda de la elección.
+function useMontosOcultos(): [boolean, () => void] {
+  const [oculto, setOculto] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setOculto(localStorage.getItem(OCULTAR_KEY) === "1");
+    } catch {
+      /* sin almacenamiento: queda visible */
+    }
+  }, []);
+  const alternar = React.useCallback(() => {
+    setOculto((v) => {
+      const n = !v;
+      try {
+        localStorage.setItem(OCULTAR_KEY, n ? "1" : "0");
+      } catch {
+        /* nada */
+      }
+      return n;
+    });
+  }, []);
+  return [oculto, alternar];
+}
 const egreso = (n: number) => {
   const abs = Math.abs(Math.round(n || 0));
   return abs > 0 ? `-$${abs.toLocaleString("es-AR")}` : "$0";
@@ -15,11 +41,13 @@ function MiniStat({
   label,
   value,
   onClick,
+  onToggle,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   onClick?: () => void;
+  onToggle?: () => void;
 }) {
   const content = (
     <>
@@ -27,7 +55,19 @@ function MiniStat({
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate text-[11px] leading-tight">{label}</span>
       </div>
-      <div className="mt-1 font-display text-lg font-semibold tracking-tight truncate">{value}</div>
+      <div
+        className="mt-1 truncate font-display text-lg font-semibold tracking-tight"
+        onClick={
+          onToggle
+            ? (e) => {
+                e.stopPropagation();
+                onToggle();
+              }
+            : undefined
+        }
+      >
+        {value}
+      </div>
     </>
   );
   if (onClick) {
@@ -62,6 +102,8 @@ export function CajaHoyBloque({
   onEfectivo: () => void;
   onBanco: () => void;
 }) {
+  const [oculto, alternar] = useMontosOcultos();
+  const ver = (t: string) => (loading ? CARGANDO : oculto ? OCULTO : t);
   return (
     <div className={`glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 ${loading ? "animate-pulse" : ""}`}>
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Caja de hoy</div>
@@ -71,19 +113,19 @@ export function CajaHoyBloque({
             <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
             <span className="text-xs">Ingresos</span>
           </div>
-          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{loading ? CARGANDO : pesos(ingresos)}</div>
+          <div onClick={alternar} className="mt-0.5 cursor-pointer text-xl sm:text-2xl font-display font-semibold tracking-tight">{ver(pesos(ingresos))}</div>
         </div>
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
             <span className="text-xs">Egresos</span>
           </div>
-          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{loading ? CARGANDO : egreso(egresos)}</div>
+          <div onClick={alternar} className="mt-0.5 cursor-pointer text-xl sm:text-2xl font-display font-semibold tracking-tight">{ver(egreso(egresos))}</div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <MiniStat icon={Wallet} label="Efectivo en caja" value={loading ? CARGANDO : pesos(efectivo)} onClick={onEfectivo} />
-        <MiniStat icon={CreditCard} label="Dinero en banco" value={loading ? CARGANDO : pesos(banco)} onClick={onBanco} />
+        <MiniStat icon={Wallet} label="Efectivo en caja" value={ver(pesos(efectivo))} onToggle={alternar} onClick={onEfectivo} />
+        <MiniStat icon={CreditCard} label="Dinero en banco" value={ver(pesos(banco))} onToggle={alternar} onClick={onBanco} />
       </div>
     </div>
   );
