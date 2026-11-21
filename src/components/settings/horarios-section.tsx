@@ -404,7 +404,7 @@ export function HorariosSection({
                 }
               />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
               <input
                 type="time"
                 value={d.open}
@@ -416,7 +416,7 @@ export function HorariosSection({
                   // abierto/cerrado unas líneas más abajo.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
                 }}
-                className="h-12 w-full min-w-0 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
               <input
                 type="time"
@@ -427,14 +427,13 @@ export function HorariosSection({
                   // Igual que apertura: solo el día editado.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
                 }}
-                className="h-12 w-full min-w-0 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
             </div>
             {d.enabled && (
               <div className="mt-3.5 border-t border-white/10 pt-3.5">
                 <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 text-base text-white/75"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15 ring-1 ring-amber-300/25"><Coffee className="h-4.5 w-4.5 text-amber-200" /></span>Descanso</div>
-                  <span className="ml-auto mr-3 text-base text-white/45">{d.breakStart || d.breakEnd ? "" : "Sin descanso"}</span>
                   <Toggle
                   on={Boolean(d.breakStart || d.breakEnd)}
                   onChange={(v) =>
@@ -447,7 +446,7 @@ export function HorariosSection({
                 />
                 </div>
                 {d.breakStart || d.breakEnd ? (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                     <input
                       type="time"
                       value={d.breakStart}
@@ -455,7 +454,7 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
                       }}
-                      className="h-12 w-full min-w-0 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                     <input
                       type="time"
@@ -464,7 +463,7 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
                       }}
-                      className="h-12 w-full min-w-0 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                   </div>
                 ) : null}
