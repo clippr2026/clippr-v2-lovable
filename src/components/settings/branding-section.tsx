@@ -2143,11 +2143,10 @@ export function BrandingSection() {
 
   return (
     <div>
-    <div className="min-w-0 space-y-6">{formContent}</div>
+    <div className="min-w-0 space-y-6 pb-32">{formContent}</div>
     <FloatingSaveButton
       visible={dirty || horariosDirty}
       saving={saving}
-      raised={Boolean(previewPanel) && !isXl}
       onClick={() => {
         void (async () => {
           if (dirty) await save(true);
@@ -2160,7 +2159,7 @@ export function BrandingSection() {
         <button
           type="button"
           onClick={() => setPreviewOpen(true)}
-          className="fixed bottom-24 right-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-xl"
+          className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 py-3.5 text-sm font-semibold text-white shadow-xl"
         >
           Vista previa
         </button>
