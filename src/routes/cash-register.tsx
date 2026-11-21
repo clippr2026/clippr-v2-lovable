@@ -13723,7 +13723,7 @@ function TransferReceiptField({
 
   if (!previewUrl) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-2">
+      <div>
         <input
           ref={inputRef}
           type="file"
@@ -13734,7 +13734,7 @@ function TransferReceiptField({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-dashed border-white/20 bg-white/[0.03] px-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
         >
           <Camera className="size-4" />
           Agregar comprobante
@@ -17518,12 +17518,11 @@ export function NuevaVentaTab({
               legibilidad ni área táctil. */}
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2 space-y-1.5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
             <div className="space-y-1">
-              <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+              <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-2" : "grid-cols-1")}>
                 {!lockedEmployeeId && (
                   <div className="flex min-w-0 items-center gap-2 text-base">
                     <User className="size-4 shrink-0 text-white/35" />
                     <span className="min-w-0 truncate text-white">
-                      <span className="text-white/45">Profesional: </span>
                       <span className="font-semibold">{selectedEmployee?.name ?? "—"}</span>
                     </span>
                   </div>
@@ -17531,7 +17530,6 @@ export function NuevaVentaTab({
                 <div className="flex min-w-0 items-center gap-2 text-base">
                   <Users className="size-4 shrink-0 text-white/35" />
                   <span className="min-w-0 truncate text-white">
-                    <span className="text-white/45">Cliente: </span>
                     <span className="font-semibold">{client || "Cliente seleccionado"}</span>
                   </span>
                 </div>

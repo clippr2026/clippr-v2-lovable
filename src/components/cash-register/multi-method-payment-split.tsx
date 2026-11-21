@@ -172,7 +172,7 @@ export function MultiMethodPaymentSplit({
         // "Vuelto": con varios métodos combinados el excedente no
         // necesariamente es efectivo que se le devuelve al cliente en
         // mano — "Vuelto" es específico de Pago simple en efectivo.
-        <div className="flex items-center justify-between gap-2 rounded-full border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-4">
+        <div className={cn("flex items-center justify-between gap-2 rounded-full", splitsTotal > 0 && "border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-4")}>
           <button
             onClick={addSplit}
             disabled={splits.length >= paymentOptions.length}
