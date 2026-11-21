@@ -17536,15 +17536,12 @@ export function NuevaVentaTab({
               </div>
 
               {cartItems.length === 1 ? (
-                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-base">
-                  <span className="flex min-w-0 items-center gap-2 text-white">
-                    <Scissors className="size-4 shrink-0 text-white/35" />
-                    <span className="min-w-0 truncate">
-                      <span className="text-white/45">Servicio: </span>
-                      <span className="font-semibold">{cartItems[0].svc.name}</span>
-                    </span>
+                <div className="flex flex-col gap-1 border-t border-white/10 pt-2 text-base">
+                  <span className="flex min-w-0 items-start gap-2 text-white">
+                    <Scissors className="mt-1 size-4 shrink-0 text-white/35" />
+                    <span className="min-w-0 break-words font-semibold">{cartItems[0].svc.name}</span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                  <span className="flex shrink-0 items-center justify-end gap-1.5 tabular-nums">
                     {priceEditId === cartItems[0].svc.id ? (
                       <PriceEditInput
                         value={priceEditValue}
