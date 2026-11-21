@@ -15612,7 +15612,8 @@ export function NuevaVentaTab({
   const { profile: authProfile } = useAuth();
   const canEditPrice = !lockedEmployeeId && turnoChargeMode !== "manual" && authProfile?.role !== "profesional";
   const [priceOverrides, setPriceOverrides] = React.useState<Record<string, number>>({});
-  // Lápiz del precio: bajar el precio de un servicio funciona como descuento (por unidad, por servicio).
+  // Lápiz del precio: el precio final que se puso para cada servicio (por unidad). Funciona como descuento y
+  // no cambia al cambiar el método de pago: el descuento se recalcula para que quede ese precio.
   const [priceDiscounts, setPriceDiscounts] = React.useState<Record<string, number>>({});
   const [priceEditId, setPriceEditId] = React.useState<string | null>(null);
   const [priceEditValue, setPriceEditValue] = React.useState("");
@@ -15913,7 +15914,7 @@ export function NuevaVentaTab({
     const unit = item ? Math.round(cartUnitPrice(item.svc)) : 0;
     if (item && !selectedPromotion && unit > 0 && n < unit) {
       // Un precio menor es un descuento: el precio original queda tachado.
-      setPriceDiscounts((prev) => ({ ...prev, [id]: unit - n }));
+      setPriceDiscounts((prev) => ({ ...prev, [id]: n }));
       setPriceOverrides((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -16020,7 +16021,10 @@ export function NuevaVentaTab({
   // "total" ya es el precio con el método actual resuelto (efectivo si
   // corresponde) — un % manual se calcula sobre ESE monto, nunca sobre el
   // precio de lista, mismo criterio que el descuento de una promoción.
-  const lapizDiscount = cartItems.reduce((acc, { svc, qty }) => acc + (priceDiscounts[svc.id] ?? 0) * qty, 0);
+  const lapizDiscount = cartItems.reduce(
+    (acc, { svc, qty }) => acc + Math.max(0, cartUnitPrice(svc) - (priceDiscounts[svc.id] ?? Infinity)) * qty,
+    0,
+  );
   const manualDiscountValue = Math.max(
     0,
     Math.min(
@@ -17553,7 +17557,7 @@ export function NuevaVentaTab({
                     ) : (
                       <>
                         <span className="tabular-nums">
-                          {(priceDiscounts[cartItems[0].svc.id] ?? 0) > 0 ? (
+                          {(priceDiscounts[cartItems[0].svc.id] ?? 0) > 0 && lapizDiscount > 0 ? (
                             <>
                               <span className="text-white/30 line-through">${Math.round(total).toLocaleString("es-AR")}</span>{" "}
                               <span className="font-bold text-emerald-300">
@@ -17633,13 +17637,13 @@ export function NuevaVentaTab({
                             />
                           ) : (
                             <>
-                              {(priceDiscounts[svc.id] ?? 0) > 0 ? (
+                              {(priceDiscounts[svc.id] ?? 0) > 0 && cartUnitPrice(svc) > priceDiscounts[svc.id] ? (
                                 <span className="whitespace-nowrap text-xs">
                                   <span className="text-white/30 line-through">
                                     ${Math.round(cartUnitPrice(svc) * qty).toLocaleString("es-AR")}
                                   </span>{" "}
                                   <span className="font-semibold text-emerald-300">
-                                    ${Math.round((cartUnitPrice(svc) - priceDiscounts[svc.id]) * qty).toLocaleString("es-AR")}
+                                    ${Math.round(priceDiscounts[svc.id] * qty).toLocaleString("es-AR")}
                                   </span>
                                 </span>
                               ) : showCashPrice ? (
