@@ -454,9 +454,6 @@ function VentasView({ d, perf, prev, vsLabel }: ViewProps) {
         <Stat label="Ventas" value={int(v.total)} sub={<Delta cur={perf.ventas} prev={prev?.ventas ?? null} label={vsLabel} />} />
         <Stat label="Promedio por día" value={v.promedioPorDia.toFixed(1).replace(".", ",")} sub={`${v.diasConVentas} días con ventas`} />
         <Stat label="Anuladas" value={int(v.anuladas.count)} sub={`${money(v.anuladas.monto)} · no cuentan`} />
-        <Stat label="Sin cobrar" value={int(v.sinCobrar.count)} sub={money(v.sinCobrar.monto)} />
-        <Stat label="Combos" value={int(v.combos)} />
-        <Stat label="Con producto" value={int(v.conProducto)} />
       </StatGrid>
 
       <Block title="Con turno vs orden de llegada" hint="Las ventas sin turno agendado son clientes que llegaron sin reserva.">
