@@ -763,7 +763,7 @@ function PriceEditorModal({
     // (z-40, sticky/fixed, hermanos de <main> a nivel raíz). Mismo fix que
     // "Agregar profesional" (commit a084001). padding-bottom reserva el
     // alto real del nav inferior (3.5rem + safe-area en mobile).
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
       <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
@@ -775,7 +775,7 @@ function PriceEditorModal({
           </button>
         </div>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto p-4 space-y-3 [-webkit-overflow-scrolling:touch] [overscroll-behavior:contain]">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3 [-webkit-overflow-scrolling:touch]">
           {isService ? (
             <>
               <SectionCard label="Información principal">
