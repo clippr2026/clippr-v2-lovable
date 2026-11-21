@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Crown, Info, Sparkles, Star, Tag, UserRound } from "lucide-react";
 import { publicButtonStyle } from "@/lib/public-button";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -133,23 +134,20 @@ export function PublicServicesList({
   const [infoFor, setInfoFor] = React.useState<string | null>(null);
   const [descFor, setDescFor] = React.useState<string | null>(null);
   // Botón "i" junto al nombre: muestra la descripción del servicio (si el negocio la cargó).
-  const descButton = (service: PublicServiceItem) =>
+  const descButton = (service: PublicServiceItem, pos: string) =>
     service.description ? (
       <button
         type="button"
         onClick={() => setDescFor((v) => (v === service.id ? null : service.id))}
         aria-label="Ver descripción del servicio"
-        aria-expanded={descFor === service.id}
-        className="absolute bottom-1.5 right-1.5 z-10 grid h-8 w-8 place-items-center rounded-full border-2 shadow-lg transition"
-        style={{ borderColor: accent, color: descFor === service.id ? buttonText : "#ffffff", background: descFor === service.id ? accent : "rgba(8,7,15,0.82)" }}
+        aria-haspopup="dialog"
+        className={"absolute z-10 grid h-8 w-8 place-items-center rounded-full border-2 transition active:scale-95 " + pos}
+        style={{ borderColor: accent, color: accent, background: "transparent" }}
       >
         <Info className="h-4 w-4" />
       </button>
     ) : null;
-  const descText = (service: PublicServiceItem) =>
-    service.description && descFor === service.id ? (
-      <p className="mt-2 whitespace-pre-line text-sm leading-snug opacity-80">{service.description}</p>
-    ) : null;
+  const descService = descFor ? services.find((x) => x.id === descFor) ?? null : null;
   const featured = featuredId ? services.find((s) => s.id === featuredId) ?? null : null;
   // Orden: destacado, luego las promos y al final los demás (cada grupo mantiene su orden).
   const others = services.filter((s) => s.id !== featured?.id);
@@ -215,6 +213,7 @@ export function PublicServicesList({
                 >
                   <Star className="h-3.5 w-3.5" /> Servicio destacado
                 </span>
+                {descButton(featured, "right-14 top-3")}
                 <Crown className="absolute right-4 top-3 h-7 w-7" style={{ color: GOLD, filter: `drop-shadow(0 0 8px ${GOLD}aa)` }} />
                 <div className="mt-2 flex items-start gap-4">
                   <div className="relative shrink-0">
@@ -225,12 +224,10 @@ export function PublicServicesList({
                       className="h-24 w-24 shrink-0 rounded-2xl ring-1 ring-white/15 sm:h-28 sm:w-28"
                       fallback={fallback}
                     />
-                    {descButton(featured)}
                   </div>
-                  <div className="min-w-0 flex-1 pr-7">
+                  <div className={"min-w-0 flex-1 " + (featured.description ? "pr-14" : "pr-7")}>
                     {promoBadge(featured.id)}
                     <p className="line-clamp-3 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
-                    {descText(featured)}
                     {featuredDescription ? <p className="mt-1.5 text-sm leading-snug text-white/75">{featuredDescription}</p> : null}
                   </div>
                 </div>
@@ -246,7 +243,7 @@ export function PublicServicesList({
       {rest.map((service) => {
         const pr = pricingOf(service, employeeIds, overrides);
         return (
-          <div key={service.id} className={`${rowBorder} flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-white/[0.05] sm:gap-4 sm:p-4`}>
+          <div key={service.id} className={`${rowBorder} relative flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-white/[0.05] sm:gap-4 sm:p-4`}>
             <div className="relative shrink-0">
               <ServiceImage
                 src={service.image_url}
@@ -255,12 +252,11 @@ export function PublicServicesList({
                 className={(light ? "ring-zinc-200" : "ring-white/10") + " h-16 w-16 shrink-0 rounded-xl ring-1 sm:h-[4.5rem] sm:w-[4.5rem]"}
                 fallback={fallback}
               />
-              {descButton(service)}
             </div>
+            {descButton(service, "right-3 top-3")}
             <div className="min-w-0 flex-1">
               {promoBadge(service.id)}
-              <p className="line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
-              {descText(service)}
+              <p className={"line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg" + (service.description ? " pr-9" : "")}>{service.name}</p>
               <div className="mt-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                 <div className="min-w-0">
                   <PriceChips {...pr} light={light} infoOpen={infoFor === service.id} onInfo={() => setInfoFor((v) => (v === service.id ? null : service.id))} />
@@ -271,6 +267,36 @@ export function PublicServicesList({
           </div>
         );
       })}
+
+      {descService && descService.description && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+              onClick={() => setDescFor(null)}
+              role="dialog"
+              aria-modal="true"
+              aria-label={descService.name}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="max-h-[80dvh] w-full max-w-sm space-y-4 overflow-y-auto rounded-[28px] border-2 bg-[#08070f] p-6 text-white"
+                style={{ borderColor: accent, boxShadow: `0 0 30px -8px ${accent}` }}
+              >
+                <p className="text-xl font-bold uppercase leading-tight">{descService.name}</p>
+                <p className="whitespace-pre-line text-base leading-relaxed text-white/80">{descService.description}</p>
+                <button
+                  type="button"
+                  onClick={() => setDescFor(null)}
+                  className="w-full rounded-full py-3 text-base font-bold"
+                  style={publicButtonStyle(accent, buttonText)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
