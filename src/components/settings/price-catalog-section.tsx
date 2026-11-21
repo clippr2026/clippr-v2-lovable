@@ -1094,6 +1094,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   // Posición del recorte de cada imagen: { [id]: "50% 50%" }
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
+  // Descripción de cada servicio (se guarda en business_settings.schedule._serviceDescriptions).
+  const [descriptionMap, setDescriptionMap] = useState<Record<string, string>>({});
   // `ready` se setea UNA sola vez, con el primer (y único) fetch combinado de
   // items + categorías. A diferencia del esquema anterior (loading +
   // categoriesLoading + initialCategoryReady derivados en cada render), acá
@@ -1278,6 +1280,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         if (pid.trim() && typeof value === "string" && value.trim()) posMap[pid] = value;
       }
 
+      const descs = (schedule._serviceDescriptions ?? {}) as Record<string, unknown>;
+      const descMapLoaded: Record<string, string> = {};
+      for (const [pid, value] of Object.entries(descs)) {
+        if (pid.trim() && typeof value === "string" && value.trim()) descMapLoaded[pid] = value;
+      }
+
       let nextBookingConfig = bookingConfig;
       if (!isService) {
         const bp = (schedule._bookingProducts ?? {}) as Record<string, unknown>;
@@ -1337,6 +1345,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       }
       setImageMap(imgMap);
       setImagePositionMap(posMap);
+      setDescriptionMap(descMapLoaded);
       setItemOrderMap(nextItemOrderMap);
       setCat(resolvedCat);
       setReady(true);
@@ -1552,6 +1561,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const rowsRef = useRef(rows);
   const imageMapRef = useRef(imageMap);
   const imagePositionMapRef = useRef(imagePositionMap);
+  const descriptionMapRef = useRef(descriptionMap);
   const itemOrderRef = useRef(itemOrderMap);
   useEffect(() => {
     bookingConfigRef.current = bookingConfig;
@@ -1568,6 +1578,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     imagePositionMapRef.current = imagePositionMap;
   }, [imagePositionMap]);
+  useEffect(() => {
+    descriptionMapRef.current = descriptionMap;
+  }, [descriptionMap]);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -1594,6 +1607,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const nextBookingConfig = { ...bookingConfigRef.current };
         const nextImageMap = { ...imageMapRef.current };
         const nextImagePositionMap = { ...imagePositionMapRef.current };
+        const nextDescriptionMap = { ...descriptionMapRef.current };
         const tempIdToReal: Record<string, string> = {};
 
         // Flush deletes — baja lógica (deleted_at), nunca DELETE físico: ver
@@ -1611,6 +1625,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           else delete nextBookingConfig[id];
           delete nextImageMap[id];
           delete nextImagePositionMap[id];
+          delete nextDescriptionMap[id];
         }
 
         // Flush upserts
@@ -1636,6 +1651,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               if (nextImagePositionMap[tempId]) {
                 nextImagePositionMap[realId] = nextImagePositionMap[tempId];
                 delete nextImagePositionMap[tempId];
+              }
+              if (nextDescriptionMap[tempId]) {
+                nextDescriptionMap[realId] = nextDescriptionMap[tempId];
+                delete nextDescriptionMap[tempId];
               }
             } else {
               const realId = String(inserted.id);
@@ -1738,6 +1757,22 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        const mergeServiceDescriptions = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, string> => {
+          const existing = (existingSchedule._serviceDescriptions ?? {}) as Record<string, unknown>;
+          const ids = ownImageIds();
+          const merged: Record<string, string> = {};
+          for (const [k, v] of Object.entries(existing)) {
+            if (!ids.has(k) && typeof v === "string" && v.trim()) merged[k] = v;
+          }
+          for (const id of ids) {
+            const text = nextDescriptionMap[id];
+            if (text && text.trim()) merged[id] = text;
+          }
+          return merged;
+        };
+
         // Coordenadas de recorte explícitas (no solo el string CSS de object-position),
         // para que el recorte se pueda reconstruir con la geometría real de cada pantalla.
         const mergeCatalogImageOffsets = (
@@ -1815,6 +1850,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setImageMap(nextImageMap);
         imagePositionMapRef.current = nextImagePositionMap;
         setImagePositionMap(nextImagePositionMap);
+        descriptionMapRef.current = nextDescriptionMap;
+        setDescriptionMap(nextDescriptionMap);
 
         if (isService && businessId) {
           serviceReservableMapRef.current = nextServiceReservableMap;
@@ -1837,6 +1874,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _catalogImages: mergeCatalogImages(existingSchedule),
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
+                _serviceDescriptions: mergeServiceDescriptions(existingSchedule),
                 _serviceCategories: mergeServiceCategories(existingSchedule),
                 _serviceCashDiscounts: mergeServiceCashDiscounts(existingSchedule),
                 _publicVisibility: {
@@ -2039,6 +2077,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       miniDesc: !isService ? cfg?.miniDesc ?? "" : "",
       image: imageMap[row.id] ?? "",
       imagePosition: imagePositionMap[row.id] ?? "50% 50%",
+      description: isService ? descriptionMap[row.id] ?? "" : "",
     });
     setModalOpen(true);
   }
@@ -2120,6 +2159,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         else delete next[editing.id];
         return next;
       });
+      if (isService)
+        setDescriptionMap((current) => {
+          const next = { ...current };
+          if (form.description.trim()) next[editing.id] = form.description.trim();
+          else delete next[editing.id];
+          return next;
+        });
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -2150,6 +2196,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             miniDesc: form.miniDesc,
           },
         }));
+      if (isService && form.description.trim()) {
+        setDescriptionMap((current) => ({ ...current, [tempId]: form.description.trim() }));
+      }
       if (form.image) {
         setImageMap((current) => ({ ...current, [tempId]: form.image }));
         setImagePositionMap((current) => ({ ...current, [tempId]: form.imagePosition || "50% 50%" }));

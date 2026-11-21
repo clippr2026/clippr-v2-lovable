@@ -16,6 +16,7 @@ export type PublicServiceItem = {
   image_url?: string | null;
   image_position?: string | null;
   cash_discount?: number | null;
+  description?: string | null;
 };
 
 const money = (n: number) => `$${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n)}`;
@@ -130,6 +131,25 @@ export function PublicServicesList({
   bookingHref: (p: { service: string }) => string;
 }) {
   const [infoFor, setInfoFor] = React.useState<string | null>(null);
+  const [descFor, setDescFor] = React.useState<string | null>(null);
+  // Botón "i" junto al nombre: muestra la descripción del servicio (si el negocio la cargó).
+  const descButton = (service: PublicServiceItem) =>
+    service.description ? (
+      <button
+        type="button"
+        onClick={() => setDescFor((v) => (v === service.id ? null : service.id))}
+        aria-label="Ver descripción del servicio"
+        aria-expanded={descFor === service.id}
+        className="inline-grid h-7 w-7 shrink-0 place-items-center rounded-full border transition"
+        style={{ borderColor: accent, color: descFor === service.id ? buttonText : accent, background: descFor === service.id ? accent : "transparent" }}
+      >
+        <Info className="h-4 w-4" />
+      </button>
+    ) : null;
+  const descText = (service: PublicServiceItem) =>
+    service.description && descFor === service.id ? (
+      <p className="mt-2 whitespace-pre-line text-sm leading-snug opacity-80">{service.description}</p>
+    ) : null;
   const featured = featuredId ? services.find((s) => s.id === featuredId) ?? null : null;
   const rest = services.filter((s) => s.id !== featured?.id);
 
@@ -204,7 +224,11 @@ export function PublicServicesList({
                   />
                   <div className="min-w-0 flex-1 pr-7">
                     {promoBadge(featured.id)}
-                    <p className="line-clamp-3 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="line-clamp-3 min-w-0 flex-1 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
+                      {descButton(featured)}
+                    </div>
+                    {descText(featured)}
                     {featuredDescription ? <p className="mt-1.5 text-sm leading-snug text-white/75">{featuredDescription}</p> : null}
                   </div>
                 </div>
@@ -230,7 +254,11 @@ export function PublicServicesList({
             />
             <div className="min-w-0 flex-1">
               {promoBadge(service.id)}
-              <p className="line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
+              <div className="flex items-start gap-2">
+                <p className="line-clamp-2 min-w-0 flex-1 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
+                {descButton(service)}
+              </div>
+              {descText(service)}
               <div className="mt-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                 <div className="min-w-0">
                   <PriceChips {...pr} light={light} infoOpen={infoFor === service.id} onInfo={() => setInfoFor((v) => (v === service.id ? null : service.id))} />
