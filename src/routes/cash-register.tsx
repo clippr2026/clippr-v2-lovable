@@ -11690,6 +11690,7 @@ function RegistrarMovimientoModal({
   onClose: () => void;
   onConfirm: (amount: number, note: string, method: "efectivo" | "cuenta") => Promise<void>;
 }) {
+  useBodyScrollLock(true);
   const [amountStr, setAmountStr] = React.useState("");
   const [note, setNote] = React.useState("");
   const [method, setMethod] = React.useState<"efectivo" | "cuenta">("efectivo");
@@ -15613,6 +15614,8 @@ export function NuevaVentaTab({
   // venta normal.
   const [sinCargoReason, setSinCargoReason] = React.useState<string | null>(null);
   const [showSinCargoConfirm, setShowSinCargoConfirm] = React.useState(false);
+  // Las ventanas de confirmación no dejan que se mueva la pantalla de atrás.
+  useBodyScrollLock(Boolean(overpay) || showPartialConfirm || showSinCargoConfirm);
   const isSinCargo = sinCargoReason !== null;
   // Pago pendiente elegido con el botón: el monto queda fijo en $0 (no se
   // puede editar), el total es el de lista y se puede aplicar descuento.
