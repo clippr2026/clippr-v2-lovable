@@ -17523,7 +17523,7 @@ export function NuevaVentaTab({
               legibilidad ni área táctil. */}
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2 space-y-1.5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
             <div className="space-y-1">
-              <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-2" : "grid-cols-1")}>
+              <div className="grid grid-cols-1 gap-y-1">
                 {!lockedEmployeeId && (
                   <div className="flex min-w-0 items-center gap-2 text-base">
                     <User className="size-4 shrink-0 text-white/35" />
@@ -17541,12 +17541,12 @@ export function NuevaVentaTab({
               </div>
 
               {cartItems.length === 1 ? (
-                <div className="flex flex-col gap-1 border-t border-white/10 pt-2 text-base">
+                <div className="flex items-start justify-between gap-3 border-t border-white/10 pt-2 text-base">
                   <span className="flex min-w-0 items-start gap-2 text-white">
                     <Scissors className="mt-1 size-4 shrink-0 text-white/35" />
                     <span className="min-w-0 break-words font-semibold">{cartItems[0].svc.name}</span>
                   </span>
-                  <span className="flex shrink-0 items-center justify-end gap-1.5 tabular-nums">
+                  <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
                     {priceEditId === cartItems[0].svc.id ? (
                       <PriceEditInput
                         value={priceEditValue}
