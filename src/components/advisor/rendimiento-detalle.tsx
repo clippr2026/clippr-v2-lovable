@@ -92,12 +92,12 @@ function Bars({
     <div className="space-y-3.5">
       {list.map((r) => (
         <div key={r.label}>
-          <div className="flex items-baseline justify-between gap-3 text-base">
-            <span className="min-w-0 truncate font-semibold text-white">{r.label}</span>
-            <span className="shrink-0 font-semibold tabular-nums text-white">
+          <div className="text-base font-semibold text-white">{r.label}</div>
+          <div className="mt-0.5 flex items-baseline justify-between gap-3 text-base">
+            <span className="font-semibold tabular-nums text-white">
               {format(r.value)}
-              {sub && <span className="ml-1.5 text-sm font-normal text-white/55">{sub(r, total)}</span>}
             </span>
+            {sub && <span className="text-sm font-normal text-white/55">{sub(r, total)}</span>}
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
             <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} />
@@ -385,7 +385,7 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
           <div className="divide-y divide-white/[0.08] text-base">
             {g.mayores.map((e, i) => (
               <div key={`${e.name}-${i}`} className="flex items-baseline justify-between gap-3 py-2">
-                <span className="min-w-0 truncate font-semibold text-white">
+                <span className="min-w-0 font-semibold text-white">
                   {e.name} <span className="text-sm font-normal text-white/55">· {e.type}{e.date ? ` · ${dateLabel(e.date)}` : ""}</span>
                 </span>
                 <span className="shrink-0 tabular-nums text-white">{money(e.amount)}</span>
@@ -571,7 +571,7 @@ function ClientesView({ d, perf, prev, vsLabel, prevDet }: ViewProps) {
           <div className="divide-y divide-white/[0.08] text-base">
             {c.topClientes.map((t, i) => (
               <div key={`${t.name}-${i}`} className="flex items-baseline justify-between gap-3 py-2">
-                <span className="min-w-0 truncate font-semibold text-white">
+                <span className="min-w-0 font-semibold text-white">
                   {t.name} <span className="text-sm font-normal text-white/55">· {t.visitas} {t.visitas === 1 ? "visita" : "visitas"}</span>
                 </span>
                 <span className="shrink-0 tabular-nums text-white">{money(t.gasto)}</span>
