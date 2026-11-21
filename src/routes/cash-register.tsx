@@ -5918,7 +5918,7 @@ function ProfesionalesTab({
                   <button
                     type="button"
                     onClick={() => setAdelantoModalOpen(true)}
-                    className="h-9 w-full rounded-full border border-rose-400/40 bg-rose-400/10 px-3.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/20"
+                    className="h-11 w-full rounded-full bg-rose-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.35)] transition hover:brightness-110"
                   >
                     + Registrar
                   </button>
