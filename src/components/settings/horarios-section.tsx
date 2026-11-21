@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CalendarDays, AlarmClock, CalendarOff, CalendarSync, Clock3 } from "lucide-react";
+import { CalendarDays, AlarmClock, CalendarSync, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, Toggle, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
-import { ClosuresModal } from "@/components/agenda/closures-button";
 
 // ─────────── Horarios ───────────
 const DAYS = [
@@ -67,12 +66,14 @@ const DEFAULT_DAYS = DAYS.map((d, i) => ({
   name: d,
   open: "11:00",
   close: "20:00",
+  // Descanso del local ese día (vacío = sin descanso).
+  breakStart: "",
+  breakEnd: "",
   enabled: i < 6,
 }));
 
 export function HorariosSection() {
   const { businessId, activeBranchId, profile } = useAuth();
-  const [closuresOpen, setClosuresOpen] = useState(false);
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
@@ -135,6 +136,8 @@ export function HorariosSection() {
                 ...day,
                 open,
                 close: normalizeCloseTime(open, close),
+                breakStart: typeof saved.breakStart === "string" ? saved.breakStart : "",
+                breakEnd: typeof saved.breakEnd === "string" ? saved.breakEnd : "",
                 enabled: saved.enabled !== false,
               };
             }),
@@ -185,6 +188,19 @@ export function HorariosSection() {
       return openMin == null || closeMin == null || closeMin <= openMin;
     });
 
+    const invalidBreak = days.find((day) => {
+      if (!day.enabled || (!day.breakStart && !day.breakEnd)) return false;
+      const b0 = timeToMinutes(day.breakStart);
+      const b1 = timeToMinutes(day.breakEnd);
+      const o = timeToMinutes(day.open);
+      const c = timeToMinutes(day.close);
+      return b0 == null || b1 == null || o == null || c == null || b1 <= b0 || b0 < o || b1 > c;
+    });
+    if (invalidBreak) {
+      toast.error(`El descanso del ${invalidBreak.name.toLowerCase()} tiene que estar dentro del horario de atención.`);
+      return false;
+    }
+
     if (invalidDay) {
       toast.error(
         "El horario de cierre debe ser posterior al horario de apertura.",
@@ -214,11 +230,14 @@ export function HorariosSection() {
       // Agenda. Se preserva lo que ya hubiera (si alguna vez se cargó por
       // otra vía) en vez de reescribirlo con un valor inventado.
       const prevDay = (existing[dayKeys[i]] ?? {}) as Record<string, unknown>;
+      const { breakStart: _bs, breakEnd: _be, ...restoDia } = prevDay as Record<string, unknown>;
       schedule[dayKeys[i]] = {
-        ...prevDay,
+        ...restoDia,
         enabled: day.enabled,
         start: day.open,
         end: day.close,
+        // Descanso del local: solo si están los dos horarios.
+        ...(day.breakStart && day.breakEnd ? { breakStart: day.breakStart, breakEnd: day.breakEnd } : {}),
       };
     });
 
@@ -336,13 +355,8 @@ export function HorariosSection() {
         </div>
         <div className="divide-y divide-white/5">
           {days.map((d, i) => (
-            <div
-              key={d.name}
-              className={cn(
-                "grid grid-cols-[120px_1fr_1fr_auto] gap-3 items-center py-3",
-                !d.enabled && "opacity-50",
-              )}
-            >
+            <div key={d.name} className={cn("py-3", !d.enabled && "opacity-50")}>
+            <div className="grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
               <div className="text-sm font-medium">{d.name}</div>
               <input
                 type="time"
@@ -387,38 +401,45 @@ export function HorariosSection() {
                 }
               />
             </div>
+            {d.enabled && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-1">
+                <span className="w-[112px] text-sm text-white/65">Descanso</span>
+                <input
+                  type="time"
+                  value={d.breakStart}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
+                  }}
+                  className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                />
+                <span className="text-sm text-white/50">a</span>
+                <input
+                  type="time"
+                  value={d.breakEnd}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
+                  }}
+                  className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                />
+                {(d.breakStart || d.breakEnd) && (
+                  <button
+                    type="button"
+                    onClick={() => setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: "", breakEnd: "" } : x)))}
+                    className="rounded-full px-3 py-1.5 text-sm font-semibold text-rose-300 ring-1 ring-rose-400/25"
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+            )}
+            </div>
           ))}
         </div>
       </div>
 
-      <SectionCard label="Días cerrados">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-rose-500/10 ring-1 ring-rose-400/20 grid place-items-center">
-            <CalendarOff className="h-4.5 w-4.5 text-rose-300" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">
-              Fechas en las que el local no abre.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setClosuresOpen(true)}
-            className="shrink-0 rounded-xl bg-rose-500/12 px-4 py-2.5 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/25 transition hover:bg-rose-500/18"
-          >
-            Administrar días cerrados
-          </button>
-        </div>
-      </SectionCard>
 
-      {closuresOpen && (
-        <ClosuresModal
-          businessId={businessId}
-          branchId={activeBranchId}
-          createdByName={profile?.full_name ?? null}
-          onClose={() => setClosuresOpen(false)}
-        />
-      )}
 
       <SectionCard label="Turnos y reservas de clientes">
         <p className="mb-3 text-xs text-muted-foreground">
