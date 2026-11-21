@@ -344,6 +344,9 @@ export type LiquidacionRunSummaryRow = {
   // un texto genérico. Opcional: filas más viejas de settlement_runs
   // pueden no traerlo seleccionado desde donde se arma `runs`.
   period_start_at?: string | null;
+  // Saldo de adelantos que esta liquidación dejó para descontar en la siguiente (ver
+  // 20261120220000). Opcional: consultas viejas no lo traen (se toma como 0).
+  advance_balance_carried?: number | null;
 };
 
 export type LiquidacionAdvanceSummaryRow = {
@@ -365,6 +368,8 @@ export type LiquidacionPresentismoSummaryRow = {
 
 export type LiquidacionSummary = {
   previousBalance: number;
+  // Adelantos que sobraron en la liquidación anterior y se descuentan de esta.
+  previousAdvanceDebt: number;
   newCommissions: number;
   newTips: number;
   pendingAdvances: number;
@@ -446,6 +451,7 @@ export function computeLiquidacionSummary(
   const previousBalance = latestRun
     ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
     : 0;
+  const previousAdvanceDebt = Math.max(Number(latestRun?.advance_balance_carried ?? 0), 0);
   const periodStartAt: string | null = latestRun?.prepared_at ?? null;
   const periodStart: string | null = periodStartAt
     ? new Date(periodStartAt).toLocaleDateString("sv-SE")
@@ -510,6 +516,7 @@ export function computeLiquidacionSummary(
 
   return {
     previousBalance,
+    previousAdvanceDebt,
     newCommissions,
     newTips,
     pendingAdvances,
@@ -527,7 +534,8 @@ export function computeLiquidacionSummary(
         pendingCredits -
         pendingAdvances -
         pendingDeductions -
-        pendingPresentismoAdjustment,
+        pendingPresentismoAdjustment -
+        previousAdvanceDebt,
       0,
     ),
   };

@@ -4173,7 +4173,7 @@ function ProfesionalesTab({
             supabase
               .from("settlement_runs" as any)
               .select(
-                "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+                "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,advance_balance_carried,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
               )
               .eq("business_id", businessId)
               .order("id", { ascending: true })
@@ -4456,6 +4456,7 @@ function ProfesionalesTab({
         role: employee.role ?? employee.position ?? "Profesional",
         pending,
         previousBalance: summary.previousBalance,
+        previousAdvanceDebt: summary.previousAdvanceDebt,
         previousPeriodLabel: summary.previousPeriodLabel,
         newCommissions: summary.newCommissions,
         pendingAdvances: summary.pendingAdvances,
@@ -5047,7 +5048,10 @@ function ProfesionalesTab({
     // pendiente: $0". Una sola fuente de verdad, nunca más dos números que
     // puedan desincronizarse.
     const total = liquidarFinalTotal;
-    if (total <= 0) {
+    // Total negativo: los adelantos superan lo generado. Se cierra con $0 pagados y el sobrante
+    // pasa a la próxima liquidación (lo resuelve prepare_settlement_run).
+    const cierraConSaldo = total < 0;
+    if (total === 0) {
       toast.error("No hay nada para pagar en este corte");
       return;
     }
@@ -5111,8 +5115,9 @@ function ProfesionalesTab({
     // dentro de una sola llamada a register_settlement_run_payment_batch
     // — todos comparten el mismo Movimiento #, y "Ver detalle" igual puede
     // listar cada método por separado.
-    const paymentsToRegister =
-      paymentMode === "multiple"
+    const paymentsToRegister = cierraConSaldo
+      ? []
+      : paymentMode === "multiple"
         ? paymentSplits
             .map((s) => ({ amount: Number(s.amount || 0), method: s.method }))
             .filter((p) => p.amount > 0)
@@ -5198,6 +5203,10 @@ function ProfesionalesTab({
         toast.success(`Pago registrado para ${row.name}: ${money(paymentAmount)}`);
         resetLiquidarForm();
         setCommissionsVersion((v) => v + 1);
+      } else if (cierraConSaldo) {
+        toast.success(`Liquidación cerrada para ${row.name}. El saldo de ${money(-total)} se descontará en la próxima.`);
+        resetLiquidarForm();
+        setCommissionsVersion((v) => v + 1);
       } else {
         toast.success(`Saldo actualizado para ${row.name}`);
         resetLiquidarForm();
@@ -5209,6 +5218,17 @@ function ProfesionalesTab({
     } finally {
       setPreparingRunFor(null);
     }
+  }
+
+  async function cerrarLiquidacionConSaldo(row: (typeof rows)[number] | null) {
+    if (!row || liquidarFinalTotal >= 0) return;
+    const ok = await confirmarClippr({
+      titulo: "¿Cerrar la liquidación?",
+      texto: `Se cierra con $0 pagados. El saldo de ${money(-liquidarFinalTotal)} se descontará en la próxima liquidación. No se mueve plata de la caja.`,
+      confirmar: "Cerrar liquidación",
+    });
+    if (!ok) return;
+    await prepareRun(row);
   }
 
   async function registerAdvance(row: (typeof rows)[number] | null) {
@@ -5603,7 +5623,8 @@ function ProfesionalesTab({
       liquidarPendingAdjustmentQueue.pendingCredits -
       liquidarPendingAdvances -
       liquidarPendingAdjustmentQueue.pendingDeductions -
-      liquidarPendingPresentismo
+      liquidarPendingPresentismo -
+      selectedRow.previousAdvanceDebt
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -5671,8 +5692,8 @@ function ProfesionalesTab({
         )
         .reduce((sum: number, p: any) => sum + Number(p.discount_amount_applied ?? 0), 0);
       const total =
-        r.previousBalance + commissions + tips + queue.pendingCredits - advances - queue.pendingDeductions - presentismo;
-      return { id: r.id, name: r.name, role: r.role, commissions, tips, advances, presentismo, total };
+        r.previousBalance + commissions + tips + queue.pendingCredits - advances - queue.pendingDeductions - presentismo - r.previousAdvanceDebt;
+      return { id: r.id, name: r.name, role: r.role, commissions, tips, advances, advancesPrev: r.previousAdvanceDebt, presentismo, total };
     });
   }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock]);
 
@@ -5863,15 +5884,35 @@ function ProfesionalesTab({
                   tiene botones) para no arriesgar su layout ahí. */}
               <div className={cn("rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]", cantTarjetasCifras % 2 === 1 && "max-sm:col-span-2")} style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
                 <div className="flex flex-col gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
-                      <span>Adelantos</span>
-                      <InfoPopover text={ADELANTOS_INFO_TEXT} />
+                  {selectedRow.previousAdvanceDebt > 0.5 ? (
+                    // Saldo de adelantos que arrastra la liquidación anterior (y, si hay, los nuevos del período).
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
+                        <InfoPopover text={ADELANTOS_INFO_TEXT} />
+                      </div>
+                      {(
+                        [
+                          ["Adelantos pendientes", selectedRow.previousAdvanceDebt],
+                          ...(liquidarPendingAdvances > 0 ? [["Adelantos actuales", liquidarPendingAdvances]] : []),
+                        ] as Array<[string, number]>
+                      ).map(([nombre, monto]) => (
+                        <div key={nombre}>
+                          <div className="text-xs font-semibold text-white/75">{nombre}</div>
+                          <div className="text-lg font-bold tabular-nums">{`−${money(monto)}`}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="mt-0.5 text-lg font-bold tabular-nums">
-                      {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                  ) : (
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
+                        <span>Adelantos</span>
+                        <InfoPopover text={ADELANTOS_INFO_TEXT} />
+                      </div>
+                      <div className="mt-0.5 text-lg font-bold tabular-nums">
+                        {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => setAdelantoModalOpen(true)}
@@ -5896,17 +5937,31 @@ function ProfesionalesTab({
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-white/75">Total a pagar</div>
-                  <div className="mt-0.5 text-2xl font-bold tabular-nums text-emerald-300">
-                    {money(Math.max(liquidarBaseTotal, 0))}
+                  <div className={cn("mt-0.5 text-2xl font-bold tabular-nums", liquidarBaseTotal < 0 ? "text-rose-300" : "text-emerald-300")}>
+                    {liquidarBaseTotal < 0 ? `−${money(-liquidarBaseTotal)}` : money(liquidarBaseTotal)}
                   </div>
+                  {liquidarBaseTotal < 0 && (
+                    <div className="mt-0.5 text-xs text-white/60">El saldo se descontará en la próxima liquidación</div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openLiquidarModal(selectedRow)}
-                  className="h-11 shrink-0 rounded-full bg-emerald-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
-                >
-                  Pagar
-                </button>
+                {liquidarBaseTotal < 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void cerrarLiquidacionConSaldo(selectedRow)}
+                    disabled={preparingRunFor === selectedRow.id}
+                    className="h-11 shrink-0 rounded-full bg-emerald-500 px-5 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110 disabled:opacity-60"
+                  >
+                    {preparingRunFor === selectedRow.id ? "Cerrando…" : "Cerrar liquidación"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openLiquidarModal(selectedRow)}
+                    className="h-11 shrink-0 rounded-full bg-emerald-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
+                  >
+                    Pagar
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -6385,8 +6440,8 @@ function ProfesionalesTab({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 truncate text-base font-semibold text-white">{r.name}</div>
-                    <div className={cn("shrink-0 text-xl font-bold tabular-nums", r.total > 0 ? "text-emerald-300" : "text-white/40")}>
-                      {money(Math.max(r.total, 0))}
+                    <div className={cn("shrink-0 text-xl font-bold tabular-nums", r.total > 0 ? "text-emerald-300" : r.total < 0 ? "text-rose-300" : "text-white/40")}>
+                      {r.total < 0 ? `−${money(-r.total)}` : money(r.total)}
                     </div>
                   </div>
                   <div className="mt-2.5 divide-y divide-white/[0.07] rounded-xl bg-white/[0.03] px-3 ring-1 ring-white/[0.07]">
@@ -6394,7 +6449,14 @@ function ProfesionalesTab({
                       [
                         ["Comisiones", money(r.commissions), "text-white"],
                         ...(r.tips > 0 ? [["Propinas", money(r.tips), "text-white"]] : []),
-                        ...(r.advances > 0 ? [["Adelantos", `−${money(r.advances)}`, "text-rose-300"]] : []),
+                        ...(r.advancesPrev > 0.5
+                          ? [
+                              ["Adelantos pendientes", `−${money(r.advancesPrev)}`, "text-rose-300"],
+                              ...(r.advances > 0 ? [["Adelantos actuales", `−${money(r.advances)}`, "text-rose-300"]] : []),
+                            ]
+                          : r.advances > 0
+                            ? [["Adelantos", `−${money(r.advances)}`, "text-rose-300"]]
+                            : []),
                         ...(r.presentismo !== 0
                           ? [
                               [
@@ -6416,6 +6478,9 @@ function ProfesionalesTab({
                     <span className="inline-flex items-center gap-1 text-sm font-medium text-white/65">
                       Ver detalle <ChevronRight className="size-4" />
                     </span>
+                    {r.total < 0 && (
+                      <span className="min-w-0 text-right text-xs text-white/55">El saldo se descontará en la próxima liquidación</span>
+                    )}
                     {r.total > 0 && (
                       <button
                         type="button"
