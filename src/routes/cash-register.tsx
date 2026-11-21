@@ -13520,7 +13520,7 @@ function FacturacionPanel({
         </div>
         {/* Ingresar / retirar dinero: acciones secundarias, más chicas. */}
         <div className="flex justify-center gap-2">
-          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
+          <button type="button" onClick={() => setMovType("ingreso")} className="inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
             <Plus className="size-3.5 text-emerald-300" /> Ingresar dinero
           </button>
           <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
