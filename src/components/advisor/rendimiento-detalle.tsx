@@ -441,21 +441,6 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
         </div>
       </Block>
 
-      <Block title="Estado de las comisiones" hint="De las ventas del mes.">
-        <KV
-          rows={[
-            ["Incluida en una liquidación", money(p.incluidaEnLiquidacion)],
-            ["Todavía sin liquidar", money(p.sinLiquidar)],
-            ["Por servicios", money(p.comisionServicios)],
-            ["Por productos", money(p.comisionProductos)],
-          ]}
-        />
-      </Block>
-
-      <Block title="Adelantos por origen del dinero">
-        <Bars rows={p.adelantosPorOrigen} sub={sharePct} color="bg-amber-400/70" empty="Sin adelantos en el mes." />
-      </Block>
-
       <Block title="Productos retirados a cuenta">
         <Bars rows={p.consumosPorProducto} sub={(r) => `${r.count} retiros`} color="bg-fuchsia-400/70" empty="Sin retiros de stock en el mes." />
       </Block>
