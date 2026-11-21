@@ -55,10 +55,10 @@ export function SelectClippr({
         aria-expanded={abierto}
         onClick={() => (abierto ? setAbierto(false) : abrir())}
         className={cn(
-          "flex h-12 w-full touch-manipulation items-center justify-between gap-1.5 text-left text-[15px] font-semibold text-white outline-none",
+          "flex w-full touch-manipulation items-center justify-between gap-1.5 text-left text-[15px] font-semibold text-white outline-none",
           pill
-            ? "rounded-full border border-blue-300/25 bg-black/45 pl-4 pr-3 focus:border-blue-300/55"
-            : "rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 focus:border-violet-400/50",
+            ? "h-11 rounded-full border border-blue-300/25 bg-black/45 pl-4 pr-3 focus:border-blue-300/55"
+            : "h-12 rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 focus:border-violet-400/50",
         )}
       >
         <span className="truncate">{actual?.label ?? "—"}</span>

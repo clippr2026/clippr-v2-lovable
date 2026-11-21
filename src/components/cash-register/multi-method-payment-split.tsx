@@ -101,7 +101,7 @@ export function MultiMethodPaymentSplit({
             largos como "Transferencia" entren completos sin cortarse. */}
         {splits.map((sp, idx) => {
           return (
-            <div key={idx} className={cn("grid items-center", clippr ? (splits.length > 1 ? "grid-cols-[1fr_120px_48px] gap-2" : "grid-cols-[1fr_1fr] gap-2") : "grid-cols-[1fr_92px_32px] gap-1")}>
+            <div key={idx} className={cn("grid items-center", clippr ? (splits.length > 1 ? "grid-cols-[1fr_120px_48px] gap-2" : "grid-cols-[1fr_1fr] gap-2") : "grid-cols-[1fr_118px_44px] gap-2")}>
               <SelectClippr
                 pill={!clippr}
                 opciones={paymentOptions.map((o) => ({ id: o.id, label: o.label }))}
@@ -117,7 +117,7 @@ export function MultiMethodPaymentSplit({
                   "w-full min-w-0 text-right tabular-nums text-white outline-none placeholder:text-white/35",
                   clippr
                     ? "h-12 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg font-semibold focus:border-violet-400/50"
-                    : "h-9 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-sm font-bold focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15",
+                    : "h-11 rounded-full border border-blue-300/25 bg-black/45 px-4 text-lg font-bold focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15",
                 )}
               />
               {(!clippr || splits.length > 1) && (
@@ -128,7 +128,7 @@ export function MultiMethodPaymentSplit({
                   "shrink-0 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors",
                   clippr
                     ? "h-12 w-12 rounded-full border border-white/10 bg-white/[0.04]"
-                    : "h-9 w-8 rounded-xl border border-white/10 bg-black/35",
+                    : "h-11 w-11 rounded-full border border-white/10 bg-black/35",
                 )}
                 type="button"
               >

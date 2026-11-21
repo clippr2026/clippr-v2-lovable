@@ -13720,6 +13720,8 @@ function TransferReceiptField({
   onClear: () => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const camaraRef = React.useRef<HTMLInputElement>(null);
+  const [opcionesAbiertas, setOpcionesAbiertas] = React.useState(false);
 
   if (!previewUrl) {
     return (
@@ -13731,10 +13733,57 @@ function TransferReceiptField({
           className="hidden"
           onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
         />
+        <input
+          ref={camaraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
+        />
+        {/* Opciones propias (estilo Clippr) en vez de la lista del sistema: solo galería o cámara. */}
+        {opcionesAbiertas &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div className="fixed inset-0 z-[10040] flex items-end justify-center bg-black/70 p-4 pb-10 backdrop-blur-sm" onClick={() => setOpcionesAbiertas(false)}>
+              <div
+                className="w-full max-w-sm space-y-1.5 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-2.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9),0_0_40px_-14px_rgba(139,92,246,0.6)] [background-image:radial-gradient(120%_60%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_60%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {(
+                  [
+                    ["Fototeca", ImageIcon, inputRef],
+                    ["Tomar foto", Camera, camaraRef],
+                  ] as const
+                ).map(([nombre, Icono, ref]) => (
+                  <button
+                    key={nombre}
+                    type="button"
+                    onClick={() => {
+                      setOpcionesAbiertas(false);
+                      ref.current?.click();
+                    }}
+                    className="flex h-14 w-full items-center gap-3 rounded-2xl px-4 text-left text-base font-semibold text-white transition hover:bg-violet-500/20 active:bg-violet-500/25"
+                  >
+                    <Icono className="size-5 shrink-0 text-violet-200" />
+                    {nombre}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setOpcionesAbiertas(false)}
+                  className="h-12 w-full rounded-2xl text-base font-semibold text-white/60 transition hover:text-white"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )}
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-dashed border-white/20 bg-white/[0.03] px-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
+          onClick={() => setOpcionesAbiertas(true)}
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-white/20 bg-white/[0.03] px-3 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
         >
           <Camera className="size-4" />
           Agregar comprobante
@@ -17530,7 +17579,7 @@ export function NuevaVentaTab({
               legibilidad ni área táctil. */}
           <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2 space-y-1.5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
             <div className="space-y-1">
-              <div className="grid grid-cols-1 gap-y-1">
+              <div className="grid grid-cols-1 gap-y-0.5">
                 {!lockedEmployeeId && (
                   <div className="flex min-w-0 items-center gap-2 text-base">
                     <User className="size-4 shrink-0 text-white/35" />
@@ -17705,11 +17754,11 @@ export function NuevaVentaTab({
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] px-4 py-2" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.18), transparent 62%)" }}>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] px-4 py-1.5" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.18), transparent 62%)" }}>
                 <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-base font-bold text-white">
                   <Receipt className="size-4 text-emerald-300" /> Total a cobrar
                 </span>
-                <span className="tabular-nums text-2xl font-extrabold text-emerald-300">
+                <span className="tabular-nums text-xl font-extrabold text-emerald-300">
                   ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
                 </span>
               </div>
