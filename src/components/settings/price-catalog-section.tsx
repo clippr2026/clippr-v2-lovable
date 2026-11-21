@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { ElegirImagen } from "@/components/ui/elegir-imagen";
+import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab } from "@/components/settings/service-config-tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -630,6 +631,7 @@ function PriceEditorModal({
   onCreateCategory,
   onRenameCategory,
   onDeleteCategory,
+  serviceId = null,
   featuredOthers = 0,
 }: {
   open: boolean;
@@ -646,9 +648,15 @@ function PriceEditorModal({
   onCreateCategory?: (name: string) => boolean;
   onRenameCategory?: (category: string) => void;
   onDeleteCategory?: (category: string) => void;
+  // Id real del servicio que se edita (null = servicio nuevo, todavía sin guardar).
+  serviceId?: string | null;
   featuredOthers?: number;
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
+  const [tab, setTab] = useState<"datos" | "profesionales" | "horarios" | "promo">("datos");
+  useEffect(() => {
+    if (open) setTab("datos");
+  }, [open]);
   useBodyScrollLock(open);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
@@ -779,8 +787,48 @@ function PriceEditorModal({
           </button>
         </div>
 
+        {isService ? (
+          <div className="flex shrink-0 gap-1.5 overflow-x-auto px-4 pb-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {(
+              [
+                ["datos", "Datos"],
+                ["profesionales", "Profesionales"],
+                ["horarios", "Horarios"],
+                ["promo", "Promo"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={cn(
+                  "h-11 shrink-0 rounded-full px-4 text-base font-semibold transition",
+                  tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3 [-webkit-overflow-scrolling:touch]">
-          {isService ? (
+          {isService && tab !== "datos" ? (
+            serviceId ? (
+              tab === "profesionales" ? (
+                <ServiceProfessionalsTab serviceId={serviceId} listPrice={Number(form.price) || 0} />
+              ) : tab === "horarios" ? (
+                <ServiceScheduleTab serviceId={serviceId} />
+              ) : (
+                <ServicePromoTab serviceId={serviceId} serviceName={form.name} listPrice={Number(form.price) || 0} />
+              )
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/15 p-4 text-base text-white/65">
+                Guardá el servicio primero. Después podés elegir profesionales, horarios y promo.
+              </p>
+            )
+          ) : null}
+          {isService && tab !== "datos" ? null : isService ? (
             <>
               <SectionCard label="Información principal">
                 <div className="space-y-3">
@@ -1053,6 +1101,13 @@ function PriceEditorModal({
           )}
         </div>
 
+        {isService && tab !== "datos" ? (
+          <div className="flex shrink-0 items-center gap-2 border-t border-white/5 px-5 py-4">
+            <button onClick={onClose} className="h-12 w-full rounded-full bg-white/[0.06] text-base font-semibold text-white ring-1 ring-white/10">
+              Cerrar
+            </button>
+          </div>
+        ) : (
         <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-t border-white/5">
           {mode === "edit" && onDelete && (
           <button
@@ -1077,6 +1132,7 @@ function PriceEditorModal({
               : `Guardar ${isService ? "servicio" : "producto"}`}
           </button>
         </div>
+        )}
       </div>
     </div>,
     document.body,
@@ -2941,6 +2997,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onCreateCategory={createCategory}
         onRenameCategory={(c) => void renameCategory(c)}
         onDeleteCategory={deleteCategory}
+        serviceId={editing && !String(editing.id).startsWith("new_") ? editing.id : null}
         featuredOthers={
           Object.entries(bookingConfig).filter(
             ([id, c]) => c.show && id !== editing?.id,

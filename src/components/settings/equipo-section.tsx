@@ -1139,8 +1139,9 @@ export function EquipoSection() {
   // Sub-pestañas internas de "Comisiones" — Servicios y Catálogo se editan
   // por separado sin cerrar ni mover el modal. La pestaña principal sigue
   // llamándose "Comisiones" en la barra de arriba.
+  // Servicios (comisión, precio y quién lo hace) ahora se cargan desde cada servicio: acá queda Catálogo.
   const [commTab, setCommTab] = useState<"servicios" | "catalogo">(
-    "servicios",
+    "catalogo",
   );
   const load = useCallback(async () => {
     if (!businessId) {
@@ -4225,31 +4226,12 @@ export function EquipoSection() {
                       </span>
                     </div>
                   )}
-                  {commTab === "servicios" && (
-                    <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
-                      <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                      <span>
-                        Para cada servicio elegí cuánto cobra de <b>comisión</b> y, si hace falta, su propio <b>precio</b> y{" "}
-                        <b>duración</b>. Si no cambiás nada, usa los valores del local.
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
-                    {(["servicios", "catalogo"] as const).map((tabId) => (
-                      <button
-                        key={tabId}
-                        type="button"
-                        onClick={() => setCommTab(tabId)}
-                        className={cn(
-                          "rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-200",
-                          commTab === tabId
-                            ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_20px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
-                            : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
-                        )}
-                      >
-                        {tabId === "servicios" ? "Servicios" : "Catálogo"}
-                      </button>
-                    ))}
+                  <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs leading-relaxed text-sky-100 ring-1 ring-sky-300/20">
+                    <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                    <span>
+                      La comisión, el precio y los servicios que hace cada profesional se cargan desde <b>Servicios</b>: tocá un servicio,
+                      Editar y la pestaña <b>Profesionales</b>.
+                    </span>
                   </div>
 
                   {([commTab] as const).map((kind) => {

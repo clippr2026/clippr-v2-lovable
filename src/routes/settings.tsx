@@ -154,13 +154,6 @@ const groups: { label: string; items: NavItem[] }[] = [
         glow: "from-[oklch(0.82_0.16_200/0.25)] to-[oklch(0.7_0.2_220/0.05)]",
       },
       {
-        id: "promociones",
-        label: "Promociones",
-        icon: Percent,
-        tint: "text-[oklch(0.75_0.2_320)]",
-        glow: "from-[oklch(0.75_0.2_320/0.25)] to-[oklch(0.65_0.22_300/0.05)]",
-      },
-      {
         id: "senas",
         label: "Reservas",
         icon: Banknote,
