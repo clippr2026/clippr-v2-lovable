@@ -1,5 +1,6 @@
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { DateClippr } from "@/components/ui/date-clippr";
+import { SelectClippr } from "@/components/ui/select-clippr";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import React, { useState, useEffect } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
@@ -1593,18 +1594,18 @@ export function BrandingSection() {
         <>
           <SectionCard clippr label="Imágenes" id="pagina-reservas-imagenes">
             <div className="space-y-5">
-              <p className="text-xs leading-snug text-white/55">
-                Cargá las imágenes acá y mirá cómo quedan en la vista previa. Para ajustar el encuadre, arrastrá la imagen en la vista previa.
+              <p className="text-base leading-snug text-white/65">
+                Para ajustar el encuadre, arrastrá la imagen en la vista previa.
               </p>
 
               {/* Foto de perfil */}
-              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-white">Foto de perfil</div>
-                  <span className="text-xs text-white/50">{avatarPreview ? "Cargada" : "Sin imagen"}</span>
+                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><UserIcon className="h-4.5 w-4.5 text-violet-200" /></span>Foto de perfil</div>
+                  <span className={cn("text-base font-semibold", avatarPreview ? "text-emerald-300" : "text-white/50")}>{avatarPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                  <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
                     <input
@@ -1624,7 +1625,7 @@ export function BrandingSection() {
                       <button type="button" onClick={() => {
                         removeAvatar();
                         enfocar("hero");
-                      }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1633,13 +1634,13 @@ export function BrandingSection() {
               </div>
 
               {/* Portada */}
-              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-white">Portada</div>
-                  <span className="text-xs text-white/50">{coverPreview ? "Cargada" : "Sin imagen"}</span>
+                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portada</div>
+                  <span className={cn("text-base font-semibold", coverPreview ? "text-emerald-300" : "text-white/50")}>{coverPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                  <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
                     <input
@@ -1659,7 +1660,7 @@ export function BrandingSection() {
                       <button type="button" onClick={() => {
                         removeCover();
                         enfocar("hero");
-                      }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1668,16 +1669,16 @@ export function BrandingSection() {
               </div>
 
               {/* Portafolio: tres imágenes */}
-              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-                <div className="text-sm font-semibold text-white">Portafolio</div>
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portafolio</div>
                 <div className="space-y-2">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
                       <div key={index} className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-sm text-white/70">Imagen {index + 1}</span>
-                        <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
+                        <span className="w-[76px] shrink-0 text-base text-white/75">Imagen {index + 1}</span>
+                        <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
                           <ImageIcon className="h-4 w-4" />
                           {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
                           <input
@@ -1696,7 +1697,7 @@ export function BrandingSection() {
                           <button type="button" onClick={() => {
                             removePortfolioImage(index);
                             enfocar("acerca");
-                          }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
+                          }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
                             <X className="h-4 w-4" /> Quitar
                           </button>
                         ) : null}
@@ -1712,10 +1713,9 @@ export function BrandingSection() {
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-white">Confían en nosotros</div>
-                  <p className="mt-1 text-xs leading-snug text-white/55">
-                    Logos o fotos de personas, marcas o equipos que querés
-                    mostrar en tu página pública.
+                  <div className="text-lg font-semibold text-white">Confían en nosotros</div>
+                  <p className="mt-1 text-base leading-snug text-white/65">
+                    Marcas, equipos o personas que querés mostrar.
                   </p>
                 </div>
                 <button
@@ -1724,7 +1724,7 @@ export function BrandingSection() {
                     addFeaturedClient();
                     enfocar("confian");
                   }}
-                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30"
+                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 self-start rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30"
                 >
                   <Plus className="h-4 w-4" /> Agregar
                 </button>
@@ -1738,7 +1738,7 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition"
+                      className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 transition"
                       style={{
                         backgroundImage:
                           "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)",
@@ -1776,25 +1776,20 @@ export function BrandingSection() {
                           placeholder="Nombre: Nike, Duki, Boca Juniors..."
                           maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
                           aria-label="Nombre"
-                          className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                          className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                         />
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
-                          onFocus={() => enfocar("confian")}
-                          aria-label="Tipo"
-                          className="h-10 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white outline-none focus:border-violet-400/50"
-                        >
-                          {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                        </select>
+                        <SelectClippr
+                          opciones={FEATURED_CLIENT_CATEGORIES.map((cat) => ({ id: cat, label: cat }))}
+                          valor={item.category}
+                          onChange={(v) => {
+                            updateFeaturedClient(item.id, { category: v as FeaturedClientCategory });
+                            enfocar("confian");
+                          }}
+                        />
                         <div className="flex items-center gap-2">
                           <label
                             className={cn(
-                              "inline-flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30",
+                              "inline-flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30",
                               uploading && "pointer-events-none opacity-50",
                             )}
                             onClick={() => enfocar("confian")}
@@ -1817,26 +1812,14 @@ export function BrandingSection() {
                             const complete = isFeaturedClientComplete(item);
                             const canToggle = item.active || complete;
                             return (
-                              <button
-                                type="button"
-                                disabled={!canToggle}
-                                onClick={() => {
+                              <Toggle
+                                on={item.active}
+                                onChange={() => {
                                   if (!canToggle) return;
                                   updateFeaturedClient(item.id, { active: !item.active });
                                   enfocar("confian");
                                 }}
-                                title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
-                                className={cn(
-                                  "h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
-                                  item.active
-                                    ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                    : canToggle
-                                      ? "bg-white/5 text-white/60 ring-white/10"
-                                      : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
-                                )}
-                              >
-                                {item.active ? "Activo" : "Inactivo"}
-                              </button>
+                              />
                             );
                           })()}
                           <button
@@ -1845,14 +1828,14 @@ export function BrandingSection() {
                               removeFeaturedClient(item.id);
                               enfocar("confian");
                             }}
-                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
                             aria-label="Eliminar de Confían en nosotros"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                         {!isFeaturedClientComplete(item) ? (
-                          <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
+                          <p className="text-sm leading-snug text-amber-200/90">Cargá la imagen y el nombre para activarlo.</p>
                         ) : null}
                       </div>
                     </div>
