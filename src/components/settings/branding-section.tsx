@@ -1615,79 +1615,68 @@ export function BrandingSection() {
               </p>
 
               {/* Foto de perfil */}
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><UserIcon className="h-4.5 w-4.5 text-violet-200" /></span>Foto de perfil</div>
-                  <span className={cn("text-base font-semibold", avatarPreview ? "text-emerald-300" : "text-white/50")}>{avatarPreview ? "Cargada" : "Sin imagen"}</span>
+              <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+                <ElegirImagen className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30 rounded-full" disabled={uploadingAvatar} onOpen={() => enfocar("hero")} onFile={(f) => handleAvatarSelect(f)}>
+                  {avatarPreview ? <img src={avatarPreview} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="mx-auto h-6 w-6 text-white/35" />}
+                </ElegirImagen>
+                <div className="min-w-0 flex-1">
+                  <div className="text-lg font-semibold leading-tight text-white">Foto de perfil</div>
+                  <ElegirImagen className="mt-1 text-[15px] font-medium text-violet-200 underline-offset-4 hover:underline" disabled={uploadingAvatar} onOpen={() => enfocar("hero")} onFile={(f) => handleAvatarSelect(f)}>
+                    {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar" : "Cargar imagen"}
+                  </ElegirImagen>
                 </div>
-                <div className="flex items-center gap-2">
-                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} disabled={uploadingAvatar} onFile={(f) => handleAvatarSelect(f)} onOpen={() => enfocar("hero")}>
-                    <ImageIcon className="h-4 w-4" />
-                    {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
-                    </ElegirImagen>
-                  {avatarPreview ? (
-                    <>
-                      <button type="button" onClick={() => {
-                        removeAvatar();
-                        enfocar("hero");
-                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
-                        <X className="h-4 w-4" /> Quitar
-                      </button>
-                    </>
-                  ) : null}
-                </div>
+                {avatarPreview ? (
+                  <button type="button" onClick={() => { removeAvatar(); enfocar("hero"); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/60 transition hover:text-rose-300" aria-label="Quitar Foto de perfil">
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
 
               {/* Portada */}
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portada</div>
-                  <span className={cn("text-base font-semibold", coverPreview ? "text-emerald-300" : "text-white/50")}>{coverPreview ? "Cargada" : "Sin imagen"}</span>
+              <div className="flex items-center gap-3.5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+                <ElegirImagen className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30 " disabled={uploadingCover} onOpen={() => enfocar("hero")} onFile={(f) => handleCoverSelect(f)}>
+                  {coverPreview ? <img src={coverPreview} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="mx-auto h-6 w-6 text-white/35" />}
+                </ElegirImagen>
+                <div className="min-w-0 flex-1">
+                  <div className="text-lg font-semibold leading-tight text-white">Portada</div>
+                  <ElegirImagen className="mt-1 text-[15px] font-medium text-violet-200 underline-offset-4 hover:underline" disabled={uploadingCover} onOpen={() => enfocar("hero")} onFile={(f) => handleCoverSelect(f)}>
+                    {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar" : "Cargar imagen"}
+                  </ElegirImagen>
                 </div>
-                <div className="flex items-center gap-2">
-                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} disabled={uploadingCover} onFile={(f) => handleCoverSelect(f)} onOpen={() => enfocar("hero")}>
-                    <ImageIcon className="h-4 w-4" />
-                    {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
-                    </ElegirImagen>
-                  {coverPreview ? (
-                    <>
-                      <button type="button" onClick={() => {
-                        removeCover();
-                        enfocar("hero");
-                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
-                        <X className="h-4 w-4" /> Quitar
-                      </button>
-                    </>
-                  ) : null}
-                </div>
+                {coverPreview ? (
+                  <button type="button" onClick={() => { removeCover(); enfocar("hero"); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/60 transition hover:text-rose-300" aria-label="Quitar Portada">
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
 
               {/* Portafolio: tres imágenes */}
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
-                <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portafolio</div>
-                <div className="space-y-2">
+              <div className="space-y-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+                <div className="text-lg font-semibold text-white">Portafolio</div>
+                <div className="grid grid-cols-3 gap-2.5">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
-                      <div key={index} className="flex items-center gap-2">
-                        <span className="w-[76px] shrink-0 text-base text-white/75">Imagen {index + 1}</span>
-                        <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} disabled={uploading} onFile={(f) => handlePortfolioSelect(index, f)} onOpen={() => enfocar("acerca")}>
-                          <ImageIcon className="h-4 w-4" />
-                          {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
-                          </ElegirImagen>
+                      <div key={index} className="relative">
+                        <ElegirImagen
+                          className={cn("flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border bg-black/30", url ? "border-white/10" : "border-dashed border-white/20", uploading && "opacity-50")}
+                          disabled={uploading}
+                          onOpen={() => enfocar("acerca")}
+                          onFile={(f) => handlePortfolioSelect(index, f)}
+                        >
+                          {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <span className="text-3xl font-light text-white/40">{uploading ? "…" : "+"}</span>}
+                        </ElegirImagen>
                         {url && !uploading ? (
-                          <button type="button" onClick={() => {
-                            removePortfolioImage(index);
-                            enfocar("acerca");
-                          }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
-                            <X className="h-4 w-4" /> Quitar
+                          <button type="button" onClick={() => { removePortfolioImage(index); enfocar("acerca"); }} className="absolute -right-1.5 -top-1.5 grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-[#08070f] text-white/70" aria-label={`Quitar imagen ${index + 1}`}>
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         ) : null}
                       </div>
                     );
                   })}
                 </div>
+                <p className="text-sm text-white/50">Tocá un cuadro para cargar o cambiar la imagen.</p>
               </div>
             </div>
           </SectionCard>
@@ -1721,66 +1710,43 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 transition"
-                      style={{
-                        backgroundImage:
-                          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)",
-                      }}
+                      className="space-y-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3"
                     >
-                      {/* Flechas para ordenar: en el medio de la tarjeta, a la izquierda. */}
-                      <div className="flex shrink-0 flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => moveFeaturedClient(item.id, -1)}
-                          disabled={isFirst}
-                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
-                          aria-label="Mover arriba"
-                          title="Mover arriba"
+                      <div className="flex items-center gap-3">
+                        <ElegirImagen
+                          className={cn("flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-black/30", item.image_url ? "border-white/10" : "border-dashed border-white/20", uploading && "opacity-50")}
+                          disabled={uploading}
+                          onOpen={() => enfocar("confian")}
+                          onFile={(f) => handleFeaturedImageSelect(item.id, f)}
                         >
-                          <ChevronUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveFeaturedClient(item.id, 1)}
-                          disabled={isLast}
-                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
-                          aria-label="Mover abajo"
-                          title="Mover abajo"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
+                          {item.image_url ? <img src={item.image_url} alt="" className="h-full w-full object-cover" /> : <span className="text-3xl font-light text-white/40">{uploading ? "…" : "+"}</span>}
+                        </ElegirImagen>
+                        <div className="grid min-w-0 flex-1 gap-2">
+                          <input
+                            value={item.name}
+                            onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                            onFocus={() => enfocar("confian")}
+                            placeholder="Nombre"
+                            maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
+                            aria-label="Nombre"
+                            className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                          />
+                          <SelectClippr
+                            opciones={FEATURED_CLIENT_CATEGORIES.map((cat) => ({ id: cat, label: cat }))}
+                            valor={item.category}
+                            onChange={(v) => {
+                              updateFeaturedClient(item.id, { category: v as FeaturedClientCategory });
+                              enfocar("confian");
+                            }}
+                          />
+                        </div>
                       </div>
-
-                      <div className="grid min-w-0 flex-1 gap-2.5">
-                        <input
-                          value={item.name}
-                          onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
-                          onFocus={() => enfocar("confian")}
-                          placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                          maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                          aria-label="Nombre"
-                          className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
-                        />
-                        <SelectClippr
-                          opciones={FEATURED_CLIENT_CATEGORIES.map((cat) => ({ id: cat, label: cat }))}
-                          valor={item.category}
-                          onChange={(v) => {
-                            updateFeaturedClient(item.id, { category: v as FeaturedClientCategory });
-                            enfocar("confian");
-                          }}
-                        />
-                        <div className="flex items-center gap-2">
-                          <ElegirImagen className={cn(
-                              "inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30",
-                              uploading && "pointer-events-none opacity-50",
-                            )} disabled={uploading} onOpen={() => enfocar("confian")} onFile={(f) => handleFeaturedImageSelect(item.id, f)}>
-                            <ImageIcon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}</span>
-                            </ElegirImagen>
-                          {(() => {
-                            const complete = isFeaturedClientComplete(item);
-                            const canToggle = item.active || complete;
-                            return (
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const complete = isFeaturedClientComplete(item);
+                          const canToggle = item.active || complete;
+                          return (
+                            <div className="flex items-center gap-2.5">
                               <Toggle
                                 on={item.active}
                                 onChange={() => {
@@ -1789,23 +1755,21 @@ export function BrandingSection() {
                                   enfocar("confian");
                                 }}
                               />
-                            );
-                          })()}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              removeFeaturedClient(item.id);
-                              enfocar("confian");
-                            }}
-                            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                            aria-label="Eliminar de Confían en nosotros"
-                          >
+                              <span className="text-[15px] text-white/70">{item.active ? "Visible" : complete ? "Oculto" : "Falta imagen o nombre"}</span>
+                            </div>
+                          );
+                        })()}
+                        <div className="ml-auto flex items-center gap-1.5">
+                          <button type="button" onClick={() => moveFeaturedClient(item.id, -1)} disabled={isFirst} className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-white/70 disabled:opacity-25" aria-label="Mover arriba">
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => moveFeaturedClient(item.id, 1)} disabled={isLast} className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-white/70 disabled:opacity-25" aria-label="Mover abajo">
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => { removeFeaturedClient(item.id); enfocar("confian"); }} className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-rose-300/80" aria-label="Eliminar de Confían en nosotros">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                        {!isFeaturedClientComplete(item) ? (
-                          <p className="text-sm leading-snug text-amber-200/90">Cargá la imagen y el nombre para activarlo.</p>
-                        ) : null}
                       </div>
                     </div>
                   );
