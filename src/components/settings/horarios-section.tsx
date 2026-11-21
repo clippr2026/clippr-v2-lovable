@@ -383,32 +383,8 @@ export function HorariosSection({
         <div className="space-y-3">
           {days.map((d, i) => (
             <div key={d.name} className={cn("rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]", !d.enabled && "opacity-55")}>
-            <div className="grid grid-cols-[132px_1fr_1fr_auto] items-center gap-3">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><CalendarDays className="h-4.5 w-4.5 text-violet-200" /></span>{d.name}</div>
-              <input
-                type="time"
-                value={d.open}
-                disabled={!d.enabled}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Cada día es independiente — solo se actualiza el día
-                  // editado (idx === i), igual que ya hace el Toggle de
-                  // abierto/cerrado unas líneas más abajo.
-                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
-                }}
-                className="h-12 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
-              />
-              <input
-                type="time"
-                value={d.close}
-                disabled={!d.enabled}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Igual que apertura: solo el día editado.
-                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
-                }}
-                className="h-12 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
-              />
               <Toggle
                 on={d.enabled}
                 onChange={(v) =>
@@ -428,34 +404,38 @@ export function HorariosSection({
                 }
               />
             </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <input
+                type="time"
+                value={d.open}
+                disabled={!d.enabled}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Cada día es independiente — solo se actualiza el día
+                  // editado (idx === i), igual que ya hace el Toggle de
+                  // abierto/cerrado unas líneas más abajo.
+                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
+                }}
+                className="h-12 w-full min-w-0 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+              />
+              <input
+                type="time"
+                value={d.close}
+                disabled={!d.enabled}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Igual que apertura: solo el día editado.
+                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
+                }}
+                className="h-12 w-full min-w-0 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+              />
+            </div>
             {d.enabled && (
-              <div className="mt-3 grid grid-cols-[132px_1fr_1fr_auto] items-center gap-3">
+              <div className="mt-3.5 border-t border-white/10 pt-3.5">
+                <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 text-base text-white/75"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15 ring-1 ring-amber-300/25"><Coffee className="h-4.5 w-4.5 text-amber-200" /></span>Descanso</div>
-                {d.breakStart || d.breakEnd ? (
-                  <>
-                    <input
-                      type="time"
-                      value={d.breakStart}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
-                      }}
-                      className="h-11 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-                    />
-                    <input
-                      type="time"
-                      value={d.breakEnd}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
-                      }}
-                      className="h-11 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-                    />
-                  </>
-                ) : (
-                  <div className="col-span-2 text-base text-white/45">Sin descanso</div>
-                )}
-                <Toggle
+                  <span className="ml-auto mr-3 text-base text-white/45">{d.breakStart || d.breakEnd ? "" : "Sin descanso"}</span>
+                  <Toggle
                   on={Boolean(d.breakStart || d.breakEnd)}
                   onChange={(v) =>
                     setDays((s) =>
@@ -465,6 +445,29 @@ export function HorariosSection({
                     )
                   }
                 />
+                </div>
+                {d.breakStart || d.breakEnd ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <input
+                      type="time"
+                      value={d.breakStart}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
+                      }}
+                      className="h-12 w-full min-w-0 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                    />
+                    <input
+                      type="time"
+                      value={d.breakEnd}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
+                      }}
+                      className="h-12 w-full min-w-0 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                    />
+                  </div>
+                ) : null}
               </div>
             )}
             </div>
