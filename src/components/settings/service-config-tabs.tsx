@@ -109,7 +109,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
 
-type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
+type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; effPrice: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
 
 const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
@@ -121,7 +121,7 @@ const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   effectivePrice: "",
 };
 
-export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: string; listPrice: number }) {
+export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { serviceId: string; listPrice: number; cashPrice: number }) {
   const { employees, loading, businessId } = useBranchEmployees();
   const [draft, setDraft] = React.useState<Record<string, StaffDraft>>({});
   const [ready, setReady] = React.useState(false);
@@ -146,6 +146,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
           generates: !(cm as { noCommission?: boolean } | undefined)?.noCommission,
           ownPrice: !!ov && ov.useStandardPrice === false,
           price: ov?.price ?? "",
+          effPrice: ov && ov.useStandardEffectivePrice === false ? ov.effectivePrice ?? "" : "",
           commMode: cm?.mode === "fixed" && String(cm?.value ?? "").trim() !== "" ? "fixed" : "percent",
           commValue: cm?.value ?? "",
           generalPct: e.commissionPct == null ? "" : String(e.commissionPct),
@@ -178,6 +179,8 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
             enabled: d.offers,
             useStandardPrice: !(d.offers && d.ownPrice && d.price.trim() !== ""),
             price: d.offers && d.ownPrice ? d.price.trim() : "",
+            useStandardEffectivePrice: !(d.offers && d.ownPrice && d.effPrice.trim() !== ""),
+            effectivePrice: d.offers && d.ownPrice ? d.effPrice.trim() : "",
           },
         };
         const empCommissions = { ...(commissions[e.id] ?? {}) };
@@ -228,22 +231,45 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="text-base font-semibold text-white">Precio</span>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-base text-white/65">{d.ownPrice ? "Precio propio" : `Usa ${money(listPrice)}`}</span>
+                      <span className="text-base text-white/65">{d.ownPrice ? "Precio propio" : "Usa el del servicio"}</span>
                       <Toggle on={d.ownPrice} onChange={(v) => update(e.id, { ownPrice: v })} />
                     </div>
                   </div>
                   {d.ownPrice ? (
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
-                      <input
-                        inputMode="numeric"
-                        value={d.price}
-                        onChange={(ev) => update(e.id, { price: ev.target.value.replace(/\D/g, "") })}
-                        placeholder="0"
-                        className={cn(inputCls, "pl-7")}
-                      />
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <div className="mb-1 text-base text-white/60">Precio de lista</div>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
+                          <input
+                            inputMode="numeric"
+                            value={d.price}
+                            onChange={(ev) => update(e.id, { price: ev.target.value.replace(/\D/g, "") })}
+                            placeholder={String(listPrice)}
+                            className={cn(inputCls, "pl-7")}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-base text-white/60">Precio en efectivo</div>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
+                          <input
+                            inputMode="numeric"
+                            value={d.effPrice}
+                            onChange={(ev) => update(e.id, { effPrice: ev.target.value.replace(/\D/g, "") })}
+                            placeholder={cashPrice > 0 ? String(cashPrice) : "Igual al de lista"}
+                            className={cn(inputCls, "pl-7")}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="text-base text-white/60">
+                      Lista {money(listPrice)}
+                      {cashPrice > 0 ? ` · Efectivo ${money(cashPrice)}` : ""}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-base font-semibold text-white">Genera comisión</span>

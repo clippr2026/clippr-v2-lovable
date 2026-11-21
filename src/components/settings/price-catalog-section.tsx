@@ -835,7 +835,7 @@ function PriceEditorModal({
           {isService && tab !== "datos" ? (
             serviceId ? (
               tab === "profesionales" ? (
-                <ServiceProfessionalsTab serviceId={serviceId} listPrice={Number(form.price) || 0} />
+                <ServiceProfessionalsTab serviceId={serviceId} listPrice={Number(form.price) || 0} cashPrice={Number(form.cashPriceInput) || 0} />
               ) : tab === "horarios" ? (
                 <ServiceScheduleTab serviceId={serviceId} />
               ) : (
