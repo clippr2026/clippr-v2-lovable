@@ -1,3 +1,4 @@
+import { esAndroid } from "@/lib/es-android";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
@@ -2651,7 +2652,7 @@ function PublicBookingPage() {
                                             <CalendarPlus className="h-4 w-4" /> Google Calendar
                                           </a>
                                         ) : null}
-                                        {ics ? (
+                                        {ics && !esAndroid() ? (
                                           <a href={ics} className={opcion} style={calColor("#FF453A")}>
                                             <CalendarPlus className="h-4 w-4" /> iPhone / Apple Calendar
                                           </a>
