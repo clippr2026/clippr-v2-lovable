@@ -419,10 +419,7 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           {p.filas.map((f) => (
             <div key={f.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="font-semibold text-white">{f.name}</span>
-                <span className={cn("tabular-nums text-sm font-semibold", f.saldo >= 0 ? "text-emerald-300" : "text-rose-300")}>
-                  Saldo {money(f.saldo)}
-                </span>
+                <span className="text-lg font-semibold text-white">{f.name}</span>
               </div>
               <div className="mt-2">
                 <KV
@@ -435,10 +432,7 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
                         ? "Sin faltas"
                         : `${money(-f.puntualidad)}${f.tardes ? ` · ${f.tardes} tarde${f.tardes === 1 ? "" : "s"}` : ""}${f.ausencias ? ` · ${f.ausencias} ausencia${f.ausencias === 1 ? "" : "s"}` : ""}`,
                     ],
-                    ["Pago neto", money(f.pagoNeto)],
-                    ["Adelantos", money(f.adelantos)],
                     ["Consumos de productos", money(f.consumos)],
-                    ["Propinas (son del profesional)", money(f.propinas)],
                   ]}
                 />
               </div>
