@@ -77,10 +77,15 @@ const DEFAULT_DAYS = DAYS.map((d, i) => ({
 export function HorariosSection({
   parte = "horarios",
   onDraft,
+  registrarGuardado,
+  onDirtyChange,
 }: {
   parte?: "horarios" | "reservas";
   /** Los horarios tal como se van editando (sin guardar): alimentan la vista previa de la página pública. */
   onDraft?: (schedule: Record<string, { enabled: boolean; start: string; end: string; breakStart?: string; breakEnd?: string }>) => void;
+  /** Si se pasa, no muestra su propio botón Guardar: el que la contiene guarda llamando a esta función. */
+  registrarGuardado?: (guardar: () => Promise<boolean>) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 } = {}) {
   const { businessId, activeBranchId, profile } = useAuth();
   const [days, setDays] = useState(DEFAULT_DAYS);
@@ -89,6 +94,9 @@ export function HorariosSection({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   useUnsavedGuard(dirty);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const [loading, setLoading] = useState(true);
   const onDraftRef = useRef(onDraft);
   onDraftRef.current = onDraft;
@@ -201,6 +209,11 @@ export function HorariosSection({
     };
   }, [businessId, activeBranchId]);
 
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
+  useEffect(() => {
+    registrarGuardado?.(() => saveRef.current());
+  }, [registrarGuardado]);
+
   async function saveSchedule(): Promise<boolean> {
     if (!businessId) return void toast.error("No se encontró el negocio"), false;
     if (!activeBranchId) return void toast.error("No se encontró la sucursal"), false;
@@ -293,6 +306,8 @@ export function HorariosSection({
     toast.success("Guardado");
     return true;
   }
+
+  saveRef.current = saveSchedule;
 
   useEffect(() => {
     if (loading || !businessId || !activeBranchId) return;
@@ -518,7 +533,7 @@ export function HorariosSection({
         </div>
       </SectionCard>
       )}
-      <FloatingSaveButton visible={dirty} saving={saving} onClick={() => void saveSchedule()} />
+      {!registrarGuardado && <FloatingSaveButton visible={dirty} saving={saving} onClick={() => void saveSchedule()} />}
     </>
   );
 }

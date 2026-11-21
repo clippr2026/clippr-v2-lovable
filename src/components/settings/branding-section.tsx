@@ -1247,6 +1247,12 @@ export function BrandingSection() {
   }, []);
   const [previewKey, setPreviewKey] = useState(0);
   const [horarioDraft, setHorarioDraft] = useState<Record<string, unknown> | null>(null);
+  // Los horarios se guardan junto con el resto de la página, con un solo botón Guardar.
+  const [horariosDirty, setHorariosDirty] = useState(false);
+  const guardarHorariosRef = React.useRef<() => Promise<boolean>>(async () => true);
+  const registrarGuardadoHorarios = React.useCallback((fn: () => Promise<boolean>) => {
+    guardarHorariosRef.current = fn;
+  }, []);
   const previewDraft = React.useMemo(
     () => ({
       colors: {
@@ -1486,7 +1492,7 @@ export function BrandingSection() {
             </div>
           </SectionCard>
 
-          <HorariosSection parte="horarios" onDraft={setHorarioDraft} />
+          <HorariosSection parte="horarios" onDraft={setHorarioDraft} registrarGuardado={registrarGuardadoHorarios} onDirtyChange={setHorariosDirty} />
 
           <SectionCard
             clippr
@@ -2138,7 +2144,17 @@ export function BrandingSection() {
   return (
     <div>
     <div className="min-w-0 space-y-6">{formContent}</div>
-    <FloatingSaveButton visible={dirty} saving={saving} raised={Boolean(previewPanel) && !isXl} onClick={() => void save(true)} />
+    <FloatingSaveButton
+      visible={dirty || horariosDirty}
+      saving={saving}
+      raised={Boolean(previewPanel) && !isXl}
+      onClick={() => {
+        void (async () => {
+          if (dirty) await save(true);
+          if (horariosDirty) await guardarHorariosRef.current();
+        })();
+      }}
+    />
     {previewPanel && !isXl ? (
       <>
         <button

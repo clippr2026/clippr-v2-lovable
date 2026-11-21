@@ -116,7 +116,7 @@ export function FloatingSaveButton({
       type="button"
       disabled={saving}
       onClick={onClick}
-      className={cn("fixed right-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition active:scale-95 disabled:opacity-60 md:bottom-6 md:right-8", raised ? "bottom-[calc(9.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(6rem+env(safe-area-inset-bottom))]")}
+      className={cn("fixed right-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition active:scale-95 disabled:opacity-60 md:bottom-6 md:right-8", raised ? "bottom-[calc(10.75rem+env(safe-area-inset-bottom))]" : "bottom-[calc(6rem+env(safe-area-inset-bottom))]")}
     >
       {saving ? "Guardando…" : "Guardar cambios"}
     </button>
