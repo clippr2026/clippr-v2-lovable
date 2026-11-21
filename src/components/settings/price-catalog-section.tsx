@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
+import { ElegirImagen } from "@/components/ui/elegir-imagen";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -450,6 +451,81 @@ function DraggableImageCrop({
 
 const NEW_CATEGORY_OPTION = "__new_category__";
 
+// Imagen del servicio/producto: se carga sin vista previa grande; el encuadre se hace aparte, con el botón "Encuadrar".
+function ImagenCampo({
+  image,
+  position,
+  alt,
+  uploading,
+  onFile,
+  onRemove,
+  onPosition,
+}: {
+  image: string;
+  position: string;
+  alt: string;
+  uploading: boolean;
+  onFile: (file: File | null) => void;
+  onRemove: () => void;
+  onPosition: (pos: string) => void;
+}) {
+  const [encuadrando, setEncuadrando] = useState(false);
+  const pill = "inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-base font-semibold transition disabled:opacity-50";
+  return (
+    <>
+      {image ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3.5">
+            <img
+              src={image}
+              alt={alt}
+              style={{ objectPosition: position }}
+              className="h-16 w-16 shrink-0 rounded-2xl border border-white/10 object-cover"
+            />
+            <span className="text-base font-semibold text-emerald-300">Imagen cargada</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setEncuadrando(true)} className={cn(pill, "border border-violet-400/40 bg-violet-500/15 text-violet-100")}>
+              Encuadrar
+            </button>
+            <ElegirImagen disabled={uploading} onFile={onFile} className={cn(pill, "bg-white/[0.06] text-white/85")}>
+              {uploading ? "Subiendo…" : "Cambiar"}
+            </ElegirImagen>
+            <button type="button" onClick={onRemove} disabled={uploading} className={cn(pill, "bg-red-500/10 text-red-300")}>
+              Quitar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ElegirImagen
+          disabled={uploading}
+          onFile={onFile}
+          className="flex h-24 w-full items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/[0.03] text-lg font-semibold text-white/80 disabled:opacity-50"
+        >
+          {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+          {uploading ? "Subiendo…" : "Cargar imagen"}
+        </ElegirImagen>
+      )}
+      {encuadrando && image && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm space-y-4 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)]">
+                <div className="text-xl font-semibold text-white">Encuadrar imagen</div>
+                <p className="text-base text-white/65">Arrastrá la imagen para elegir qué parte se ve.</p>
+                <DraggableImageCrop src={image} alt={alt} value={position} onChange={onPosition} className="mx-auto max-w-[280px]" />
+                <button type="button" onClick={() => setEncuadrando(false)} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">
+                  Listo
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
+
 // Selector de categoría estilo Clippr: elegir, crear, renombrar y eliminar desde el mismo lugar.
 function CategoriaPicker({
   valor,
@@ -569,7 +645,6 @@ function PriceEditorModal({
   featuredOthers?: number;
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
-  const bookingFileRef = useRef<HTMLInputElement | null>(null);
   useBodyScrollLock(open);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
@@ -756,67 +831,21 @@ function PriceEditorModal({
               </SectionCard>
 
               <SectionCard label="Imagen del servicio">
-                <input
-                  ref={bookingFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
+                <ImagenCampo
+                  image={form.image}
+                  position={form.imagePosition}
+                  alt={form.name || "Servicio"}
+                  uploading={uploadingImg}
+                  onFile={async (file) => {
                     if (!file || !onUploadImage) return;
                     setUploadingImg(true);
                     const url = await onUploadImage(file);
                     setUploadingImg(false);
                     if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                   }}
+                  onRemove={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
+                  onPosition={(imagePosition) => setForm({ ...form, imagePosition })}
                 />
-                {form.image ? (
-                  <div className="space-y-3">
-                    <DraggableImageCrop
-                      src={form.image}
-                      alt={form.name || "Servicio"}
-                      value={form.imagePosition}
-                      onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                      onPickImage={() => bookingFileRef.current?.click()}
-                      className="mx-auto max-w-[220px]"
-                    />
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-50"
-                      >
-                        Cambiar imagen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
-                        disabled={uploadingImg}
-                        className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2 text-sm disabled:opacity-50"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => bookingFileRef.current?.click()}
-                    disabled={uploadingImg}
-                    className="mx-auto grid aspect-square w-full max-w-[220px] place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                  >
-                    {uploadingImg ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                        <Upload className="h-5 w-5" />
-                        <span className="text-[11px]">Subir imagen</span>
-                      </span>
-                    )}
-                  </button>
-                )}
               </SectionCard>
 
               <SectionCard label="Reserva online">
@@ -900,67 +929,21 @@ function PriceEditorModal({
               </SectionCard>
 
               <SectionCard label="Imagen del producto">
-                <input
-                  ref={bookingFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
+                <ImagenCampo
+                  image={form.image}
+                  position={form.imagePosition}
+                  alt={form.name || "Producto"}
+                  uploading={uploadingImg}
+                  onFile={async (file) => {
                     if (!file || !onUploadImage) return;
                     setUploadingImg(true);
                     const url = await onUploadImage(file);
                     setUploadingImg(false);
                     if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
                   }}
+                  onRemove={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
+                  onPosition={(imagePosition) => setForm({ ...form, imagePosition })}
                 />
-                {form.image ? (
-                  <div className="space-y-3">
-                    <DraggableImageCrop
-                      src={form.image}
-                      alt={form.name || "Producto"}
-                      value={form.imagePosition}
-                      onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                      onPickImage={() => bookingFileRef.current?.click()}
-                      className="mx-auto max-w-[220px]"
-                    />
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => bookingFileRef.current?.click()}
-                        disabled={uploadingImg}
-                        className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-50"
-                      >
-                        Cambiar imagen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
-                        disabled={uploadingImg}
-                        className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2 text-sm disabled:opacity-50"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => bookingFileRef.current?.click()}
-                    disabled={uploadingImg}
-                    className="mx-auto grid aspect-square w-full max-w-[220px] place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                  >
-                    {uploadingImg ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                        <Upload className="h-5 w-5" />
-                        <span className="text-[11px]">Subir imagen</span>
-                      </span>
-                    )}
-                  </button>
-                )}
               </SectionCard>
 
               <SectionCard label="Reservas online">
