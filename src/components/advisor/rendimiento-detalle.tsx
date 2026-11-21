@@ -341,18 +341,13 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
   const g = d.gastos;
   return (
     <div className="space-y-5">
-      <StatGrid>
+      <StatGrid twoCols>
         <Stat label="Gastos del mes" value={money(g.total)} sub={<Delta cur={perf.gastosTotal} prev={prev?.gastosTotal ?? null} label={vsLabel} lowerIsBetter />} />
-        <Stat label="Cantidad de gastos" value={int(g.cantidad)} />
         <Stat
           label="% de la facturación"
           value={g.porcentajeDeFacturacion != null ? pct1(g.porcentajeDeFacturacion) : "—"}
          
         />
-        <Stat label="Promedio por día" value={money(g.promedioPorDia)} />
-        {g.diaMayorGasto && (
-          <Stat label="Día de mayor gasto" value={dateLabel(g.diaMayorGasto.date)} sub={money(g.diaMayorGasto.total)} />
-        )}
       </StatGrid>
 
       <Block title="Por tipo" hint="Fijos (alquiler, servicios), variables (insumos) y ocasionales.">
