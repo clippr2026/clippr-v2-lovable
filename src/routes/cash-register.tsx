@@ -17365,14 +17365,10 @@ export function NuevaVentaTab({
                   toast.error((e as Error).message);
                 }
               }}
-              className="flex w-full items-center justify-between gap-3 rounded-3xl border border-violet-400/40 bg-violet-500/10 px-5 py-3 text-left transition hover:bg-violet-500/20 active:bg-violet-500/25"
-              style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(79,125,255,.14), transparent 62%)" }}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/10 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/20 active:bg-violet-500/25"
             >
-              <span className="min-w-0">
-                <span className="block text-base font-semibold text-white">Continuar sin cliente</span>
-                <span className="block text-sm text-white/60">Se cobra como “Sin agendar”</span>
-              </span>
-              <ArrowRight className="size-5 shrink-0 text-violet-200" />
+              Continuar sin cliente
+              <ArrowRight className="size-5 shrink-0" />
             </button>
           )}
           </div>
