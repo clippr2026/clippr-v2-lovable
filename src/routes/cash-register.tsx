@@ -17613,14 +17613,16 @@ export function NuevaVentaTab({
                   {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }, idx) => {
                     const showCashPrice = isCashMethod && svc.cashPrice != null;
                     return (
-                      <div key={svc.id} className="flex items-start justify-between gap-2">
-                        <span className="flex min-w-0 items-start gap-2 text-sm text-white/70">
-                          {idx === 0 ? (
+                      <div key={svc.id} className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 text-sm text-white/70">
+                          {svc.is_catalog ? (
+                            <Package className="size-3.5 shrink-0 text-white/35" />
+                          ) : idx === 0 ? (
                             <Scissors className="size-3.5 shrink-0 text-white/35" />
                           ) : (
                             <span className="size-3.5 shrink-0" aria-hidden="true" />
                           )}
-                          <span className="min-w-0 break-words">
+                          <span className="min-w-0 truncate">
                             {svc.name}
                             {qty > 1 ? ` ×${qty}` : ""}
                           </span>
