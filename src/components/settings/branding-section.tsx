@@ -1249,6 +1249,12 @@ export function BrandingSection() {
   const [previewKey, setPreviewKey] = useState(0);
   // Con la vista previa abierta, la pantalla de atrás no se mueve.
   useBodyScrollLock(previewOpen);
+  // Carga la vista previa en segundo plano un momento después de entrar, para que abra al instante.
+  const [precargarPreview, setPrecargarPreview] = useState(false);
+  React.useEffect(() => {
+    const t = window.setTimeout(() => setPrecargarPreview(true), 1200);
+    return () => window.clearTimeout(t);
+  }, []);
   const [horarioDraft, setHorarioDraft] = useState<Record<string, unknown> | null>(null);
   // Los horarios se guardan junto con el resto de la página, con un solo botón Guardar.
   const [horariosDirty, setHorariosDirty] = useState(false);
@@ -2166,8 +2172,15 @@ export function BrandingSection() {
         >
           Vista previa
         </button>
-        {previewOpen ? (
-          <div className="fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/80 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
+        {/* Montada desde antes (invisible): así la página ya está cargada cuando se toca Vista previa. */}
+        {precargarPreview || previewOpen ? (
+          <div
+            className={
+              "fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/80 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] " +
+              (previewOpen ? "" : "pointer-events-none invisible")
+            }
+            aria-hidden={!previewOpen}
+          >
             <div className="mx-auto max-w-md">{previewPanel}</div>
           </div>
         ) : null}

@@ -1477,7 +1477,7 @@ function PublicProfilePage() {
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {portfolio.slice(0, 3).map((src, i) => (
                       <ScrollZoomTile key={`${src}-${i}`} onClick={() => openPortfolio(i)} index={i}>
-                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover" style={{ objectPosition: portfolioPositions[i] || "50% 50%" }} loading="lazy" decoding="async" />
+                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover" style={{ objectPosition: portfolioPositions[i] || "50% 50%" }} loading={isPreview ? "eager" : "lazy"} decoding="async" />
                       </ScrollZoomTile>
                     ))}
                   </div>
@@ -1501,7 +1501,7 @@ function PublicProfilePage() {
                   title={`Mapa de ${business.name}`}
                   src={`https://www.google.com/maps?q=${encodeURIComponent(business.address)}&output=embed`}
                   className="h-full w-full border-0"
-                  loading="lazy"
+                  loading={isPreview ? "eager" : "lazy"}
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
@@ -1763,7 +1763,7 @@ function PublicProfilePage() {
           <img
             src="/clippr-powered-logo.webp"
             alt="Clippr"
-            loading="lazy"
+            loading={isPreview ? "eager" : "lazy"}
             decoding="async"
             className="h-6 w-6 rounded-md object-contain"
           />
