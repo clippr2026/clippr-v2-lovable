@@ -16420,6 +16420,11 @@ export function NuevaVentaTab({
           toast.error("Cargá al menos un monto en pago múltiple.");
           return;
         }
+        if (Math.round(splitsTotal) > Math.round(finalTotal - depositApplied)) {
+          // Los métodos suman de más: no se rechaza, se pregunta si la diferencia es propina.
+          setOverpay({ diff: Math.round(splitsTotal - (finalTotal - depositApplied)) });
+          return;
+        }
         if (Math.round(splitsTotal) !== Math.round(finalTotal - depositApplied)) {
           toast.error(
             `El pago múltiple debe sumar $${(finalTotal - depositApplied).toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
@@ -18110,7 +18115,7 @@ export function NuevaVentaTab({
                 !clientId ||
                 cartCount === 0 ||
                 submitting ||
-                (!isManualFlow && !pagoPendiente && paymentMode === "multiple" && splitsRemaining !== 0) ||
+                (!isManualFlow && !pagoPendiente && paymentMode === "multiple" && splitsRemaining > 0) ||
                 (!isManualFlow && !pagoPendiente && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={() => {
@@ -18224,7 +18229,7 @@ export function NuevaVentaTab({
               <h3 className="text-sm font-semibold text-sky-200">Recibiste de más</h3>
               <p className="mt-1 text-sm text-white/80">
                 El cliente entregó <strong>${overpay.diff.toLocaleString("es-AR")}</strong> más que el total a cobrar.{" "}
-                {method === "cash" ? "¿Qué hacés con la diferencia?" : "¿La diferencia va como propina?"}
+                {paymentMode === "simple" && method === "cash" ? "¿Qué hacés con la diferencia?" : "¿La diferencia va como propina?"}
               </p>
             </div>
             <div className="space-y-2 px-5 py-4">
@@ -18238,9 +18243,9 @@ export function NuevaVentaTab({
                   setResubmitTick((n) => n + 1);
                 }}
               >
-                {method === "cash" ? "Dejarla como propina" : "Sí, es propina"}
+                {paymentMode === "simple" && method === "cash" ? "Dejarla como propina" : "Sí, es propina"}
               </button>
-              {method === "cash" && (
+              {paymentMode === "simple" && method === "cash" && (
                 <button
                   type="button"
                   className="h-11 w-full rounded-xl text-sm font-semibold text-white/90 ring-1 ring-white/20 hover:bg-white/[0.06]"
