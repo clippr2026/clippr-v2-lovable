@@ -34,7 +34,10 @@ import {
   Wallet,
   CreditCard,
   HandCoins,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { MONTO_OCULTO, useMontosOcultos } from "@/hooks/use-montos-ocultos";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 export const Route = createFileRoute("/dashboard")({
@@ -255,6 +258,7 @@ function CajaHoyCard({
   // un saldo negativo nunca queda sin explicación acá tampoco.
   const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
   const { businessId: bizId, activeBranchId } = useAuth();
+  const [montosOcultos, alternarOculto] = useMontosOcultos();
 
   // Los 10 campos en `undefined` (no `null`, no omitidos): la ruta exige el
   // objeto `search` completo por tipos, pero `undefined` es la única forma
@@ -325,13 +329,23 @@ function CajaHoyCard({
             </span>
           )}
         </div>
-        <Link
-          to="/cash-register"
-          search={emptyCashRegisterSearch}
-          className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
-        >
-          Ver todo <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link
+            to="/cash-register"
+            search={emptyCashRegisterSearch}
+            className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
+          >
+            Ver todo <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+          <button
+            type="button"
+            onClick={alternarOculto}
+            aria-label={montosOcultos ? "Mostrar montos" : "Ocultar montos"}
+            className="grid h-10 w-10 touch-manipulation place-items-center rounded-full text-white/70 transition active:scale-95 hover:text-white"
+          >
+            {montosOcultos ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Ingresos / Egresos — los únicos 2 montos grandes acá, el
@@ -344,7 +358,7 @@ function CajaHoyCard({
             <span className="text-xs">Ingresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtAR(caja.revHoy)}
+            {montosOcultos ? MONTO_OCULTO : fmtAR(caja.revHoy)}
           </div>
         </div>
         <div>
@@ -353,7 +367,7 @@ function CajaHoyCard({
             <span className="text-xs">Egresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtExpenseAR(caja.totalGastosHoy)}
+            {montosOcultos ? MONTO_OCULTO : fmtExpenseAR(caja.totalGastosHoy)}
           </div>
         </div>
       </div>
@@ -371,13 +385,13 @@ function CajaHoyCard({
         <MiniStat
           icon={Wallet}
           label="Efectivo en caja"
-          value={fmtAR(caja.todayCashExpected)}
+          value={montosOcultos ? MONTO_OCULTO : fmtAR(caja.todayCashExpected)}
           onClick={() => setSaldoDetalle("cash")}
         />
         <MiniStat
           icon={CreditCard}
           label="Dinero en banco"
-          value={fmtAR(caja.todayDigitalExpected)}
+          value={montosOcultos ? MONTO_OCULTO : fmtAR(caja.todayDigitalExpected)}
           onClick={() => setSaldoDetalle("digital")}
         />
       </div>

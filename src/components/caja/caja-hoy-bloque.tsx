@@ -1,36 +1,12 @@
 import * as React from "react";
+import { MONTO_OCULTO, useMontosOcultos } from "@/hooks/use-montos-ocultos";
 import { TrendingUp, TrendingDown, Wallet, CreditCard, Eye, EyeOff } from "lucide-react";
 
 // "Caja de hoy": el mismo bloque que se ve en Inicio (Ingresos y Egresos, servicios realizados, productos vendidos, efectivo en
 // caja y dinero en banco), para que Caja muestre exactamente lo mismo.
 const pesos = (n: number) => `$${Math.round(n || 0).toLocaleString("es-AR")}`;
 const CARGANDO = "···";
-const OCULTO = "$ ****";
-const OCULTAR_KEY = "clippr_caja_montos_ocultos";
-
-// Como en el banco: tocar un número lo oculta (y otro toque lo muestra). Se acuerda de la elección.
-function useMontosOcultos(): [boolean, () => void] {
-  const [oculto, setOculto] = React.useState(false);
-  React.useEffect(() => {
-    try {
-      setOculto(localStorage.getItem(OCULTAR_KEY) === "1");
-    } catch {
-      /* sin almacenamiento: queda visible */
-    }
-  }, []);
-  const alternar = React.useCallback(() => {
-    setOculto((v) => {
-      const n = !v;
-      try {
-        localStorage.setItem(OCULTAR_KEY, n ? "1" : "0");
-      } catch {
-        /* nada */
-      }
-      return n;
-    });
-  }, []);
-  return [oculto, alternar];
-}
+const OCULTO = MONTO_OCULTO;
 const egreso = (n: number) => {
   const abs = Math.abs(Math.round(n || 0));
   return abs > 0 ? `-$${abs.toLocaleString("es-AR")}` : "$0";
