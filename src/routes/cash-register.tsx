@@ -17471,34 +17471,7 @@ export function NuevaVentaTab({
               el resumen del cobro. Ya no "sticky": esta Card dejó de
               scrollear como bloque único (ver más abajo), así que no hay
               contenedor scrolleable del que despegarse. */}
-          <div className="shrink-0 -mx-3.5 grid grid-cols-2 rounded-t-3xl border-b border-white/[0.07] bg-black/50 backdrop-blur-sm">
-            <button
-              onClick={() => setPaymentMode("simple")}
-              className={cn(
-                "py-2 text-sm font-semibold first:rounded-tl-3xl",
-                paymentMode === "simple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Pago simple
-            </button>
-            <button
-              onClick={() => setPaymentMode("multiple")}
-              disabled={pagoPendiente}
-              title={pagoPendiente ? "No disponible con un monto recibido menor al total" : undefined}
-              className={cn(
-                "py-2 text-sm font-semibold last:rounded-tr-3xl",
-                pagoPendiente
-                  ? "cursor-not-allowed text-muted-foreground/40"
-                  : paymentMode === "multiple"
-                    ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
-                    : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Pago múltiple
-            </button>
-          </div>
+          <div className="shrink-0 pt-3" />
 
           <div className="shrink-0 pt-1.5">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
@@ -17729,7 +17702,7 @@ export function NuevaVentaTab({
                   de un turno con promo asociada — si eso pasa, el botón
                   queda de solo lectura con el nombre de esa promo en vez de
                   ser editable, un toque más la limpia y vuelve a manual. */}
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 {discountPanelOpen ? (
                   <div className="flex items-center gap-1 rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-2">
                     <Tag className="size-3.5 shrink-0 text-violet-200" />
@@ -17772,44 +17745,6 @@ export function NuevaVentaTab({
                   </button>
                 )}
 
-                {tipPanelOpen ? (
-                  <div className="flex items-center gap-1 rounded-xl border border-emerald-300/35 bg-emerald-400/10 px-2.5 py-2">
-                    <Gift className="size-3.5 shrink-0 text-emerald-200" />
-                    <span className="shrink-0 text-xs font-semibold text-emerald-200/70">$</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      autoFocus
-                      value={tipAmountInput}
-                      onChange={(e) => setTipAmountInput(e.target.value)}
-                      onBlur={() => setTipPanelOpen(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      }}
-                      placeholder="0"
-                      className="min-w-0 flex-1 bg-transparent text-right text-xs font-bold text-white outline-none"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setTipPanelOpen(true)}
-                    className={cn(
-                      "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                      tipAmount > 0
-                        ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
-                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <Gift className="size-3.5 shrink-0" />
-                      <span className="truncate">Propina</span>
-                    </span>
-                    {tipAmount > 0 && (
-                      <span className="shrink-0">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
-                    )}
-                  </button>
-                )}
               </div>
             </div>
           </Card>
@@ -17899,25 +17834,7 @@ export function NuevaVentaTab({
                   garantía (sin cobro, deuda ni comisión). El pago parcial no
                   tiene botón: se detecta solo al tipear un monto menor. */}
               {!isManualFlow && (
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSinCargoReason(null);
-                      const activar = !(pendienteBtn && received === "0");
-                      setPendienteBtn(activar);
-                      setReceived(activar ? "0" : "");
-                      setPaymentMode("simple");
-                    }}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition",
-                      pendienteBtn && received === "0" && !isSinCargo
-                        ? "border-amber-300/60 bg-amber-400/15 text-amber-100"
-                        : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]",
-                    )}
-                  >
-                    <Clock className="size-3.5" /> Pago pendiente
-                  </button>
+                <div className="mt-1.5 grid grid-cols-1 gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -17939,9 +17856,25 @@ export function NuevaVentaTab({
                         : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]",
                     )}
                   >
-                    <Gift className="size-3.5" /> Sin cargo
+                    <Gift className="size-3.5" /> Cortesía
                   </button>
                 </div>
+              )}
+              {!isManualFlow && !isSinCargo && !pagoPendiente && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const otro = paymentOptions.find((o) => o.id !== method)?.id ?? method;
+                    setSplits([
+                      { method, amount: "" },
+                      { method: otro, amount: "" },
+                    ]);
+                    setPaymentMode("multiple");
+                  }}
+                  className="mt-1.5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/40 bg-violet-500/15 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
+                >
+                  <Plus className="size-4" /> Agregar otro método de pago
+                </button>
               )}
               {isSinCargo && (
                 <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-emerald-200/85">
@@ -18048,6 +17981,13 @@ export function NuevaVentaTab({
                 paymentOptions={paymentOptions}
                 total={finalTotal - depositApplied}
               />
+              <button
+                type="button"
+                onClick={() => setPaymentMode("simple")}
+                className="mt-1.5 text-sm font-semibold text-white/60 underline-offset-2 hover:text-white/85 hover:underline"
+              >
+                Volver a un solo método de pago
+              </button>
               {/* Un comprobante por cada componente no efectivo del pago
                   múltiple — llave por método (ver splitReceiptFiles
                   arriba). Efectivo nunca tiene comprobante, igual que en
@@ -18267,7 +18207,7 @@ export function NuevaVentaTab({
           >
             <div className="border-b border-white/10 px-5 py-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
-                <Gift className="size-4 shrink-0" /> Servicio sin cargo
+                <Gift className="size-4 shrink-0" /> Servicio de cortesía
               </h3>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Este servicio se registrará sin cobro, sin deuda y sin comisión para el profesional.
@@ -18297,7 +18237,7 @@ export function NuevaVentaTab({
                 }}
                 className="flex-1 rounded-xl bg-emerald-400/15 hover:bg-emerald-400/25 px-3 py-2 text-xs font-bold text-emerald-100 ring-1 ring-emerald-400/30 transition"
               >
-                Confirmar sin cargo
+                Confirmar cortesía
               </button>
             </div>
           </div>
