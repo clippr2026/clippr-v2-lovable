@@ -1,3 +1,4 @@
+import { ElegirImagen } from "@/components/ui/elegir-imagen";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { DateClippr } from "@/components/ui/date-clippr";
 import { SelectClippr } from "@/components/ui/select-clippr";
@@ -1605,21 +1606,10 @@ export function BrandingSection() {
                   <span className={cn("text-base font-semibold", avatarPreview ? "text-emerald-300" : "text-white/50")}>{avatarPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} disabled={uploadingAvatar} onFile={(f) => handleAvatarSelect(f)}> enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={uploadingAvatar}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        e.target.value = "";
-                        handleAvatarSelect(f);
-                      }}
-                    />
-                  </label>
+                    </ElegirImagen>
                   {avatarPreview ? (
                     <>
                       <button type="button" onClick={() => {
@@ -1640,21 +1630,10 @@ export function BrandingSection() {
                   <span className={cn("text-base font-semibold", coverPreview ? "text-emerald-300" : "text-white/50")}>{coverPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} disabled={uploadingCover} onFile={(f) => handleCoverSelect(f)}> enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={uploadingCover}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        e.target.value = "";
-                        handleCoverSelect(f);
-                      }}
-                    />
-                  </label>
+                    </ElegirImagen>
                   {coverPreview ? (
                     <>
                       <button type="button" onClick={() => {
@@ -1678,21 +1657,10 @@ export function BrandingSection() {
                     return (
                       <div key={index} className="flex items-center gap-2">
                         <span className="w-[76px] shrink-0 text-base text-white/75">Imagen {index + 1}</span>
-                        <label className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
+                        <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} disabled={uploading} onFile={(f) => handlePortfolioSelect(index, f)}> enfocar("acerca")}>
                           <ImageIcon className="h-4 w-4" />
                           {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            disabled={uploading}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0] ?? null;
-                              e.target.value = "";
-                              handlePortfolioSelect(index, f);
-                            }}
-                          />
-                        </label>
+                          </ElegirImagen>
                         {url && !uploading ? (
                           <button type="button" onClick={() => {
                             removePortfolioImage(index);
@@ -1787,27 +1755,13 @@ export function BrandingSection() {
                           }}
                         />
                         <div className="flex items-center gap-2">
-                          <label
-                            className={cn(
-                              "inline-flex h-12 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30",
+                          <ElegirImagen className={cn(
+                              "inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30",
                               uploading && "pointer-events-none opacity-50",
-                            )}
-                            onClick={() => enfocar("confian")}
-                          >
+                            )} disabled={uploading} onOpen={() => enfocar("confian")} onFile={(f) => handleFeaturedImageSelect(item.id, f)}>
                             <ImageIcon className="h-4 w-4 shrink-0" />
                             <span className="truncate">{uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploading}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handleFeaturedImageSelect(item.id, f);
-                              }}
-                            />
-                          </label>
+                            </ElegirImagen>
                           {(() => {
                             const complete = isFeaturedClientComplete(item);
                             const canToggle = item.active || complete;

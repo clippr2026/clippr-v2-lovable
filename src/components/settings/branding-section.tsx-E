@@ -1,0 +1,2200 @@
+import { ElegirImagen } from "@/components/ui/elegir-imagen";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { DateClippr } from "@/components/ui/date-clippr";
+import { SelectClippr } from "@/components/ui/select-clippr";
+import { HorariosSection } from "@/components/settings/horarios-section";
+import React, { useState, useEffect } from "react";
+import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
+import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
+import { createPortal } from "react-dom";
+import { PUBLIC_NEONS, normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
+import { PUBLIC_DECORS, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
+import { PUBLIC_BACKGROUNDS, normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
+import { ENTRY_EFFECTS, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
+import { PublicPagePreview } from "@/components/settings/public-page-preview";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  MapPin,
+  Phone,
+  Globe,
+  Redo2,
+  Undo2,
+  X,
+  FileText,
+  Image as ImageIcon,
+  Building2,
+  CalendarDays,
+  Plus,
+  Trash2,
+  Mail,
+  Instagram,
+  ChevronUp,
+  ChevronDown,
+  User as UserIcon,
+  Moon,
+  Sun,
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { SectionCard, Toggle, reportSaveStatus, processImage, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
+
+export function ReservasOnlineIcon({
+  className,
+  strokeWidth,
+}: {
+  className?: string;
+  strokeWidth?: number;
+}) {
+  return (
+    <span className={cn("relative inline-grid h-5 w-5 place-items-center", className)}>
+      <Globe className="h-5 w-5" strokeWidth={strokeWidth ?? 2} />
+      <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-[oklch(0.11_0.03_260)] bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white shadow-sm">
+        WWW
+      </span>
+    </span>
+  );
+}
+
+// ─────────── Branding ───────────
+type FeaturedClientCategory =
+  | "Marca"
+  | "Artista"
+  | "Futbolista"
+  | "Equipo de fútbol"
+  | "Influencer"
+  | "Empresa"
+  | "Celebridad";
+
+type FeaturedClient = {
+  id: string;
+  name: string;
+  category: FeaturedClientCategory;
+  image_url: string;
+  active: boolean;
+  order: number;
+  // Solo se cargan/muestran cuando category === "Futbolista".
+  club_name: string;
+  club_logo_url: string;
+};
+
+const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
+  "Marca",
+  "Artista",
+  "Futbolista",
+  "Equipo de fútbol",
+  "Influencer",
+  "Empresa",
+  "Celebridad",
+];
+
+// La tarjeta en la página pública muestra hasta 3 por fila (ver
+// featuredCardWidthClass en negocio/$slug.tsx) — con ese ancho, un nombre
+// más largo que esto no entra en una línea y se corta con "...". Este tope
+// evita cargar nombres que después se van a ver cortados en la mayoría de
+// los casos.
+const MAX_FEATURED_CLIENT_NAME_LENGTH = 20;
+
+// El nombre del club comparte la fila con el escudo (24px + separación),
+// así que tiene bastante MENOS ancho real disponible que el nombre de la
+// persona (que no compite con ningún ícono) — 20 caracteres ahí se
+// truncaban seguro en mobile con 3 tarjetas por fila. 14 es la estimación
+// más ajustada al espacio real que queda junto al escudo en ese layout;
+// "Boca Juniors" (12) entra con margen, nombres bastante más largos no.
+const MAX_FEATURED_CLUB_NAME_LENGTH = 14;
+
+function makeEmptyFeaturedClient(order = 0): FeaturedClient {
+  return {
+    id: `featured-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: "",
+    category: "Marca",
+    image_url: "",
+    // Arranca inactivo: recién se puede pasar a Activo cuando tiene imagen
+    // y nombre cargados (ver el gate en el botón Activo/Inactivo), para no
+    // publicar tarjetas vacías en la página pública.
+    active: false,
+    order,
+    club_name: "",
+    club_logo_url: "",
+  };
+}
+
+function isFeaturedClientComplete(item: FeaturedClient): boolean {
+  return Boolean(item.image_url.trim() && item.name.trim());
+}
+
+// ─────────── Beneficios del local (lista editable, máx. 12) ───────────
+type Benefit = { id: string; label: string; active: boolean };
+
+const DEFAULT_BENEFITS: string[] = [
+  "⚡ Confirmación instantánea",
+  "📅 Reserva online 24/7",
+  "💈 Orden de llegada",
+  "💎 Servicio premium",
+  "☕ Bebidas de cortesía",
+  "💳 Acepta tarjetas",
+  "📶 Wi-Fi gratuito",
+  "❄️ Ambiente climatizado",
+  "🎵 Música ambiente",
+  "🧴 Productos profesionales",
+  "🚗 Estacionamiento cercano",
+  "⭐ Atención personalizada",
+];
+
+function makeBenefitId(): string {
+  return `benefit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function buildDefaultBenefits(): Benefit[] {
+  return DEFAULT_BENEFITS.map((label, index) => ({
+    id: makeBenefitId(),
+    label,
+    active: index < 8,
+  }));
+}
+
+function normalizeBenefits(value: unknown): Benefit[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
+    .map((b) => ({
+      id: typeof b.id === "string" && b.id ? b.id : makeBenefitId(),
+      label: typeof b.label === "string" ? b.label.slice(0, 35) : "",
+      active: b.active !== false,
+    }))
+    .filter((b) => b.label.trim().length > 0)
+    .slice(0, 12);
+}
+
+function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      const row =
+        item && typeof item === "object"
+          ? (item as Record<string, unknown>)
+          : {};
+      const category = FEATURED_CLIENT_CATEGORIES.includes(
+        row.category as FeaturedClientCategory,
+      )
+        ? (row.category as FeaturedClientCategory)
+        : "Marca"; // "Otro" ya no existe: lo que tenía ese tipo pasa a Marca
+      return {
+        id:
+          typeof row.id === "string" && row.id
+            ? row.id
+            : `featured-${Date.now()}-${index}`,
+        name: typeof row.name === "string" ? row.name : "",
+        category,
+        image_url: typeof row.image_url === "string" ? row.image_url : "",
+        active: row.active !== false,
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+        club_name: typeof row.club_name === "string" ? row.club_name : "",
+        club_logo_url: typeof row.club_logo_url === "string" ? row.club_logo_url : "",
+      };
+    })
+    .filter((item) => item.name.trim() || item.image_url.trim())
+    .sort((a, b) => a.order - b.order);
+}
+
+type BrandingData = {
+  name: string;
+  slug: string;
+  address: string;
+  phone: string;
+  email: string;
+  instagram: string;
+  website: string;
+  description: string;
+  logo_url: string;
+  avatar_url: string;
+  cover_url: string;
+  portfolio_urls: string[];
+  featured_clients: FeaturedClient[];
+  avatar_position: string;
+  cover_position: string;
+  portfolio_positions: string[];
+  featured_positions: Record<string, string>;
+  business_start_date: string;
+};
+const PROFILE_NOTE_MAX_LINES = 3;
+const DEFAULT_PROFILE_NOTE = "🔥 Todos los miércoles\n20% OFF EN EFECTIVO";
+
+const EMPTY_BRANDING: BrandingData = {
+  name: "",
+  slug: "",
+  address: "",
+  phone: "",
+  email: "",
+  instagram: "",
+  website: "",
+  description: "",
+  logo_url: "",
+  avatar_url: "",
+  cover_url: "",
+  portfolio_urls: [],
+  featured_clients: [],
+  avatar_position: "50% 50%",
+  cover_position: "50% 50%",
+  portfolio_positions: [],
+  featured_positions: {},
+  business_start_date: "",
+};
+
+// Normaliza un slug para URLs públicas: minúsculas, sin acentos, sin espacios,
+// solo a-z 0-9 y guiones, sin guiones colgando.
+function slugify(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+// Versión suave para mientras el usuario escribe (no recorta guiones del final).
+function slugifyLive(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9-]+/g, "-");
+}
+
+// ─────────── Landing (colores de la página pública) ───────────
+const LANDING_DEFAULTS = {
+  primary: "#7c3aed",
+  secondary: "#d946ef",
+  accent: "#d6b66a",
+  buttonText: "#ffffff",
+};
+const LANDING_THEME_DEFAULT = "dark" as const;
+type LandingTheme = "dark" | "light";
+const HEX_RE = /^#([0-9a-fA-F]{6})$/;
+
+function normalizeHex(value: string, fallback: string): string {
+  const v = (value || "").trim();
+  return HEX_RE.test(v) ? v.toLowerCase() : fallback;
+}
+
+// Paletas listas: cada una arma el degradé, la luz de la portada y el neón del logo.
+const COLOR_PALETTES: { key: string; label: string; primary: string; secondary: string; accent: string; buttonText: string }[] = [
+  { key: "violeta", label: "Violeta", primary: "#7c3aed", secondary: "#d946ef", accent: "#a78bfa", buttonText: "#ffffff" },
+  { key: "rosa", label: "Rosa", primary: "#db2777", secondary: "#f472b6", accent: "#f9a8d4", buttonText: "#ffffff" },
+  { key: "azul", label: "Azul", primary: "#2563eb", secondary: "#06b6d4", accent: "#60a5fa", buttonText: "#ffffff" },
+  { key: "turquesa", label: "Turquesa", primary: "#0d9488", secondary: "#22d3ee", accent: "#2dd4bf", buttonText: "#00110f" },
+  { key: "verde", label: "Verde", primary: "#059669", secondary: "#84cc16", accent: "#34d399", buttonText: "#00110a" },
+  { key: "dorado", label: "Dorado", primary: "#b45309", secondary: "#f59e0b", accent: "#d6b66a", buttonText: "#1a1100" },
+  { key: "rojo", label: "Rojo", primary: "#dc2626", secondary: "#f97316", accent: "#f87171", buttonText: "#ffffff" },
+  { key: "naranja", label: "Naranja", primary: "#ea580c", secondary: "#fbbf24", accent: "#fb923c", buttonText: "#1a0c00" },
+  { key: "indigo", label: "Índigo", primary: "#4338ca", secondary: "#818cf8", accent: "#a5b4fc", buttonText: "#ffffff" },
+  { key: "fucsia", label: "Fucsia", primary: "#c026d3", secondary: "#f0abfc", accent: "#e879f9", buttonText: "#ffffff" },
+  { key: "bordo", label: "Bordó", primary: "#9f1239", secondary: "#fb7185", accent: "#fda4af", buttonText: "#ffffff" },
+  { key: "cielo", label: "Cielo", primary: "#0284c7", secondary: "#7dd3fc", accent: "#38bdf8", buttonText: "#00121c" },
+  { key: "negro", label: "Negro", primary: "#000000", secondary: "#000000", accent: "#e4e4e7", buttonText: "#09090b" },
+  { key: "blanco", label: "Blanco", primary: "#ffffff", secondary: "#ffffff", accent: "#ffffff", buttonText: "#09090b" },
+];
+
+function hexLuma(hex: string): number {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+// A partir de UN color propio se arman el resto de los colores.
+function paletteFromColor(hex: string) {
+  const primary = normalizeHex(hex, LANDING_DEFAULTS.primary);
+  const h = primary.replace("#", "");
+  const mix = (toward: number, amt: number) =>
+    "#" +
+    [0, 2, 4]
+      .map((i) => {
+        const c = parseInt(h.slice(i, i + 2), 16);
+        return Math.round(c + (toward - c) * amt).toString(16).padStart(2, "0");
+      })
+      .join("");
+  const accent = mix(255, 0.35);
+  return {
+    primary,
+    secondary: mix(255, 0.55),
+    accent,
+    buttonText: hexLuma(accent) > 0.62 ? "#0b0b10" : "#ffffff",
+  };
+}
+
+const ADDITIONAL_INFO_OPTIONS = [
+
+  "⚡ Confirmación instantánea",
+  "📅 Reserva online 24/7",
+  "💳 Acepta tarjetas",
+  "📶 Wi-Fi gratuito",
+  "🚗 Estacionamiento cercano",
+  "♿ Accesible para silla de ruedas",
+  "☕ Café de cortesía",
+  "❄️ Ambiente climatizado",
+  "💎 Atención premium",
+  "🎵 Música ambiente",
+  "🧴 Productos profesionales",
+  "🐶 Pet friendly",
+];
+const MAX_ADDITIONAL_INFO = 12;
+
+function normalizeWhatsAppArgentina(phone: string): string {
+  let raw = String(phone ?? "").replace(/\D/g, "");
+  if (!raw) return "";
+  if (raw.startsWith("00")) raw = raw.slice(2);
+
+  // Si ya viene internacional, lo dejamos en formato WhatsApp Argentina móvil.
+  if (raw.startsWith("549")) return raw;
+  if (raw.startsWith("54")) {
+    let rest = raw.slice(2).replace(/^0+/, "");
+    if (!rest.startsWith("9")) rest = `9${rest}`;
+    return `54${rest}`;
+  }
+
+  raw = raw.replace(/^0+/, "");
+
+  // AMBA: muchas personas escriben 15 + 8 dígitos. WhatsApp necesita 54911 + 8 dígitos.
+  if (raw.startsWith("15") && raw.length === 10) return `54911${raw.slice(2)}`;
+
+  // Si escriben 11 + 8 dígitos: 1127900829 => 5491127900829.
+  return `549${raw}`;
+}
+
+function formatWhatsAppArgentinaPreview(normalized: string): string {
+  if (!normalized) return "";
+  if (!normalized.startsWith("549") || normalized.length < 12) return "";
+  const national = normalized.slice(3);
+  const area = national.slice(0, 2);
+  const first = national.slice(2, 6);
+  const last = national.slice(6);
+  return `+54 9 ${area} ${first}${last ? ` ${last}` : ""}`;
+}
+
+function denormalizeStoredPhoneForInput(phone: string): string {
+  const value = String(phone ?? "").trim();
+  const digits = value.replace(/\D/g, "");
+
+  // Compatibilidad con números ya guardados antes como WhatsApp Argentina.
+  // Ej: 5491127900829 -> 1127900829
+  if (digits.startsWith("549") && digits.length >= 12) return digits.slice(3);
+
+  // Ej: 541127900829 -> 1127900829
+  if (digits.startsWith("54") && digits.length >= 11) return digits.slice(2);
+
+  return value;
+}
+
+export function BrandingSection() {
+  const { businessId, activeBranchId } = useAuth();
+  const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedGuard(dirty);
+  // Se marca true solo dentro del .then() del fetch real (businessId
+  // truthy), nunca en el branch "!businessId" — ver comentario junto al
+  // efecto de autosave más abajo.
+  const realDataLoadedRef = React.useRef(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingPortfolioIndex, setUploadingPortfolioIndex] = useState<
+    number | null
+  >(null);
+  const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(
+    null,
+  );
+  const [uploadingFeaturedClubLogoId, setUploadingFeaturedClubLogoId] =
+    useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores" | "efectos">(
+    "info",
+  );
+  const [colors, setColors] = useState(LANDING_DEFAULTS);
+  const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
+  const [fontKey, setFontKey] = useState<string>("");
+  const [entryEffect, setEntryEffect] = useState<EntryEffectKey>("neon");
+  const [bgStyle, setBgStyle] = useState<PublicBgKey>("degrade");
+  const [decor, setDecor] = useState<PublicDecorKey>("none");
+  const [neonKey, setNeonKey] = useState<PublicNeonKey>("ambos");
+  const [effectNonce, setEffectNonce] = useState(0);
+  const [showAdvancedColors, setShowAdvancedColors] = useState(false);
+  const [benefits, setBenefits] = useState<Benefit[]>([]);
+  // Campo que se está escribiendo: la vista previa se desplaza hasta el lugar de la página donde se muestra.
+  const [focusSection, setFocusSection] = useState<{ id: string; n: number } | null>(null);
+  const enfocar = (id: string) => setFocusSection((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+  // Una imagen se arrastró en la vista previa: se guarda su nuevo encuadre.
+  const moverImagen = (kind: string, index: number | string | null, position: string) => {
+    if (kind === "cover") setData((d) => ({ ...d, cover_position: position }));
+    else if (kind === "avatar") setData((d) => ({ ...d, avatar_position: position }));
+    else if (kind === "featured" && typeof index === "string") {
+      setData((d) => ({ ...d, featured_positions: { ...d.featured_positions, [index]: position } }));
+    } else if (kind === "portfolio" && typeof index === "number") {
+      setData((d) => {
+        const next = [...d.portfolio_positions];
+        while (next.length <= index) next.push("50% 50%");
+        next[index] = position;
+        return { ...d, portfolio_positions: next };
+      });
+    }
+  };
+  const [customBenefit, setCustomBenefit] = useState("");
+
+  useEffect(() => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    // Load name/slug + assets públicos desde businesses; el resto desde _branding.
+    Promise.all([
+      supabase
+        .from("businesses")
+        .select(
+          "name,slug,address,phone,email,instagram,avatar_url,cover_url,business_start_date",
+        )
+        .eq("id", businessId)
+        .maybeSingle(),
+      supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle(),
+    ]).then(([bizRes, settRes]) => {
+      const biz = bizRes.data;
+      const schedule = (settRes.data?.schedule ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const cfg = (schedule._branding ?? {}) as Record<string, unknown>;
+      const normalizedFeaturedClients = normalizeFeaturedClients(
+        cfg.featured_clients,
+      );
+      setData({
+        name: (biz?.name as string) ?? "",
+        slug: (biz?.slug as string) ?? "",
+        address: (cfg.address as string) ?? (biz?.address as string) ?? "",
+        phone: denormalizeStoredPhoneForInput(
+          ((cfg.phone as string) ?? (biz?.phone as string) ?? "") as string,
+        ),
+        email: (cfg.email as string) ?? (biz?.email as string) ?? "",
+        instagram:
+          (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
+        website: (cfg.website as string) ?? "",
+        description: (cfg.description as string) ?? "",
+        logo_url: (cfg.logo_url as string) ?? "",
+        avatar_url: (biz?.avatar_url as string) ?? "",
+        cover_url: (biz?.cover_url as string) ?? "",
+        portfolio_urls: Array.isArray(cfg.portfolio_urls)
+          ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3)
+          : [],
+        featured_clients:
+          normalizedFeaturedClients,
+        avatar_position: (cfg.avatar_position as string) ?? "50% 50%",
+        cover_position: (cfg.cover_position as string) ?? "50% 50%",
+        portfolio_positions: Array.isArray(cfg.portfolio_positions)
+          ? (cfg.portfolio_positions as string[])
+          : [],
+        featured_positions: (cfg.featured_positions &&
+        typeof cfg.featured_positions === "object"
+          ? cfg.featured_positions
+          : {}) as Record<string, string>,
+        business_start_date: (biz?.business_start_date as string) ?? "",
+      });
+      const cc = (cfg.colors ?? {}) as Record<string, string>;
+      setColors({
+        primary: normalizeHex(
+          cc.primary,
+          normalizeHex(cc.secondary, LANDING_DEFAULTS.primary),
+        ),
+        secondary: normalizeHex(
+          cc.secondary,
+          normalizeHex(cc.primary, LANDING_DEFAULTS.secondary),
+        ),
+        accent: normalizeHex(cc.accent, LANDING_DEFAULTS.accent),
+        buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
+      });
+      setTheme((cfg.theme as string) === "light" ? "light" : "dark");
+      setFontKey(typeof cfg.font === "string" ? cfg.font : "");
+      setEntryEffect(normalizeEntryEffect(cfg.entry_effect));
+      setBgStyle(normalizePublicBg(cfg.bg_style));
+      setDecor(normalizePublicDecor(cfg.decor));
+      setNeonKey(normalizePublicNeon(cfg.neon));
+      const rawBenefits = normalizeBenefits(cfg.benefits);
+      if (rawBenefits.length > 0) {
+        setBenefits(rawBenefits);
+      } else {
+        const legacy = Array.isArray(cfg.additional_info)
+          ? (cfg.additional_info as unknown[]).filter(
+              (x): x is string => typeof x === "string" && x.trim().length > 0,
+            )
+          : [];
+        setBenefits(
+          legacy.length > 0
+            ? legacy
+                .slice(0, 12)
+                .map((label) => ({
+                  id: makeBenefitId(),
+                  label: label.slice(0, 35),
+                  active: true,
+                }))
+            : buildDefaultBenefits(),
+        );
+      }
+      realDataLoadedRef.current = true;
+      setLoading(false);
+    });
+  }, [businessId]);
+
+  // El preview sale de la URL real ya persistida (nada de object URLs locales,
+  // que se pierden en re-renders / scroll / cambios de sección).
+  const avatarPreview = data.avatar_url;
+  const coverPreview = data.cover_url;
+
+  const set =
+    (k: keyof BrandingData) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setData((d) => ({ ...d, [k]: e.target.value }));
+
+  async function uploadImage(file: File, path: string): Promise<string | null> {
+    const { error } = await supabase.storage
+      .from("business-assets")
+      .upload(path, file, { upsert: true });
+    if (error) {
+      toast.error("Error subiendo imagen: " + error.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
+    return urlData.publicUrl;
+  }
+
+  async function uploadBlob(
+    blob: Blob,
+    path: string,
+    contentType: string,
+  ): Promise<string | null> {
+    const { error } = await supabase.storage
+      .from("business-assets")
+      .upload(path, blob, { upsert: true, contentType });
+    if (error) {
+      console.error("[storage] upload failed", {
+        path,
+        contentType,
+        size: blob.size,
+        error,
+      });
+      toast.error("No se pudo subir la imagen: " + error.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
+    // Cache-bust: el path se sobrescribe (upsert), así forzamos refrescar el CDN.
+    return `${urlData.publicUrl}?v=${Date.now()}`;
+  }
+
+  // Persiste una columna de imagen directo en businesses (sin esperar a "Guardar").
+  async function persistBrandingPatch(
+    patch: Partial<
+      Pick<
+        BrandingData,
+        | "address"
+        | "phone"
+        | "email"
+        | "instagram"
+        | "website"
+        | "description"
+        | "logo_url"
+        | "portfolio_urls"
+        | "featured_clients"
+      >
+    >,
+  ): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: existingRow, error: loadError } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (loadError) {
+      console.error("[branding] load settings error", loadError);
+      toast.error("No se pudo leer la configuración: " + loadError.message);
+      return false;
+    }
+
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const nextSchedule = {
+      ...existingSchedule,
+      _branding: {
+        ...existingBranding,
+        ...patch,
+      },
+    };
+
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, schedule: nextSchedule },
+        { onConflict: "business_id" },
+      );
+    if (error) {
+      console.error("[branding] persistBrandingPatch error", { patch, error });
+      toast.error("No se pudo guardar la configuración: " + error.message);
+      return false;
+    }
+    return true;
+  }
+
+  async function persistAsset(fields: {
+    avatar_url?: string | null;
+    cover_url?: string | null;
+  }): Promise<boolean> {
+    if (!businessId) return false;
+    const { data: row, error } = await supabase
+      .from("businesses")
+      .update(fields)
+      .eq("id", businessId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      console.error("[branding] persistAsset error", { fields, error });
+      toast.error("No se pudo guardar la imagen: " + error.message);
+      return false;
+    }
+    if (!row) {
+      toast.error(
+        "No se pudo guardar la imagen. Revisá los permisos del negocio.",
+      );
+      return false;
+    }
+    return true;
+  }
+
+  // Subida inmediata: optimiza → sube a Storage → persiste la URL en businesses.
+  async function handleAvatarSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingAvatar(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/profile.${ext}`, type);
+      if (!url) return;
+      setData((d) => ({ ...d, avatar_url: url }));
+      toast.success("Foto cargada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleCoverSelect(file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingCover(true);
+    try {
+      const { blob, ext, type } = await processImage(file, 2000, 1400, 0.8);
+      const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
+      if (!url) return;
+      setData((d) => ({ ...d, cover_url: url }));
+      toast.success("Portada cargada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function removeAvatar() {
+    setData((d) => ({ ...d, avatar_url: "" }));
+    toast.success("Foto quitada");
+  }
+  async function removeCover() {
+    setData((d) => ({ ...d, cover_url: "" }));
+    toast.success("Portada quitada");
+  }
+
+  async function handlePortfolioSelect(index: number, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingPortfolioIndex(index);
+    try {
+      const { blob, ext, type } = await processImage(file, 1200, 900, 0.78);
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/portfolio-${index + 1}.${ext}`,
+        type,
+      );
+      if (!url) return;
+      const next = [...data.portfolio_urls];
+      next[index] = url;
+      const clean = next.filter(Boolean).slice(0, 3);
+      setData((d) => ({ ...d, portfolio_urls: clean }));
+      toast.success("Imagen cargada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingPortfolioIndex(null);
+    }
+  }
+
+  async function removePortfolioImage(index: number) {
+    const next = data.portfolio_urls.filter((_, i) => i !== index).slice(0, 3);
+    setData((d) => ({ ...d, portfolio_urls: next }));
+    toast.success("Imagen quitada");
+  }
+
+  function addBenefit() {
+    const value = customBenefit.trim().slice(0, 35);
+    if (!value) return;
+    if (benefits.length >= 12) {
+      toast.error("Has alcanzado el máximo de 12 beneficios.");
+      return;
+    }
+    if (benefits.some((b) => b.label.toLowerCase() === value.toLowerCase())) {
+      setCustomBenefit("");
+      return;
+    }
+    setBenefits((current) =>
+      [...current, { id: makeBenefitId(), label: value, active: true }].slice(
+        0,
+        12,
+      ),
+    );
+    setCustomBenefit("");
+  }
+
+  function updateBenefit(id: string, label: string) {
+    setBenefits((current) =>
+      current.map((b) =>
+        b.id === id ? { ...b, label: label.slice(0, 35) } : b,
+      ),
+    );
+  }
+
+  function toggleBenefit(id: string) {
+    setBenefits((current) =>
+      current.map((b) => (b.id === id ? { ...b, active: !b.active } : b)),
+    );
+  }
+
+  function removeBenefit(id: string) {
+    setBenefits((current) => current.filter((b) => b.id !== id));
+  }
+
+  function moveBenefit(id: string, dir: -1 | 1) {
+    setBenefits((current) => {
+      const index = current.findIndex((b) => b.id === id);
+      if (index < 0) return current;
+      const target = index + dir;
+      if (target < 0 || target >= current.length) return current;
+      const list = [...current];
+      [list[index], list[target]] = [list[target], list[index]];
+      return list;
+    });
+  }
+
+  function addFeaturedClient() {
+    setData((d) => ({
+      ...d,
+      // Al frente de la lista: así el bloque para cargar el nuevo ítem
+      // aparece arriba, no hay que scrollear hasta el final para verlo.
+      featured_clients: [makeEmptyFeaturedClient(), ...d.featured_clients].map(
+        (item, index) => ({ ...item, order: index }),
+      ),
+    }));
+  }
+
+  function updateFeaturedClient(id: string, patch: Partial<FeaturedClient>) {
+    setData((d) => ({
+      ...d,
+      featured_clients: d.featured_clients.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    }));
+  }
+
+  function removeFeaturedClient(id: string) {
+    setData((d) => {
+      const next = d.featured_clients
+        .filter((item) => item.id !== id)
+        .map((item, index) => ({ ...item, order: index }));
+      return {
+        ...d,
+        featured_clients: next,
+      };
+    });
+  }
+
+  // Flechas ↑/↓ de "Confían en nosotros": mueve un lugar y guarda al toque,
+  // sin esperar al botón "Guardar" general de la sección — persiste solo
+  // featured_clients (persistBrandingPatch), no el resto del formulario.
+  async function moveFeaturedClient(id: string, direction: -1 | 1) {
+    const current = data.featured_clients;
+    const index = current.findIndex((item) => item.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return;
+    const list = [...current];
+    [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+    const reindexed = list.map((item, order) => ({ ...item, order }));
+    setData((d) => ({ ...d, featured_clients: reindexed }));
+    reportSaveStatus("saving");
+    const ok = await persistBrandingPatch({ featured_clients: reindexed });
+    if (ok) reportSaveStatus("saved");
+  }
+
+  function nudgePosition(
+    value: string | undefined,
+    dx: number,
+    dy: number,
+  ): string {
+    const [xRaw, yRaw] = String(value || "50% 50%").split(" ");
+    const x = Math.min(100, Math.max(0, parseFloat(xRaw) || 50));
+    const y = Math.min(100, Math.max(0, parseFloat(yRaw) || 50));
+    return `${Math.min(100, Math.max(0, x + dx))}% ${Math.min(100, Math.max(0, y + dy))}%`;
+  }
+
+  function PositionControls({
+    value,
+    onChange,
+  }: {
+    value?: string;
+    onChange: (next: string) => void;
+  }) {
+    return null;
+  }
+
+  async function handleFeaturedImageSelect(id: string, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingFeaturedId(id);
+    try {
+      const { blob, ext, type } = await processImage(file, 512, 512, 0.82);
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/featured-${id}.${ext}`,
+        type,
+      );
+      if (!url) return;
+      updateFeaturedClient(id, { image_url: url });
+      toast.success("Imagen actualizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingFeaturedId(null);
+    }
+  }
+
+  // Escudo/mini imagen del club — solo se usa cuando category === "Futbolista".
+  // Mismo flujo que handleFeaturedImageSelect pero más chico (128x128, es un
+  // ícono pequeño) y con su propio estado de "subiendo" para no pisar el
+  // spinner de la foto principal si se tocan los dos casi juntos.
+  async function handleFeaturedClubLogoSelect(id: string, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingFeaturedClubLogoId(id);
+    try {
+      // Se muestra chiquito (unos 20px) pero en pantallas retina de iPhone
+      // eso son ~60-80px reales — 256px de origen y calidad casi sin
+      // pérdida evita que un escudo con líneas finas/texto se vea pixelado.
+      // trimTransparent: recorta el margen transparente del archivo antes
+      // de escalar — sin esto, dos escudos con el mismo diseño pero
+      // distinto padding transparente en el PNG original terminan
+      // viéndose de tamaño notablemente distinto uno al lado del otro.
+      const { blob, ext, type } = await processImage(file, 256, 256, 0.95, {
+        trimTransparent: true,
+      });
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/featured-club-${id}.${ext}`,
+        type,
+      );
+      if (!url) return;
+      updateFeaturedClient(id, { club_logo_url: url });
+      toast.success("Escudo actualizado");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingFeaturedClubLogoId(null);
+    }
+  }
+
+  async function save(showToast = true) {
+    if (!businessId) return;
+    if (!showToast) reportSaveStatus("saving");
+    setSaving(true);
+    let logo_url = data.logo_url;
+    if (logoFile) {
+      const url = await uploadImage(logoFile, `${businessId}/logo`);
+      if (url) logo_url = url;
+    }
+
+    // Foto de perfil y portada ya se suben y persisten al seleccionarlas.
+    // Acá solo reusamos lo que ya está en data (se reescribe igual, es idempotente).
+    const avatar_url = data.avatar_url;
+    const cover_url = data.cover_url;
+
+    // Fallo de guardado: en guardado explícito (showToast) avisa con un
+    // toast; en autosave silencioso nunca interrumpe con un error (el
+    // usuario no pidió nada) — solo libera el indicador "Guardando…" para
+    // que no quede trabado (reportSaveStatus solo tiene "saving"/"saved",
+    // no hay un estado de error dedicado; "saved" acá solo cierra el
+    // indicador, no implica que se haya persistido nada).
+    function fail(message: string) {
+      setSaving(false);
+      if (showToast) toast.error(message);
+      else reportSaveStatus("saved");
+    }
+
+    // Resolver slug final: usa el escrito o lo deriva del nombre.
+    const finalSlug = slugify(data.slug) || slugify(data.name);
+    if (!finalSlug) {
+      return fail("Definí una URL pública (slug) o un nombre.");
+    }
+    // Validar que no esté usado por otro negocio.
+    const { data: clash } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("slug", finalSlug)
+      .neq("id", businessId)
+      .maybeSingle();
+    if (clash) {
+      return fail("Esa URL pública ya está en uso. Probá otra.");
+    }
+
+    const normalizedPhone = normalizeWhatsAppArgentina(data.phone);
+
+    // Save name + slug to businesses. Pedimos la fila de vuelta para detectar
+    // el caso RLS: un UPDATE que no matchea filas devuelve éxito con 0 filas.
+    const nameResult = await supabase
+      .from("businesses")
+      .update({
+        name: data.name,
+        slug: finalSlug,
+        avatar_url: avatar_url || null,
+        cover_url: cover_url || null,
+        address: data.address || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        instagram: data.instagram || null,
+        business_start_date: data.business_start_date || null,
+      })
+      .eq("id", businessId)
+      .select("id,name,slug")
+      .maybeSingle();
+
+    // Save branding fields inside schedule._branding (schedule column exists).
+    // Importante: siempre hacemos merge y preservamos imágenes/clientes destacados
+    // si el estado llega vacío por una carga incompleta, para no pisar datos existentes.
+    const { data: existingRow } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const existingSchedule = (existingRow?.schedule ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const existingBranding = (existingSchedule._branding ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const nextPortfolioUrls = data.portfolio_urls.filter(Boolean).slice(0, 3);
+    const nextFeaturedClients = data.featured_clients
+      .map((item, index) => ({
+        ...item,
+        order: index,
+        name: item.name.trim(),
+        image_url: item.image_url.trim(),
+      }))
+      .filter((item) => item.name || item.image_url);
+    const newSchedule = {
+      ...existingSchedule,
+      _branding: {
+        ...existingBranding,
+        address: data.address,
+        phone: normalizedPhone,
+        email: data.email,
+        instagram: data.instagram,
+        website: data.website,
+        description: data.description,
+        logo_url:
+          logo_url || (existingBranding.logo_url as string | undefined) || "",
+        // Si se quitaron todas las imágenes / personas, se guarda la lista vacía (antes volvía a la anterior).
+        portfolio_urls:
+          nextPortfolioUrls.length > 0 || data.portfolio_urls.length === 0
+            ? nextPortfolioUrls
+            : (existingBranding.portfolio_urls ?? []),
+        featured_clients:
+          nextFeaturedClients.length > 0 || data.featured_clients.length === 0
+            ? nextFeaturedClients
+            : (existingBranding.featured_clients ?? []),
+        colors: {
+          primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+          secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+          accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+          buttonText: normalizeHex(
+            colors.buttonText,
+            LANDING_DEFAULTS.buttonText,
+          ),
+        },
+        theme,
+        font: fontKey || null,
+        entry_effect: entryEffect,
+        bg_style: bgStyle,
+        decor,
+        neon: neonKey,
+        benefits: benefits
+          .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
+          .filter((b) => b.label.length > 0)
+          .slice(0, 12),
+        additional_info: benefits
+          .filter((b) => b.active && b.label.trim().length > 0)
+          .map((b) => b.label.trim())
+          .slice(0, 12),
+        avatar_position: data.avatar_position,
+        cover_position: data.cover_position,
+        portfolio_positions: data.portfolio_positions,
+        featured_positions: data.featured_positions,
+      },
+    };
+    const cfgResult = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, schedule: newSchedule },
+        { onConflict: "business_id" },
+      );
+
+    setSaving(false);
+    if (nameResult.error) {
+      if (showToast) toast.error("Error guardando: " + nameResult.error.message);
+      else reportSaveStatus("saved");
+      return;
+    }
+    if (!nameResult.data) {
+      if (showToast) {
+        toast.error(
+          "No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.",
+        );
+      } else {
+        reportSaveStatus("saved");
+      }
+      return;
+    }
+    if (cfgResult.error) {
+      if (showToast) toast.error("Error guardando: " + cfgResult.error.message);
+      else reportSaveStatus("saved");
+      return;
+    }
+    if (showToast) {
+      // El setData de abajo dispara el efecto de "hay cambios": se saltea una vez.
+      brandingHydratedRef.current = false;
+      setData((d) => ({
+        ...d,
+        logo_url,
+        slug: finalSlug,
+        avatar_url,
+        cover_url,
+      }));
+      setLogoFile(null);
+    }
+    // Avisar al header (botón 🌐) para que actualice el link al instante.
+    window.dispatchEvent(
+      new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
+    );
+    setDirty(false);
+    if (showToast) toast.success("Guardado");
+    else reportSaveStatus("saved");
+  }
+
+  const saveRef = React.useRef(save);
+  React.useEffect(() => {
+    saveRef.current = save;
+  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits]);
+
+  const brandingHydratedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // realDataLoadedRef (no `loading`): el efecto de fetch de arriba hace
+    // `if (!businessId) { setLoading(false); return; }` — businessId
+    // arranca en null hasta que useAuth resuelve, así que `loading` pasa a
+    // false UN RENDER ANTES de que lleguen los datos reales. Si este guard
+    // usara `loading`, "la primera vez que pasa el guard" (la que
+    // brandingHydratedRef marca para saltear) caía en ESE render vacío, no
+    // en el que trae los datos reales — y el render real de la carga
+    // terminaba tratado como "el usuario cambió algo", disparando un
+    // autosave fantasma con slug/nombre todavía sin poblar. realDataLoadedRef
+    // se marca en true recién dentro del .then() del fetch, en el mismo
+    // tick que setData(datos reales) — así el primer render que pasa este
+    // guard es siempre el que ya tiene los datos reales.
+    if (!realDataLoadedRef.current) return;
+
+    if (!brandingHydratedRef.current) {
+      brandingHydratedRef.current = true;
+      return;
+    }
+
+    setDirty(true);
+  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
+
+
+  // Deshacer / rehacer: cada cambio (textos, beneficios, imágenes, colores, efectos) deja un punto al que se puede
+  // volver. Los cambios seguidos (por ejemplo, escribir) se juntan en uno solo. Al deshacer, el autoguardado
+  // vuelve a guardar la versión anterior.
+  type Snap = {
+    data: BrandingData;
+    colors: typeof colors;
+    theme: LandingTheme;
+    fontKey: string;
+    entryEffect: EntryEffectKey;
+    bgStyle: PublicBgKey;
+    decor: PublicDecorKey;
+    neonKey: PublicNeonKey;
+    benefits: Benefit[];
+  };
+  const histRef = React.useRef<{ past: Snap[]; future: Snap[]; current: Snap | null; skip: boolean; timer?: number }>({
+    past: [],
+    future: [],
+    current: null,
+    skip: false,
+  });
+  const [histTick, setHistTick] = useState(0);
+  const snapNow = (): Snap => ({ data, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits });
+  const confirmarCambio = (snap: Snap) => {
+    const h = histRef.current;
+    window.clearTimeout(h.timer);
+    h.timer = undefined;
+    if (!h.current || JSON.stringify(snap) === JSON.stringify(h.current)) return;
+    h.past.push(h.current);
+    if (h.past.length > 60) h.past.shift();
+    h.current = snap;
+    h.future = [];
+    setHistTick((t) => t + 1);
+  };
+  React.useEffect(() => {
+    if (!realDataLoadedRef.current) return;
+    const h = histRef.current;
+    const snap = snapNow();
+    if (!h.current) {
+      h.current = snap;
+      return;
+    }
+    if (h.skip) {
+      h.skip = false;
+      h.current = snap;
+      return;
+    }
+    window.clearTimeout(h.timer);
+    h.timer = window.setTimeout(() => confirmarCambio(snap), 700);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
+  const aplicarSnap = (sn: Snap) => {
+    histRef.current.skip = true;
+    setData(sn.data);
+    setColors(sn.colors);
+    setTheme(sn.theme);
+    setFontKey(sn.fontKey);
+    setEntryEffect(sn.entryEffect);
+    setBgStyle(sn.bgStyle);
+    setDecor(sn.decor);
+    setNeonKey(sn.neonKey);
+    setBenefits(sn.benefits);
+  };
+  const deshacer = () => {
+    const h = histRef.current;
+    if (h.timer) confirmarCambio(snapNow());
+    const prev = h.past.pop();
+    if (!prev || !h.current) return;
+    h.future.push(h.current);
+    h.current = prev;
+    aplicarSnap(prev);
+    setHistTick((t) => t + 1);
+  };
+  const rehacer = () => {
+    const h = histRef.current;
+    const next = h.future.pop();
+    if (!next || !h.current) return;
+    h.past.push(h.current);
+    h.current = next;
+    aplicarSnap(next);
+    setHistTick((t) => t + 1);
+  };
+  void histTick;
+  const puedeDeshacer = histRef.current.past.length > 0 || Boolean(histRef.current.timer);
+  const puedeRehacer = histRef.current.future.length > 0;
+
+  // Vista previa en vivo (panel al costado en pantallas grandes, cajón en las chicas).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // Editor a pantalla completa: la vista previa ocupa casi todo y la configuración queda en una columna angosta (que se puede ocultar).
+  const [editorMode, setEditorMode] = useState(false);
+  const [editorPanelOpen, setEditorPanelOpen] = useState(true);
+  React.useEffect(() => {
+    if (!editorMode) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [editorMode]);
+  const [isXl, setIsXl] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const onChange = () => setIsXl(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const [previewKey, setPreviewKey] = useState(0);
+  // Con la vista previa abierta, la pantalla de atrás no se mueve.
+  useBodyScrollLock(previewOpen);
+  // Carga la vista previa en segundo plano un momento después de entrar, para que abra al instante.
+  const [precargarPreview, setPrecargarPreview] = useState(false);
+  React.useEffect(() => {
+    const t = window.setTimeout(() => setPrecargarPreview(true), 1200);
+    return () => window.clearTimeout(t);
+  }, []);
+  const [horarioDraft, setHorarioDraft] = useState<Record<string, unknown> | null>(null);
+  // Los horarios se guardan junto con el resto de la página, con un solo botón Guardar.
+  const [horariosDirty, setHorariosDirty] = useState(false);
+  const guardarHorariosRef = React.useRef<() => Promise<boolean>>(async () => true);
+  const registrarGuardadoHorarios = React.useCallback((fn: () => Promise<boolean>) => {
+    guardarHorariosRef.current = fn;
+  }, []);
+  const previewDraft = React.useMemo(
+    () => ({
+      colors: {
+        primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+        secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+        accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+        buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
+      },
+      theme,
+      font: fontKey || null,
+      coverPosition: data.cover_position,
+      avatarPosition: data.avatar_position,
+      coverUrl: data.cover_url,
+      avatarUrl: data.avatar_url,
+      name: data.name,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      instagram: data.instagram,
+      description: data.description,
+      startDate: data.business_start_date,
+      additionalInfo: benefits
+        .filter((b) => b.active && b.label.trim().length > 0)
+        .map((b) => b.label.trim())
+        .slice(0, 12),
+      portfolioUrls: data.portfolio_urls,
+      portfolioPositions: data.portfolio_positions,
+      featuredClients: data.featured_clients,
+      featuredPositions: data.featured_positions,
+      effect: entryEffect,
+      bg: bgStyle,
+      decor,
+      neon: neonKey,
+      effectNonce,
+      ...(horarioDraft ? { schedule: horarioDraft } : {}),
+    }),
+    [horarioDraft, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, benefits, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name, data.address, data.phone, data.email, data.instagram, data.description, data.business_start_date, data.portfolio_urls, data.portfolio_positions, data.featured_clients, data.featured_positions],
+  );
+  // Todo viaja en vivo como borrador (previewDraft): la vista previa NO se recarga desde la base mientras se edita,
+  // porque pisaría lo que todavía no se guardó. Lo guardado queda al apretar Guardar.
+
+  if (loading)
+    return (
+      <div className="grid place-items-center py-24">
+        <ClipprLoader size="screen" delayMs={130} />
+      </div>
+    );
+
+  const publicSiteOrigin = import.meta.env.DEV ? window.location.origin : "https://myclippr.com";
+  const publicSiteOriginShort = publicSiteOrigin.replace(/^https?:\/\//, "");
+  const publicSlug = slugify(data.slug) || slugify(data.name);
+  const publicUrl = `${publicSiteOrigin}/negocio/${publicSlug}`;
+  const publicUrlShort = `${publicSiteOriginShort}/negocio/${publicSlug}`;
+
+  async function copyPublicLink() {
+    if (!publicSlug) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("Link copiado correctamente");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  }
+  function openPublicSite() {
+    if (!publicSlug) return;
+    window.open(publicUrl, "_blank", "noopener,noreferrer");
+  }
+  async function sharePublicLink() {
+    if (!publicSlug) return;
+    const nav = navigator as Navigator & {
+      share?: (d: { title?: string; url?: string }) => Promise<void>;
+    };
+    if (typeof nav.share === "function") {
+      try {
+        await nav.share({
+          title: data.name || "Reservá tu turno",
+          url: publicUrl,
+        });
+      } catch {
+        /* usuario canceló el share */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(publicUrl);
+        toast.success("Link copiado correctamente");
+      } catch {
+        toast.error("No se pudo copiar el link");
+      }
+    }
+  }
+
+  const infoRows: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    key: keyof BrandingData;
+    type?: string;
+  }[] = [
+    { icon: Building2, label: "Nombre", key: "name" },
+    { icon: MapPin, label: "Dirección", key: "address" },
+    { icon: Phone, label: "WhatsApp", key: "phone" },
+    { icon: Mail, label: "Email", key: "email", type: "email" },
+    { icon: Instagram, label: "Instagram", key: "instagram" },
+  ];
+
+  const previewSlug = slugify(data.slug) || slugify(data.name);
+  const previewPanel = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      onClose={previewOpen ? () => setPreviewOpen(false) : undefined}
+      onEditor={isXl ? () => setEditorMode(true) : undefined}
+    />
+  ) : null;
+  // Pantalla grande: la página muestra solo la vista previa (Móvil / Web) y el botón "Editar".
+  const pagePreview = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      large
+      reserve={330}
+      onPosition={moverImagen}
+      onEditor={() => setEditorMode(true)}
+    />
+  ) : null;
+  const editorPreview = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      large
+      reserve={200}
+      focusSection={focusSection}
+      onPosition={moverImagen}
+      onClose={() => setEditorMode(false)}
+    />
+  ) : null;
+
+  const formContent = (
+    <>
+      <div
+        className="grid grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1"
+      >
+        {(
+          [
+            ["info", "Información"],
+            ["imagenes", "Imágenes"],
+            ["colores", "Colores"],
+            ["efectos", "Efectos"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={
+              "h-10 whitespace-nowrap rounded-full px-1 text-xs font-semibold transition sm:text-sm " +
+              (activeTab === id
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
+                : "text-white/60 hover:text-white")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "info" && (
+        <>
+
+          <SectionCard clippr label="Información del negocio">
+            <div className="space-y-3">
+              {infoRows.map((f) => {
+                const Icon = f.icon;
+                const seccion = ({ name: "hero", address: "mapa", phone: "contacto", email: "contacto", instagram: "contacto" } as Record<string, string>)[String(f.key)];
+                return (
+                  <label key={f.key} className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                    <span className="block">
+                      <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><Icon className="h-4.5 w-4.5 text-violet-200" /></span>{f.label}</span>
+                      <input
+                        type={f.type ?? "text"}
+                        value={(data[f.key] as string) ?? ""}
+                        onChange={set(f.key)}
+                        onFocus={() => seccion && enfocar(seccion)}
+                        className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                      />
+                    </span>
+                  </label>
+                );
+              })}
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <span className="block">
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><CalendarDays className="h-4.5 w-4.5 text-violet-200" /></span>Fecha de inicio del negocio</span>
+                  <DateClippr value={data.business_start_date} onChange={(iso) => { setData((d) => ({ ...d, business_start_date: iso })); enfocar("hero"); }} />
+                </span>
+              </label>
+              {/* La URL no tiene un lugar en la página: se muestra abajo como texto chico, cómo va a quedar el link. */}
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <span className="block">
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><Globe className="h-4.5 w-4.5 text-violet-200" /></span>URL pública</span>
+                  <input
+                    type="text"
+                    value={data.slug}
+                    onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
+                    onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
+                    placeholder="auro-styloff"
+                    className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                  />
+                  <span className="mt-2 block break-all text-sm text-white/60">
+                    {publicSiteOriginShort}/negocio/{slugify(data.slug) || slugify(data.name) || "tu-negocio"}
+                  </span>
+                </span>
+              </label>
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <span className="block">
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><FileText className="h-4.5 w-4.5 text-violet-200" /></span>Descripción</span>
+                  <textarea
+                    value={data.description}
+                    onChange={set("description")}
+                    onFocus={() => enfocar("acerca")}
+                    rows={4}
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                  />
+                </span>
+              </label>
+            </div>
+          </SectionCard>
+
+          <HorariosSection parte="horarios" onDraft={setHorarioDraft} registrarGuardado={registrarGuardadoHorarios} onDirtyChange={setHorariosDirty} />
+
+          <SectionCard
+            clippr
+            label="Beneficios del negocio"
+            headerRight={
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1 text-sm font-semibold tabular-nums",
+                  benefits.length >= 12 ? "border-violet-400/50 bg-violet-500/20 text-violet-100" : "border-white/10 bg-white/[0.04] text-white/60",
+                )}
+              >
+                {benefits.length}/12
+              </span>
+            }
+          >
+            <div className="space-y-3">
+              {benefits.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-base text-white/60">
+                  Todavía no cargaste beneficios.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {benefits.map((b) => (
+                    <div
+                      key={b.id}
+                      className={cn(
+                        "flex min-w-0 items-center gap-2 rounded-full border py-1.5 pl-4 pr-2 transition",
+                        b.active ? "border-emerald-400/30 bg-emerald-400/[0.08]" : "border-white/10 bg-white/[0.04]",
+                      )}
+                    >
+                      <input
+                        value={b.label}
+                        maxLength={35}
+                        onChange={(e) => updateBenefit(b.id, e.target.value)}
+                        onFocus={() => enfocar("beneficios")}
+                        className={cn("h-9 min-w-0 flex-1 bg-transparent text-base font-semibold outline-none", b.active ? "text-white" : "text-white/55")}
+                      />
+                      <Toggle
+                        on={b.active}
+                        onChange={() => {
+                          toggleBenefit(b.id);
+                          enfocar("beneficios");
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeBenefit(b.id);
+                          enfocar("beneficios");
+                        }}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-rose-400/40 hover:text-rose-300"
+                        aria-label="Eliminar"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  value={customBenefit}
+                  onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
+                  onFocus={() => enfocar("beneficios")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addBenefit();
+                    }
+                  }}
+                  maxLength={35}
+                  disabled={benefits.length >= 12}
+                  placeholder="Agregar beneficio..."
+                  className="h-12 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 disabled:cursor-not-allowed disabled:opacity-40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    addBenefit();
+                    enfocar("beneficios");
+                  }}
+                  disabled={benefits.length >= 12}
+                  className="h-12 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Agregar
+                </button>
+              </div>
+              {benefits.length >= 12 ? (
+                <p className="text-xs font-medium text-violet-300">Llegaste al máximo de 12 beneficios.</p>
+              ) : null}
+            </div>
+          </SectionCard>
+        </>
+      )}
+
+      {activeTab === "imagenes" && (
+        <>
+          <SectionCard clippr label="Imágenes" id="pagina-reservas-imagenes">
+            <div className="space-y-5">
+              <p className="text-base leading-snug text-white/65">
+                Para ajustar el encuadre, arrastrá la imagen en la vista previa.
+              </p>
+
+              {/* Foto de perfil */}
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><UserIcon className="h-4.5 w-4.5 text-violet-200" /></span>Foto de perfil</div>
+                  <span className={cn("text-base font-semibold", avatarPreview ? "text-emerald-300" : "text-white/50")}>{avatarPreview ? "Cargada" : "Sin imagen"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} disabled={uploadingAvatar} onFile={(f) => handleAvatarSelect(f)}> enfocar("hero")}>
+                    <ImageIcon className="h-4 w-4" />
+                    {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
+                    </ElegirImagen>
+                  {avatarPreview ? (
+                    <>
+                      <button type="button" onClick={() => {
+                        removeAvatar();
+                        enfocar("hero");
+                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                        <X className="h-4 w-4" /> Quitar
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Portada */}
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portada</div>
+                  <span className={cn("text-base font-semibold", coverPreview ? "text-emerald-300" : "text-white/50")}>{coverPreview ? "Cargada" : "Sin imagen"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} disabled={uploadingCover} onFile={(f) => handleCoverSelect(f)}> enfocar("hero")}>
+                    <ImageIcon className="h-4 w-4" />
+                    {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
+                    </ElegirImagen>
+                  {coverPreview ? (
+                    <>
+                      <button type="button" onClick={() => {
+                        removeCover();
+                        enfocar("hero");
+                      }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                        <X className="h-4 w-4" /> Quitar
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Portafolio: tres imágenes */}
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
+                <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><ImageIcon className="h-4.5 w-4.5 text-violet-200" /></span>Portafolio</div>
+                <div className="space-y-2">
+                  {[0, 1, 2].map((index) => {
+                    const url = data.portfolio_urls[index];
+                    const uploading = uploadingPortfolioIndex === index;
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="w-[76px] shrink-0 text-base text-white/75">Imagen {index + 1}</span>
+                        <ElegirImagen className={cn("inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} disabled={uploading} onFile={(f) => handlePortfolioSelect(index, f)}> enfocar("acerca")}>
+                          <ImageIcon className="h-4 w-4" />
+                          {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
+                          </ElegirImagen>
+                        {url && !uploading ? (
+                          <button type="button" onClick={() => {
+                            removePortfolioImage(index);
+                            enfocar("acerca");
+                          }} className="inline-flex h-11 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-base font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
+                            <X className="h-4 w-4" /> Quitar
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard clippr label="">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-lg font-semibold text-white">Confían en nosotros</div>
+                  <p className="mt-1 text-base leading-snug text-white/65">
+                    Marcas, equipos o personas que querés mostrar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    addFeaturedClient();
+                    enfocar("confian");
+                  }}
+                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 self-start rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30"
+                >
+                  <Plus className="h-4 w-4" /> Agregar
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {data.featured_clients.map((item, index) => {
+                  const uploading = uploadingFeaturedId === item.id;
+                  const isFirst = index === 0;
+                  const isLast = index === data.featured_clients.length - 1;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.06] p-3 transition"
+                      style={{
+                        backgroundImage:
+                          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)",
+                      }}
+                    >
+                      {/* Flechas para ordenar: en el medio de la tarjeta, a la izquierda. */}
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, -1)}
+                          disabled={isFirst}
+                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+                          aria-label="Mover arriba"
+                          title="Mover arriba"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, 1)}
+                          disabled={isLast}
+                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+                          aria-label="Mover abajo"
+                          title="Mover abajo"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid min-w-0 flex-1 gap-2.5">
+                        <input
+                          value={item.name}
+                          onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                          onFocus={() => enfocar("confian")}
+                          placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                          maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
+                          aria-label="Nombre"
+                          className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                        />
+                        <SelectClippr
+                          opciones={FEATURED_CLIENT_CATEGORIES.map((cat) => ({ id: cat, label: cat }))}
+                          valor={item.category}
+                          onChange={(v) => {
+                            updateFeaturedClient(item.id, { category: v as FeaturedClientCategory });
+                            enfocar("confian");
+                          }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <ElegirImagen className={cn(
+                              "inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30",
+                              uploading && "pointer-events-none opacity-50",
+                            )} disabled={uploading} onFile={(f) => handleFeaturedImageSelect(item.id, f)}> enfocar("confian")}
+                          >
+                            <ImageIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}</span>
+                            </ElegirImagen>
+                          {(() => {
+                            const complete = isFeaturedClientComplete(item);
+                            const canToggle = item.active || complete;
+                            return (
+                              <Toggle
+                                on={item.active}
+                                onChange={() => {
+                                  if (!canToggle) return;
+                                  updateFeaturedClient(item.id, { active: !item.active });
+                                  enfocar("confian");
+                                }}
+                              />
+                            );
+                          })()}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeFeaturedClient(item.id);
+                              enfocar("confian");
+                            }}
+                            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label="Eliminar de Confían en nosotros"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {!isFeaturedClientComplete(item) ? (
+                          <p className="text-sm leading-snug text-amber-200/90">Cargá la imagen y el nombre para activarlo.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </SectionCard>
+        </>
+      )}
+
+      {activeTab === "efectos" && (
+        <SectionCard clippr label="Efectos de entrada">
+          <p className="text-xs text-white/55">Tocá uno para elegirlo y verlo en la vista previa.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {ENTRY_EFFECTS.map((fx) => {
+              const active = entryEffect === fx.key;
+              return (
+                <button
+                  key={fx.key}
+                  type="button"
+                  onClick={() => {
+                    setEntryEffect(fx.key);
+                    setEffectNonce((n) => n + 1);
+                  }}
+                  className={cn(
+                    "rounded-xl border px-3 py-3 text-sm font-semibold transition",
+                    active
+                      ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white shadow-[0_8px_20px_-8px_rgba(139,92,246,0.9)]"
+                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+                  )}
+                >
+                  {fx.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setEntryEffect("none")}
+              className={cn(
+                "rounded-xl border px-3 py-3 text-sm font-semibold transition",
+                entryEffect === "none"
+                  ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                  : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+              )}
+            >
+              Sin efecto
+            </button>
+          </div>
+        </SectionCard>
+      )}
+
+      {activeTab === "colores" && (
+        <>
+          <SectionCard clippr label="Colores">
+            <div>
+              <h3 className="text-sm font-semibold">Fondo blanco o negro</h3>
+              <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+                {(["dark", "light"] as LandingTheme[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setTheme(mode)}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
+                      theme === mode
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    {mode === "dark" ? (
+                    <>
+                      <Moon className="h-3.5 w-3.5" />
+                      Negro
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-3.5 w-3.5" />
+                      Blanco
+                    </>
+                  )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Tus colores</h3>
+              <div className="mt-3 grid grid-cols-7 gap-2">
+                {COLOR_PALETTES.map((pal) => {
+                  const active =
+                    normalizeHex(colors.primary, "") === pal.primary && normalizeHex(colors.secondary, "") === pal.secondary;
+                  return (
+                    <button
+                      key={pal.key}
+                      type="button"
+                      title={pal.label}
+                      onClick={() =>
+                        setColors({ primary: pal.primary, secondary: pal.secondary, accent: pal.accent, buttonText: pal.buttonText })
+                      }
+                      className={cn("aspect-square w-full rounded-full ring-1 ring-white/25 transition", active && "ring-2 ring-white")}
+                      style={{ background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Neón del encabezado</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {PUBLIC_NEONS.map((n) => (
+                  <button
+                    key={n.key}
+                    type="button"
+                    onClick={() => setNeonKey(n.key)}
+                    className={cn(
+                      "rounded-xl border px-2 py-2.5 text-xs font-semibold transition",
+                      neonKey === n.key
+                        ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                        : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+                    )}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Dibujos del encabezado</h3>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {PUBLIC_DECORS.map((d) => (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => setDecor(d.key)}
+                    className={cn(
+                      "rounded-xl border px-2 py-2.5 text-xs font-semibold transition",
+                      decor === d.key
+                        ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                        : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Fondo</h3>
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {PUBLIC_BACKGROUNDS.map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    onClick={() => setBgStyle(b.key)}
+                    className={cn(
+                      "overflow-hidden rounded-xl text-left ring-1 transition",
+                      bgStyle === b.key ? "ring-2 ring-white/70" : "ring-white/10 hover:ring-white/30",
+                    )}
+                  >
+                    <div
+                      className="h-14"
+                      style={{ background: pageBackground(b.key, theme === "light", colors.primary, colors.secondary) }}
+                    />
+                    <div className="bg-white/[0.05] px-2 py-1.5 text-xs font-semibold">{b.label}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Tipografía</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => setFontKey("")}
+                  className={cn(
+                    "rounded-xl border px-3 py-3 text-left transition",
+                    fontKey === "" ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                  )}
+                >
+                  <div className="text-lg leading-tight">Auro Stylo</div>
+                </button>
+                {PUBLIC_FONTS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFontKey(f.key)}
+                    className={cn(
+                      "rounded-xl border px-3 py-3 text-left transition",
+                      fontKey === f.key ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                    )}
+                  >
+                    <div className="truncate text-lg leading-tight" style={{ fontFamily: f.family }}>
+                      Auro Stylo
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <link rel="stylesheet" href={publicFontsStylesheet(PUBLIC_FONTS)} />
+            </div>
+
+          </SectionCard>
+        </>
+      )}
+    </>
+  );
+
+  if (editorMode && editorPreview) {
+    return createPortal(
+      (<div className="fixed inset-0 z-[200] flex flex-col bg-background">
+        <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
+          <div className="text-sm font-semibold">Editor de la página pública</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={deshacer}
+              disabled={!puedeDeshacer}
+              aria-label="Deshacer el último cambio"
+              title="Deshacer el último cambio"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-35"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={rehacer}
+              disabled={!puedeRehacer}
+              aria-label="Rehacer el cambio deshecho"
+              title="Rehacer"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-35"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorPanelOpen((v) => !v)}
+              className="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
+            >
+              {editorPanelOpen ? "Ocultar configuración" : "Mostrar configuración"}
+            </button>
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1">
+          {editorPanelOpen ? (
+            <aside
+              className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-violet-400/20 p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_.glass]:bg-gradient-to-br [&_.glass]:from-sky-400/[0.07] [&_.glass]:to-violet-500/[0.10] [&_.glass]:ring-violet-300/15"
+              style={{
+                background:
+                  "radial-gradient(120% 40% at 0% 0%, rgba(56,189,248,0.14), transparent 60%), radial-gradient(120% 40% at 100% 100%, rgba(139,92,246,0.18), transparent 60%)",
+              }}
+            >
+              {formContent}
+              <div className="sticky -bottom-4 -mx-4 -mb-4 border-t border-violet-400/20 bg-background/90 p-3 backdrop-blur">
+                <button
+                  type="button"
+                  disabled={saving || !dirty}
+                  onClick={() => void save(true)}
+                  className="w-full rounded-full bg-emerald-500 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 disabled:hover:bg-white/10"
+                >
+                  {saving ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </aside>
+          ) : null}
+          <main className="min-w-0 flex-1 overflow-hidden p-4">{editorPreview}</main>
+        </div>
+      </div>),
+      document.body,
+    );
+  }
+
+  if (isXl && pagePreview) {
+    return <div className="mx-auto w-full max-w-5xl">{pagePreview}</div>;
+  }
+
+  return (
+    <div>
+    <div className="min-w-0 space-y-6 pb-32">{formContent}</div>
+    <FloatingSaveButton
+      visible={dirty || horariosDirty}
+      saving={saving}
+      onClick={() => {
+        void (async () => {
+          if (dirty) await save(true);
+          if (horariosDirty) await guardarHorariosRef.current();
+        })();
+      }}
+    />
+    {previewPanel && !isXl ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 py-3.5 text-sm font-semibold text-white shadow-xl"
+        >
+          Vista previa
+        </button>
+        {/* Montada desde antes (invisible): así la página ya está cargada cuando se toca Vista previa. */}
+        {precargarPreview || previewOpen ? (
+          <div
+            className={
+              "fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/80 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] " +
+              (previewOpen ? "" : "pointer-events-none invisible")
+            }
+            aria-hidden={!previewOpen}
+          >
+            <div className="mx-auto max-w-md">{previewPanel}</div>
+          </div>
+        ) : null}
+      </>
+    ) : null}
+    </div>
+  );
+}
+
+// Marco de la portada con la proporción real; se arrastra la imagen para
+// elegir qué parte se ve (guarda objectPosition en porcentaje).
+function CoverAdjuster({
+  src,
+  position,
+  onChange,
+  uploading,
+}: {
+  src: string;
+  position: string;
+  onChange: (next: string) => void;
+  uploading: boolean;
+}) {
+  const frameRef = React.useRef<HTMLDivElement | null>(null);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
+  const drag = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  function parse(pos: string): [number, number] {
+    const [xRaw, yRaw] = String(pos || "50% 50%").split(" ");
+    const x = Math.min(100, Math.max(0, parseFloat(xRaw)));
+    const y = Math.min(100, Math.max(0, parseFloat(yRaw)));
+    return [Number.isFinite(x) ? x : 50, Number.isFinite(y) ? y : 50];
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!src) return;
+    const [px, py] = parse(position);
+    drag.current = { x: e.clientX, y: e.clientY, px, py };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    const frame = frameRef.current;
+    const img = imgRef.current;
+    if (!d || !frame || !img || !img.naturalWidth || !img.naturalHeight) return;
+    const fw = frame.clientWidth;
+    const fh = frame.clientHeight;
+    const scale = Math.max(fw / img.naturalWidth, fh / img.naturalHeight);
+    const overflowX = img.naturalWidth * scale - fw;
+    const overflowY = img.naturalHeight * scale - fh;
+    const nx = overflowX > 1 ? d.px - ((e.clientX - d.x) / overflowX) * 100 : d.px;
+    const ny = overflowY > 1 ? d.py - ((e.clientY - d.y) / overflowY) * 100 : d.py;
+    const clamp = (v: number) => Math.min(100, Math.max(0, Math.round(v * 10) / 10));
+    onChange(`${clamp(nx)}% ${clamp(ny)}%`);
+  }
+
+  function endDrag() {
+    drag.current = null;
+  }
+
+  return (
+    <div
+      ref={frameRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      className={cn(
+        COVER_ASPECT_CLASS,
+        "relative w-full select-none overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl touch-none",
+        src ? "cursor-grab active:cursor-grabbing" : "",
+      )}
+      style={{ background: "linear-gradient(90deg, rgb(139 92 246 / 0.6), rgb(79 125 255 / 0.5))" }}
+    >
+      {src ? (
+        <img
+          ref={imgRef}
+          src={src}
+          alt="Portada"
+          draggable={false}
+          className="pointer-events-none h-full w-full object-cover"
+          style={{ objectPosition: position }}
+        />
+      ) : (
+        <div className="grid h-full w-full place-items-center">
+          <ImageIcon className="h-6 w-6 text-white/60" />
+        </div>
+      )}
+      {uploading ? (
+        <div className="absolute inset-0 grid place-items-center bg-black/50 text-xs font-semibold text-white">
+          Subiendo…
+        </div>
+      ) : null}
+    </div>
+  );
+}
