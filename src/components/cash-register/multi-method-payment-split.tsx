@@ -81,11 +81,7 @@ export function MultiMethodPaymentSplit({
         className,
       )}
     >
-      {allowPartial ? null : clippr ? (
-        <p className="text-sm font-semibold text-white">Pago múltiple</p>
-      ) : (
-        <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
-      )}
+
       {/* max-h/overflow SOLO en las filas — antes envolvía también el
           botón "Agregar método de pago" y el renglón de estado, así que
           con pocas filas (que no llegan a llenar los 200px) quedaba un
