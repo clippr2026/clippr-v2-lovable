@@ -297,6 +297,50 @@ function minutesFromTime(value: string) {
   return Number(hour) * 60 + Number(minute);
 }
 
+// Imagen del portafolio con efecto al hacer scroll: se agranda al llegar al centro de la pantalla y se achica al irse.
+function ScrollZoomTile({ children, onClick, index }: { children: React.ReactNode; onClick: () => void; index: number }) {
+  const ref = React.useRef<HTMLButtonElement | null>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || 800;
+      const dist = Math.abs(r.top + r.height / 2 - vh / 2) / (vh * 0.65);
+      const t = Math.max(0, 1 - Math.min(1, dist));
+      const eased = t * t * (3 - 2 * t);
+      el.style.transform = `scale(${(0.86 + 0.14 * eased).toFixed(3)})`;
+      el.style.opacity = String((0.55 + 0.45 * eased).toFixed(3));
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      data-pos-kind="portfolio"
+      data-pos-index={index}
+      onClick={onClick}
+      className="aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left will-change-transform"
+    >
+      {children}
+    </button>
+  );
+}
+
 function getTodayStatus(schedule: ScheduleMap | null) {
   if (!schedule) return "Consultá disponibilidad al reservar";
   const todayKey = getTodayKey();
@@ -1432,16 +1476,9 @@ function PublicProfilePage() {
                 {portfolio.length > 0 ? (
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {portfolio.slice(0, 3).map((src, i) => (
-                      <button
-                        key={`${src}-${i}`}
-                        type="button"
-                        data-pos-kind="portfolio"
-                        data-pos-index={i}
-                        onClick={() => openPortfolio(i)}
-                        className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
-                      >
-                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" style={{ objectPosition: portfolioPositions[i] || "50% 50%" }} loading="lazy" decoding="async" />
-                      </button>
+                      <ScrollZoomTile key={`${src}-${i}`} onClick={() => openPortfolio(i)} index={i}>
+                        <img src={src} alt={`Imagen ${i + 1} de ${business.name}`} className="h-full w-full object-cover" style={{ objectPosition: portfolioPositions[i] || "50% 50%" }} loading="lazy" decoding="async" />
+                      </ScrollZoomTile>
                     ))}
                   </div>
                 ) : null}
