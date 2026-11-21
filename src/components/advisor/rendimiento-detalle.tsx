@@ -190,7 +190,7 @@ function bestWorst(d: DayRow[], rows: { best: DayRow | null; worst: DayRow | nul
 
 function FacturacionView({ d, perf, prev, vsLabel, prevDet }: ViewProps) {
   const f = d.facturacion;
-  const diasTrabajados = f.porDiaSemana.filter((r) => r.dias > 0);
+  const diasTrabajados = f.porDiaSemana.filter((r) => r.dias > 0 && !r.cerrado);
   const conBarberos = diasTrabajados.filter((r) => r.barberos > 0);
   const mejorPorBarbero = [...conBarberos].sort((a, b) => b.facturaPorBarbero - a.facturaPorBarbero)[0];
   const peorPorBarbero = [...conBarberos].sort((a, b) => a.facturaPorBarbero - b.facturaPorBarbero)[0];

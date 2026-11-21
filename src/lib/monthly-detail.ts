@@ -191,6 +191,8 @@ export type DayRow = {
   barberosMax: number;
   // Cantidad de barberos más frecuente en ese día de la semana (la "habitual").
   barberosHabitual: number;
+  // El local no abre ese día de la semana según los horarios (una venta suelta, como una seña, no lo hace día de trabajo).
+  cerrado: boolean;
   facturaPorBarbero: number;
   ganaPorBarbero: number;
 };
@@ -454,6 +456,7 @@ function byWeekday(
         barberos: avg(barberDays, a.fechas.size),
         barberosMin: sizes.length ? Math.min(...sizes) : 0,
         barberosMax: sizes.length ? Math.max(...sizes) : 0,
+        cerrado: habitual.size > 0 && !habitual.has(a.dow),
         barberosHabitual: habitual.get(a.dow) ?? (() => {
           const freq = new Map<number, number>();
           for (const n of sizes) freq.set(n, (freq.get(n) ?? 0) + 1);
