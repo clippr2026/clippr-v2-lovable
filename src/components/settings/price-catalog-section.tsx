@@ -812,7 +812,17 @@ function PriceEditorModal({
           </div>
         ) : null}
 
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3 [-webkit-overflow-scrolling:touch]">
+        <div
+          ref={scrollRef}
+          // Truco para iPhone: si el dedo arranca con la lista pegada arriba o abajo, se corre 1 px para que el
+          // gesto no pase a la pantalla de atrás (bloqueada) y la lista se quede sin responder.
+          onTouchStart={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollTop <= 0) el.scrollTop = 1;
+            else if (el.scrollTop + el.clientHeight >= el.scrollHeight) el.scrollTop = el.scrollHeight - el.clientHeight - 1;
+          }}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 space-y-3 [-webkit-overflow-scrolling:touch]"
+        >
           {isService && tab !== "datos" ? (
             serviceId ? (
               tab === "profesionales" ? (
