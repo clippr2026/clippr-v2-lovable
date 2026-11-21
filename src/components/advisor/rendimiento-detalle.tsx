@@ -31,35 +31,41 @@ const TITLES: Record<DetalleKind, string> = {
   clientes: "Clientes atendidos",
 };
 
-function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+// Tarjeta estilo Clippr: título grande en minúscula, sin textos de ayuda repetidos.
+function Block({ title, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-white/[0.16] bg-white/[0.04] p-4 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.8)] sm:p-5">
-      <h3 className="border-b border-white/[0.1] pb-2.5 text-[11px] font-bold uppercase tracking-[0.15em] text-white/60">{title}</h3>
-      {hint && <p className="mt-1 text-[11px] leading-snug text-white/35">{hint}</p>}
-      <div className="mt-4">{children}</div>
+    <section
+      className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+      style={{ backgroundImage: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)" }}
+    >
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <div className="mt-3.5">{children}</div>
     </section>
   );
 }
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: React.ReactNode; tone?: "pos" | "neg" }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45">{label}</div>
+    <div
+      className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5"
+      style={{ backgroundImage: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.12), transparent 62%)" }}
+    >
+      <div className="text-sm font-semibold text-white/65">{label}</div>
       <div
         className={cn(
-          "mt-0.5 font-display text-lg font-semibold tabular-nums",
+          "mt-1 font-display text-2xl font-bold tabular-nums",
           tone === "pos" ? "text-emerald-300" : tone === "neg" ? "text-rose-300" : "text-white",
         )}
       >
         {value}
       </div>
-      {sub && <div className="mt-0.5 text-[11px] leading-snug text-white/45">{sub}</div>}
+      {sub && <div className="mt-1 text-sm leading-snug text-white/60">{sub}</div>}
     </div>
   );
 }
 
 function StatGrid({ children, twoCols = false }: { children: React.ReactNode; twoCols?: boolean }) {
-  return <div className={cn("grid grid-cols-2 gap-2.5", !twoCols && "sm:grid-cols-3")}>{children}</div>;
+  return <div className={cn("grid grid-cols-2 gap-3", !twoCols && "sm:grid-cols-3")}>{children}</div>;
 }
 
 // Filas con barra: `value` define el largo; `text` es lo que se muestra a la derecha.
@@ -79,21 +85,21 @@ function Bars({
   color?: string;
 }) {
   const list = maxRows ? rows.slice(0, maxRows) : rows;
-  if (list.length === 0) return <div className="text-sm text-white/40">{empty}</div>;
+  if (list.length === 0) return <div className="text-base text-white/55">{empty}</div>;
   const total = rows.reduce((s, r) => s + r.value, 0);
   const max = Math.max(1, ...list.map((r) => r.value));
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3.5">
       {list.map((r) => (
         <div key={r.label}>
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate text-white/80">{r.label}</span>
-            <span className="shrink-0 tabular-nums text-white">
+          <div className="flex items-baseline justify-between gap-3 text-base">
+            <span className="min-w-0 truncate font-semibold text-white">{r.label}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-white">
               {format(r.value)}
-              {sub && <span className="ml-1.5 text-xs text-white/40">{sub(r, total)}</span>}
+              {sub && <span className="ml-1.5 text-sm font-normal text-white/55">{sub(r, total)}</span>}
             </span>
           </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
             <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} />
           </div>
         </div>
@@ -106,11 +112,11 @@ const sharePct = (r: { value: number }, total: number) => `(${total > 0 ? Math.r
 
 function KV({ rows }: { rows: Array<[string, React.ReactNode]> }) {
   return (
-    <div className="divide-y divide-white/[0.06] text-sm">
+    <div className="divide-y divide-white/[0.08] text-base">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-baseline justify-between gap-3 py-1.5">
-          <span className="text-white/60">{k}</span>
-          <span className="text-right tabular-nums text-white">{v}</span>
+        <div key={k} className="flex items-baseline justify-between gap-3 py-2">
+          <span className="text-white/70">{k}</span>
+          <span className="text-right font-semibold tabular-nums text-white">{v}</span>
         </div>
       ))}
     </div>
@@ -119,7 +125,7 @@ function KV({ rows }: { rows: Array<[string, React.ReactNode]> }) {
 
 function Callout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-sky-300/20 bg-sky-300/[0.06] px-3 py-2 text-xs leading-relaxed text-sky-50/85">
+    <div className="rounded-2xl border border-violet-300/25 bg-violet-400/[0.08] px-4 py-3 text-base leading-snug text-white/90">
       {children}
     </div>
   );
@@ -141,9 +147,9 @@ function Track({ pct, color }: { pct: number; color: string }) {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white/[0.05] px-2.5 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/45">{label}</div>
-      <div className="mt-0.5 font-semibold tabular-nums text-white">{value}</div>
+    <div className="rounded-xl bg-white/[0.05] px-3 py-2.5">
+      <div className="text-sm font-semibold text-white/60">{label}</div>
+      <div className="mt-0.5 text-lg font-bold tabular-nums text-white">{value}</div>
     </div>
   );
 }
@@ -198,7 +204,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
           value={money(f.ventasProductos + f.consumos)}
           sub={f.consumos > 0 ? `Incluye ${money(f.consumos)} de consumos de profesionales` : undefined}
         />
-        <Stat label="Descuentos otorgados" value={money(f.descuentoTotal)} sub="Promos y descuentos manuales" />
+        <Stat label="Descuentos otorgados" value={money(f.descuentoTotal)} />
       </StatGrid>
 
       <Block title="Por servicio" hint="Monto de cada servicio después de descuentos y promos.">
@@ -243,21 +249,21 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
                     <div className="flex items-center gap-2">
                       <span className="text-base font-semibold text-white">{r.label}</span>
                       {isBest && (
-                        <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                        <span className="rounded-full border border-emerald-400/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
                           Más alto
                         </span>
                       )}
                       {isWorst && (
-                        <span className="rounded-full border border-rose-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">
+                        <span className="rounded-full border border-rose-400/40 px-2.5 py-0.5 text-xs font-semibold text-rose-300">
                           Más bajo
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="mt-3 flex items-baseline justify-between gap-3 text-sm">
+                  <div className="mt-3 flex items-baseline justify-between gap-3 text-base">
                     <span className="text-white/70">
                       Total de los {diaPlural(r.label)}{" "}
-                      <span className="text-xs text-white/40">
+                      <span className="text-sm text-white/55">
                         ({r.dias} {r.dias === 1 ? "día" : "días"})
                       </span>
                     </span>
@@ -265,16 +271,16 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
                   </div>
                   <div className="mt-3 space-y-3 border-t border-white/[0.07] pt-3">
                     <div>
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-3 text-base">
                         <span className="text-white/70">Promedio por día</span>
                         <span className="font-semibold tabular-nums text-white">{money(r.promedio)}</span>
                       </div>
                       <Track pct={r.promedio / maxProm} color="bg-sky-400/70" />
                     </div>
                     <div>
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <div className="flex items-baseline justify-between gap-3 text-base">
                         <span className="text-white/70">
-                          Factura cada barbero <span className="text-xs text-white/40">({rango})</span>
+                          Factura cada barbero <span className="text-sm text-white/55">({rango})</span>
                         </span>
                         <span className="font-semibold tabular-nums text-white">{money(r.facturaPorBarbero)}</span>
                       </div>
@@ -284,20 +290,6 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
                 </div>
               );
             })}
-          </div>
-        )}
-        {mejorPorBarbero && peorPorBarbero && mejorPorBarbero.label !== peorPorBarbero.label && (
-          <div className="mt-4">
-            <Callout>
-              <div>
-                <b>Día más alto:</b> {mejorPorBarbero.label.toLowerCase()}, cada barbero factura{" "}
-                <b>{money(mejorPorBarbero.facturaPorBarbero)}</b>
-              </div>
-              <div className="mt-1">
-                <b>Día más bajo:</b> {peorPorBarbero.label.toLowerCase()}, cada barbero factura{" "}
-                <b>{money(peorPorBarbero.facturaPorBarbero)}</b>
-              </div>
-            </Callout>
           </div>
         )}
       </Block>
@@ -355,9 +347,9 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
         <Stat
           label="% de la facturación"
           value={g.porcentajeDeFacturacion != null ? pct1(g.porcentajeDeFacturacion) : "—"}
-          sub="Cuánto de lo que facturás se va en gastos"
+         
         />
-        <Stat label="Promedio por día" value={money(g.promedioPorDia)} sub="Sobre todos los días del mes" />
+        <Stat label="Promedio por día" value={money(g.promedioPorDia)} />
         {g.diaMayorGasto && (
           <Stat label="Día de mayor gasto" value={dateLabel(g.diaMayorGasto.date)} sub={money(g.diaMayorGasto.total)} />
         )}
@@ -384,11 +376,11 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
         {g.mayores.length === 0 ? (
           <div className="text-sm text-white/40">Sin gastos en el mes.</div>
         ) : (
-          <div className="divide-y divide-white/[0.06] text-sm">
+          <div className="divide-y divide-white/[0.08] text-base">
             {g.mayores.map((e, i) => (
-              <div key={`${e.name}-${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
-                <span className="min-w-0 truncate text-white/80">
-                  {e.name} <span className="text-xs text-white/35">· {e.type}{e.date ? ` · ${dateLabel(e.date)}` : ""}</span>
+              <div key={`${e.name}-${i}`} className="flex items-baseline justify-between gap-3 py-2">
+                <span className="min-w-0 truncate font-semibold text-white">
+                  {e.name} <span className="text-sm font-normal text-white/55">· {e.type}{e.date ? ` · ${dateLabel(e.date)}` : ""}</span>
                 </span>
                 <span className="shrink-0 tabular-nums text-white">{money(e.amount)}</span>
               </div>
@@ -410,19 +402,19 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           value={money(perf.pagoProfesionales)}
           sub={<Delta cur={perf.pagoProfesionales} prev={prev?.pagoProfesionales ?? null} label={vsLabel} />}
         />
-        <Stat label="Comisión real" value={money(p.comisionTotal)} sub="Antes de descuentos" />
+        <Stat label="Comisión real" value={money(p.comisionTotal)} />
         <Stat
           label="Descuento por puntualidad"
           value={money(-p.puntualidadTotal)}
           sub={`${p.tardes} ${p.tardes === 1 ? "tarde" : "tardes"} · ${p.ausencias} ${p.ausencias === 1 ? "ausencia" : "ausencias"}`}
           tone={p.puntualidadTotal > 0 ? "neg" : undefined}
         />
-        <Stat label="Adelantos" value={money(p.adelantosTotal)} sub="Plata entregada en el mes" />
-        <Stat label="Consumos de productos" value={money(p.consumosTotal)} sub="Retiros de stock a cuenta" />
+        <Stat label="Adelantos" value={money(p.adelantosTotal)} />
+        <Stat label="Consumos de productos" value={money(p.consumosTotal)} />
         <Stat
           label="Comisión sobre facturación"
           value={p.comisionSobreFacturacion != null ? pct1(p.comisionSobreFacturacion) : "—"}
-          sub="Cuánto de lo que facturás va a profesionales"
+         
         />
       </StatGrid>
 
@@ -465,7 +457,6 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
       <Block title="Estado de las comisiones" hint="De las ventas del mes.">
         <KV
           rows={[
-            ["Comisión total", money(p.comisionTotal)],
             ["Incluida en una liquidación", money(p.incluidaEnLiquidacion)],
             ["Todavía sin liquidar", money(p.sinLiquidar)],
             ["Por servicios", money(p.comisionServicios)],
@@ -495,8 +486,8 @@ function VentasView({ d, perf, prev, vsLabel }: ViewProps) {
         <Stat label="Promedio por día" value={v.promedioPorDia.toFixed(1).replace(".", ",")} sub={`${v.diasConVentas} días con ventas`} />
         <Stat label="Anuladas" value={int(v.anuladas.count)} sub={`${money(v.anuladas.monto)} · no cuentan`} />
         <Stat label="Sin cobrar" value={int(v.sinCobrar.count)} sub={money(v.sinCobrar.monto)} />
-        <Stat label="Combos" value={int(v.combos)} sub="Ventas con más de un servicio" />
-        <Stat label="Con producto" value={int(v.conProducto)} sub="Ventas que incluyen un producto" />
+        <Stat label="Combos" value={int(v.combos)} />
+        <Stat label="Con producto" value={int(v.conProducto)} />
       </StatGrid>
 
       <Block title="Con turno vs orden de llegada" hint="Las ventas sin turno agendado son clientes que llegaron sin reserva.">
@@ -544,8 +535,8 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
     <div className="space-y-5">
       <StatGrid>
         <Stat label="Ticket promedio" value={money(t.promedio)} sub={<Delta cur={perf.ticket} prev={prev?.ticket ?? null} label={vsLabel} />} />
-        <Stat label="Ticket mediano" value={money(t.mediana)} sub="La mitad de las ventas está por debajo" />
-        <Stat label="Rango habitual" value={`${money(t.q1)} a ${money(t.q3)}`} sub="Donde cae la mayoría de las ventas" />
+        <Stat label="Ticket mediano" value={money(t.mediana)} />
+        <Stat label="Rango habitual" value={`${money(t.q1)} a ${money(t.q3)}`} />
         <Stat label="Venta más alta" value={money(t.maximo)} />
         <Stat label="Venta más baja" value={money(t.minimo)} />
       </StatGrid>
@@ -594,11 +585,11 @@ function ClientesView({ d, perf, prev, vsLabel }: ViewProps) {
     <div className="space-y-5">
       <StatGrid>
         <Stat label="Clientes atendidos" value={int(c.atendidos)} sub={<Delta cur={perf.clientes} prev={prev?.clientes ?? null} label={vsLabel} />} />
-        <Stat label="Nuevos del mes" value={int(c.nuevos)} sub="Se registraron este mes" />
-        <Stat label="Recurrentes" value={int(c.recurrentes)} sub="Ya venían de antes" />
+        <Stat label="Nuevos del mes" value={int(c.nuevos)} />
+        <Stat label="Recurrentes" value={int(c.recurrentes)} />
         <Stat label="VIP atendidos" value={int(c.vip)} />
-        <Stat label="Sin ficha de cliente" value={int(c.sinFicha)} sub="Ventas sin cliente registrado" />
-        <Stat label="Por orden de llegada" value={int(c.ventasSinTurno)} sub="Ventas sin turno agendado" />
+        <Stat label="Sin ficha de cliente" value={int(c.sinFicha)} />
+        <Stat label="Por orden de llegada" value={int(c.ventasSinTurno)} />
       </StatGrid>
 
       <Block title="Clasificación de los clientes atendidos" hint="Según su estado actual en Clientes.">
@@ -611,11 +602,11 @@ function ClientesView({ d, perf, prev, vsLabel }: ViewProps) {
         {c.topClientes.length === 0 ? (
           <div className="text-sm text-white/40">Sin datos en el mes.</div>
         ) : (
-          <div className="divide-y divide-white/[0.06] text-sm">
+          <div className="divide-y divide-white/[0.08] text-base">
             {c.topClientes.map((t, i) => (
-              <div key={`${t.name}-${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
-                <span className="min-w-0 truncate text-white/80">
-                  {t.name} <span className="text-xs text-white/35">· {t.visitas} {t.visitas === 1 ? "visita" : "visitas"}</span>
+              <div key={`${t.name}-${i}`} className="flex items-baseline justify-between gap-3 py-2">
+                <span className="min-w-0 truncate font-semibold text-white">
+                  {t.name} <span className="text-sm font-normal text-white/55">· {t.visitas} {t.visitas === 1 ? "visita" : "visitas"}</span>
                 </span>
                 <span className="shrink-0 tabular-nums text-white">{money(t.gasto)}</span>
               </div>
@@ -683,7 +674,7 @@ export function DetalleSheet({
       <SheetContent
         side="right"
         hideClose
-        className="w-full overflow-y-auto border-white/10 bg-[#0b0d17] p-4 text-white sm:max-w-2xl sm:p-6"
+        className="w-full overflow-y-auto border-violet-400/30 bg-[#08070f] p-4 text-white sm:max-w-2xl sm:p-6 [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
       >
         <SheetClose
           aria-label="Cerrar"
@@ -692,11 +683,11 @@ export function DetalleSheet({
           <X className="h-5 w-5" />
         </SheetClose>
         <SheetHeader className="mb-4 pr-12 text-left">
-          <SheetTitle className="text-xl text-white">{kind ? TITLES[kind] : ""}</SheetTitle>
-          <SheetDescription className="text-white/50">{monthLabel(monthKey)} · detalle y estadísticas</SheetDescription>
+          <SheetTitle className="text-2xl font-bold text-white">{kind ? TITLES[kind] : ""}</SheetTitle>
+          <SheetDescription className="text-base text-white/60">{monthLabel(monthKey)}</SheetDescription>
         </SheetHeader>
         {raw.isLoading || (kind && !view) ? (
-          <div className="py-16 text-center text-sm text-white/45">Calculando el detalle…</div>
+          <div className="py-16 text-center text-base text-white/60">Calculando el detalle…</div>
         ) : raw.isError ? (
           <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-6 text-sm text-rose-200">
             No se pudo cargar el detalle. Probá de nuevo en un momento.
