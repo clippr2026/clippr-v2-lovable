@@ -17954,13 +17954,7 @@ export function NuevaVentaTab({
                 paymentOptions={paymentOptions}
                 total={finalTotal - depositApplied}
               />
-              <button
-                type="button"
-                onClick={() => setPaymentMode("simple")}
-                className="mt-1.5 text-sm font-semibold text-white/60 underline-offset-2 hover:text-white/85 hover:underline"
-              >
-                Volver a un solo método de pago
-              </button>
+
               {/* Un comprobante por cada componente no efectivo del pago
                   múltiple — llave por método (ver splitReceiptFiles
                   arriba). Efectivo nunca tiene comprobante, igual que en
