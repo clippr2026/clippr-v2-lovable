@@ -9,6 +9,14 @@ import { puntualidadMessage } from "@/lib/puntualidad-text";
 // funciones existía antes — este archivo es el único punto del cliente
 // que las llama; nunca se recalcula nada de esto a mano en un componente.
 
+// El sistema de presentismo/tardanza se exige desde esta fecha; jornadas anteriores quedan afuera. Tiene que
+// coincidir con public.attendance_system_start_date() en la base (migración 20261029130000).
+export const PRESENTISMO_SYSTEM_START_DATE = "2026-10-29";
+
+export function attendanceSystemAppliesToDate(date: string): boolean {
+  return date >= PRESENTISMO_SYSTEM_START_DATE;
+}
+
 export type AttendanceStatus = "a_tiempo" | "tarde" | "ausente";
 
 export type AttendanceAction =

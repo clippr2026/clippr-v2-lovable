@@ -79,7 +79,7 @@ import {
 } from "@/lib/expense-origin";
 import { activePromoOffersForService } from "@/lib/promo-view";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
-import { getPenaltyBreakdown } from "@/lib/presentismo";
+import { attendanceSystemAppliesToDate, getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
 import { CierrePrerequisitosStep } from "@/components/cash-register/cierre-prerequisitos-step";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
@@ -9084,9 +9084,11 @@ function CierreCajaBtn({
     supabase.auth.getUser().then(({ data }) => setProfileId(data.user?.id ?? null));
   }, []);
 
+  // Antes del corte del sistema de presentismo no se pide ni se muestra nada: nunca queda en "verificando".
+  const presentismoApplies = attendanceSystemAppliesToDate(cajaRangeStartDate);
   useEffect(() => {
-    setPresentismoPending(null);
-  }, [open, fechaCierre]);
+    setPresentismoPending(presentismoApplies ? null : []);
+  }, [open, fechaCierre, presentismoApplies]);
 
   // Vista previa propia, acotada EXACTAMENTE a fechaCierre — nunca
   // los `paymentsToday`/`expensesToday` acumulados de la pantalla (esos

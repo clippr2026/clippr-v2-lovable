@@ -12,7 +12,7 @@ describe("Revisar cierre: las ventas pendientes/parciales no suman", () => {
   const src = readSrc("src/lib/caja-cierre.ts");
 
   it("el snapshot del cierre separa las ventas pendientes/parciales y solo suma las que entraron a caja", () => {
-    expect(src).toContain("const payments = allPayments.filter((p) => isCountableCajaPayment(p.status))");
+    expect(src).toContain("const payments = allPayments.filter((p) => isCountableCajaPayment(p.status) && !viaCobros.has(String(p.id)));");
     expect(src).toContain("const pagosPendientes = allPayments.filter((p) => !isCountableCajaPayment(p.status))");
   });
 
@@ -47,6 +47,6 @@ describe("Cerrar un día desde Historial: paso previo de salidas y puntualidad",
     expect(step).toContain("<PresentismoRevisionPanel");
     // entrada y salida en el mismo módulo: la salida de cada profesional va en su fila
     expect(step).toContain("showSalida");
-    expect(step).toContain("Entradas y salidas del día");
+    expect(step).toContain("Validar personal");
   });
 });

@@ -1312,10 +1312,11 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(fnMatch![1]).not.toMatch(/dayExpected/);
   });
 
-  it("Caja > Resumen también muestra el aviso de cajas pendientes (summary.pendingCierres) con botón Revisar cierre", () => {
+  it("el aviso de cajas pendientes vive en Inicio (caja.pendingCierres); Caja > Resumen ya no lo muestra", () => {
+    const dash = readSrc("src/routes/dashboard.tsx");
+    expect(dash).toMatch(/caja\.pendingCierres\.length > 0 \?/);
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/summary\.pendingCierres\.length > 0 && \(/);
-    expect(src).toMatch(/onClick=\{\(\) => onRevisarCierre\(p\.date\)\}/);
+    expect(src).not.toMatch(/summary\.pendingCierres\.length > 0 && \(/);
   });
 
   it("Caja > Resumen ya NO muestra la sección 'Saldos acumulados' — mismo criterio visual que Inicio", () => {
