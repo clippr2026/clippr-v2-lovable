@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as React from "react";
 import { CalendarDays, RefreshCw, X } from "lucide-react";
 import { ManageBooking } from "@/components/gestion/manage-booking";
-import { copiarEnlaceParaSafari, esAndroid, esIosNoSafari } from "@/lib/es-android";
+import { esAndroid } from "@/lib/es-android";
 
 type Search = {
   b?: string; bid?: string; tk?: string; emp?: string; slug?: string; svc?: string; prof?: string;
@@ -125,8 +125,8 @@ function LegacyGestionPage() {
               <h1 style={{ margin: "0 0 18px", fontSize: 24, fontWeight: 800, textAlign: "center" }}>Agregar al calendario</h1>
               <div style={{ display: "grid", gap: 12 }}>
                 {!esAndroid() ? (
-                  <button onClick={esIosNoSafari() ? () => void copiarEnlaceParaSafari() : downloadIcs} style={button(c.innerBg, c.border, c.text)}>
-                    <CalendarDays size={18} /> {esIosNoSafari() ? "Apple Calendar (abrir en Safari)" : "Apple Calendar"}
+                  <button onClick={downloadIcs} style={button(c.innerBg, c.border, c.text)}>
+                    <CalendarDays size={18} /> Apple Calendar
                   </button>
                 ) : null}
                 <a href={googleUrl ?? "#"} target="_blank" rel="noreferrer" style={button(c.innerBg, c.border, c.text)}>
