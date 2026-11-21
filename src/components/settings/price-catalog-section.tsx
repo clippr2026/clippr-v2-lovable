@@ -2637,7 +2637,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                         type="button"
                         onClick={() => selectCategory(category)}
                         title={category}
-                        className="flex items-center whitespace-nowrap px-2 py-2 text-sm select-none"
+                        className="flex items-center whitespace-nowrap px-3 py-2.5 text-base font-medium select-none"
                       >
                         {category}
                       </button>
@@ -2688,7 +2688,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   // fila ya no scrollea la página — hay que arrancarlo desde
                   // otra zona (esto es aceptable: son pocos ítems por
                   // categoría).
-                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150 select-none touch-none [-webkit-touch-callout:none]",
+                  "relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 select-none touch-none [-webkit-touch-callout:none]",
                   itemReorder.draggingId === row.id &&
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
@@ -2697,113 +2697,78 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   src={imageMap[row.id]}
                   alt={row.name}
                   position={imagePositionMap[row.id]}
-                  className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10"
+                  className="h-14 w-14 shrink-0 self-start rounded-2xl bg-white/5 ring-1 ring-white/10"
                   fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
                 />
-                {/* min-w-0 + flex-1: antes este bloque competía por ancho
-                    con el badge "Online", el precio del catálogo y los dos
-                    botones, todos en la misma fila — con poco espacio el
-                    nombre se truncaba enseguida. Ahora es el único elemento
-                    flexible de la fila (Online y precio pasan a la
-                    segunda línea, Activo/Editar se apilan en una columna
-                    angosta a la derecha), así se lleva todo el ancho
-                    disponible. line-clamp-2 en vez de truncate de una sola
-                    línea: dos líneas antes de cortar con "…". */}
-                <div className="min-w-0 flex-1">
-                  <div
-                    className="text-sm font-medium leading-snug [-webkit-box-orient:vertical] [display:-webkit-box] [-webkit-line-clamp:2] overflow-hidden"
-                    title={row.name}
-                    onDoubleClick={() => openItemRename(row)}
-                  >
-                    {row.name}
-                  </div>
-                  <div className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
-                    {isService ? (
-                      // Duración primero, precio después — mismo orden que
-                      // Equipo → Comisiones, para que los dos datos
-                      // principales del servicio se lean juntos.
-                      <div>
-                        {`${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`}
-                      </div>
-                    ) : (
-                      <>
-                        <div>{`$${Number(row.price ?? 0).toLocaleString("es-AR")}`}</div>
-                        {typeof row.stock === "number" && (
-                          <div>{`Stock: ${row.stock}`}</div>
-                        )}
-                      </>
-                    )}
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div>
+                    <div
+                      className="text-lg font-semibold leading-snug text-white [-webkit-box-orient:vertical] [display:-webkit-box] [-webkit-line-clamp:2] overflow-hidden"
+                      title={row.name}
+                      onDoubleClick={() => openItemRename(row)}
+                    >
+                      {row.name}
+                    </div>
+                    <div className="mt-0.5 text-base text-white/65">
+                      {isService
+                        ? `${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`
+                        : `$${Number(row.price ?? 0).toLocaleString("es-AR")}${typeof row.stock === "number" ? ` · Stock ${row.stock}` : ""}`}
+                    </div>
                     {!isService && bookingConfig[row.id]?.show && (
-                      <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
-                        <Star className="h-3 w-3 fill-current" />
+                      <span className="mt-1.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2.5 py-1 text-sm font-semibold text-violet-200 ring-1 ring-violet-400/25">
+                        <Star className="h-3.5 w-3.5 fill-current" />
                         Online
                       </span>
                     )}
                   </div>
-                </div>
 
-                {/* Activo/Editar apilados en columna, alineados a la
-                    derecha — antes iban uno al lado del otro compitiendo
-                    por ancho con el nombre. */}
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => toggle(row)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110",
-                      row.active !== false
-                        ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                        : "bg-white/5 ring-white/10 text-muted-foreground hover:bg-white/10",
-                    )}
-                    title={row.active !== false ? "Desactivar" : "Activar"}
-                  >
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        row.active !== false
-                          ? "bg-[oklch(0.78_0.17_140)]"
-                          : "bg-muted-foreground",
-                      )}
-                    />{" "}
-                    {row.active !== false ? "Activo" : "Inactivo"}
-                  </button>
-                  <button
-                    onClick={() => openEdit(row)}
-                    className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
-                  >
-                    Editar
-                  </button>
-                  {isService ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <Toggle on={row.active !== false} onChange={() => toggle(row)} />
+                      <span className={cn("text-base font-medium", row.active !== false ? "text-emerald-300" : "text-white/50")}>
+                        {row.active !== false ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
                     <button
-                      type="button"
-                      onClick={() => void toggleFeatured(row)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 transition hover:brightness-110",
-                        featuredId === row.id
-                          ? "bg-amber-400/15 text-amber-300 ring-amber-400/50"
-                          : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10",
-                      )}
-                      title={featuredId === row.id ? "Quitar de destacado" : "Marcar como destacado en la página pública"}
+                      onClick={() => openEdit(row)}
+                      className="inline-flex h-10 items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25"
                     >
-                      <Crown className="h-3 w-3" />
-                      {featuredId === row.id ? "Destacado" : "Destacar"}
+                      <Pencil className="h-4 w-4" />
+                      Editar
                     </button>
-                  ) : null}
+                  </div>
+
                   {isService ? (
-                    <button
-                      type="button"
-                      onClick={() => void togglePromo(row)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 transition hover:brightness-110",
-                        promoIds.includes(row.id)
-                          ? "bg-fuchsia-400/15 text-fuchsia-300 ring-fuchsia-400/50"
-                          : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10",
-                      )}
-                      title={promoIds.includes(row.id) ? "Quitar el distintivo Promo" : "Mostrar el distintivo Promo en la página pública"}
-                    >
-                      <Tag className="h-3 w-3" />
-                      {promoIds.includes(row.id) ? "En promo" : "Promo"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleFeatured(row)}
+                        className={cn(
+                          "inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold ring-1 transition",
+                          featuredId === row.id
+                            ? "bg-amber-400/15 text-amber-300 ring-amber-400/50"
+                            : "bg-white/[0.05] text-white/70 ring-white/10",
+                        )}
+                        title={featuredId === row.id ? "Quitar de destacado" : "Marcar como destacado en la página pública"}
+                      >
+                        <Crown className="h-4 w-4" />
+                        {featuredId === row.id ? "Destacado" : "Destacar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void togglePromo(row)}
+                        className={cn(
+                          "inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold ring-1 transition",
+                          promoIds.includes(row.id)
+                            ? "bg-fuchsia-400/15 text-fuchsia-300 ring-fuchsia-400/50"
+                            : "bg-white/[0.05] text-white/70 ring-white/10",
+                        )}
+                        title={promoIds.includes(row.id) ? "Quitar el distintivo Promo" : "Mostrar el distintivo Promo en la página pública"}
+                      >
+                        <Tag className="h-4 w-4" />
+                        {promoIds.includes(row.id) ? "En promo" : "Promo"}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -2840,48 +2805,50 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onConfirm={doRemoveItem}
         onCancel={() => setConfirmDelItem(null)}
       />
-      {/* Selector del botón +: Agregar servicio / Agregar categoría. */}
-      {addMenuOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
-          onClick={() => setAddMenuOpen(false)}
-        >
+      {/* Selector del botón +: Agregar servicio / Categorías. */}
+      {addMenuOpen && typeof document !== "undefined" &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass w-full max-w-sm rounded-t-2xl p-2 ring-1 ring-white/10 space-y-1 sm:rounded-2xl sm:mx-4"
+            className="fixed inset-0 z-[10040] flex items-end justify-center bg-black/70 p-4 pb-10 backdrop-blur-sm"
+            onClick={() => setAddMenuOpen(false)}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setAddMenuOpen(false);
-                openNew();
-              }}
-              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm space-y-1.5 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-2.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9),0_0_40px_-14px_rgba(139,92,246,0.6)] [background-image:radial-gradient(120%_60%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_60%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
             >
-              <Plus className="h-4 w-4 text-sky-300" />
-              Agregar {isService ? "servicio" : "producto"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAddMenuOpen(false);
-                setCategoryManagerOpen(true);
-              }}
-              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
-            >
-              <FolderPlus className="h-4 w-4 text-sky-300" />
-              Agregar categoría
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddMenuOpen(false)}
-              className="flex w-full items-center justify-center rounded-xl px-3 py-3 text-sm text-muted-foreground transition hover:bg-white/5"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  openNew();
+                }}
+                className="flex h-14 w-full items-center gap-3 rounded-2xl px-4 text-left text-lg font-semibold text-white transition hover:bg-violet-500/20"
+              >
+                <Plus className="h-6 w-6 text-violet-200" />
+                Agregar {isService ? "servicio" : "producto"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false);
+                  setCategoryManagerOpen(true);
+                }}
+                className="flex h-14 w-full items-center gap-3 rounded-2xl px-4 text-left text-lg font-semibold text-white transition hover:bg-violet-500/20"
+              >
+                <FolderPlus className="h-6 w-6 text-violet-200" />
+                Categorías
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMenuOpen(false)}
+                className="h-12 w-full rounded-2xl text-base font-semibold text-white/60 transition hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
       {/* "Agregar categoría": administración centralizada de categorías
           (crear, editar, eliminar, reordenar por arrastre).
           Porteado a document.body + mismo patrón de altura que
@@ -2910,18 +2877,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="glass flex w-full max-w-sm flex-col overflow-hidden rounded-2xl ring-1 ring-white/10 max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+              className="flex w-full max-w-sm flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
             >
               <div className="shrink-0 space-y-4 border-b border-white/5 p-4">
                 <div className="flex items-center justify-between">
-                  <div className="font-display font-semibold text-base">Agregar categoría</div>
+                  <div className="text-xl font-semibold text-white">Categorías</div>
                   <button
                     type="button"
                     onClick={() => {
                       setCategoryManagerOpen(false);
                       setNewCategoryManagerInput("");
                     }}
-                    className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
+                    className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-lg text-white/70"
                     aria-label="Cerrar"
                   >
                     ✕
@@ -2938,16 +2905,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                         if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
                       }
                     }}
-                    placeholder="Nombre de la categoría"
+                    placeholder="Nueva categoría"
                     maxLength={MAX_CATEGORY_NAME_LENGTH}
-                    className="min-w-0 flex-1 rounded-xl bg-white/5 px-4 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                    className="h-12 min-w-0 flex-1 rounded-full border border-white/10 bg-black/30 px-4 text-base text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => {
                       if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
                     }}
-                    className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+                    className="h-12 shrink-0 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white transition hover:opacity-95"
                   >
                     Crear
                   </button>
@@ -2956,8 +2923,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
               {categories.length > 0 && (
                 <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4 [overscroll-behavior:contain]">
-                  <div className="px-1 pb-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                    Categorías existentes
+                  <div className="px-1 pb-1.5 text-base text-white/60">
+                    Mantené apretado y arrastrá para ordenar.
                   </div>
                   {categories.map((category) => (
                     <div
@@ -2965,35 +2932,35 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       ref={categoryManagerReorder.setNodeRef(category)}
                       onPointerDown={(event) => categoryManagerReorder.startPress(category, event)}
                       className={cn(
-                        "flex touch-none items-center gap-2 rounded-xl bg-white/[0.03] px-2 py-2 ring-1 ring-white/5 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
+                        "flex touch-none items-center gap-2 rounded-2xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/10 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
                         categoryManagerReorder.draggingId === category &&
                           "z-50 shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                       )}
                     >
                       <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                      <span className="min-w-0 flex-1 truncate text-sm">{category}</span>
+                      <span className="min-w-0 flex-1 truncate text-lg font-semibold text-white">{category}</span>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => renameCategory(category)}
-                          className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-white/85 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white"
+                          className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/15 text-violet-100 ring-1 ring-violet-400/30"
+                          aria-label={`Renombrar ${category}`}
                         >
-                          <Pencil className="h-3.5 w-3.5 text-sky-300" />
-                          Editar
+                          <Pencil className="h-4.5 w-4.5" />
                         </button>
                         <button
                           type="button"
                           disabled={categories.length <= 1}
                           onClick={() => deleteCategory(category)}
                           className={cn(
-                            "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ring-1 transition",
+                            "grid h-11 w-11 place-items-center rounded-full ring-1 transition",
                             categories.length <= 1
-                              ? "cursor-not-allowed text-white/30 ring-white/10"
-                              : "text-red-300 ring-red-500/20 hover:bg-red-500/10",
+                              ? "cursor-not-allowed text-white/25 ring-white/10"
+                              : "bg-red-500/10 text-red-300 ring-red-400/30",
                           )}
+                          aria-label={`Eliminar ${category}`}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Eliminar
+                          <Trash2 className="h-4.5 w-4.5" />
                         </button>
                       </div>
                     </div>
