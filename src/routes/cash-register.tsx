@@ -17586,7 +17586,7 @@ export function NuevaVentaTab({
                             </span>
                           )}
                         </span>
-                        {canEditPrice && !cartItems[0].svc.is_catalog && (
+                        {canEditPrice && (
                           <button
                             type="button"
                             aria-label="Cambiar el precio del servicio"
@@ -17660,7 +17660,7 @@ export function NuevaVentaTab({
                                   ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
                                 </span>
                               )}
-                              {canEditPrice && !svc.is_catalog && qty === 1 && (
+                              {canEditPrice && qty === 1 && (
                                 <button
                                   type="button"
                                   aria-label="Cambiar el precio del servicio"
