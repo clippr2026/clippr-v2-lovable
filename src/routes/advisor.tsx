@@ -297,7 +297,6 @@ function AdvisorContent({
   setIntroDone: (v: boolean) => void;
 }) {
   const { businessId } = useAuth();
-  const animationProgress = useResultAnimation(introDone);
   const [iniciado, setIniciado] = React.useState(false);
   const finishIntro = React.useCallback(() => {
     guardarAnalisisHoy();
@@ -324,8 +323,8 @@ function AdvisorContent({
           : analytics.health >= 50
             ? "Aceptable"
             : "Necesita atención";
-  const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
-  const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
+  // Sin animación de conteo: redibujaba toda la pantalla en cada cuadro y la dejaba trabada al abrir.
+  const animatedHealth = Math.round(analytics.health ?? 0);
 
   // La primera vez de cada día se pide "Iniciar análisis" y corre la presentación; después abre normal. Si la carga
   // falla, se pasa directo al aviso con Reintentar.
@@ -401,38 +400,6 @@ function AdvisorContent({
       )}
     </div>
   );
-}
-
-function useResultAnimation(enabled = false) {
-  const [progress, setProgress] = React.useState(enabled ? 0 : 1);
-
-  React.useLayoutEffect(() => {
-    if (!enabled) {
-      setProgress(1);
-      return;
-    }
-
-    let frame = 0;
-    const duration = 1800;
-    const startedAt = performance.now();
-
-    setProgress(0);
-
-    function animate(now: number) {
-      const raw = Math.min((now - startedAt) / duration, 1);
-      const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
-      setProgress(eased);
-
-      if (raw < 1) {
-        frame = window.requestAnimationFrame(animate);
-      }
-    }
-
-    frame = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frame);
-  }, [enabled]);
-
-  return progress;
 }
 
 // Análisis diario: se inicia una vez por día (día de Buenos Aires); el resto de las entradas abren normal.
