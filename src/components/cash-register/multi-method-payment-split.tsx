@@ -158,7 +158,7 @@ export function MultiMethodPaymentSplit({
             className="inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-sm font-semibold text-violet-100 hover:bg-violet-500/25 disabled:opacity-30 transition-colors"
             type="button"
           >
-            <Plus className="size-4" /> Agregar método de pago
+            <Plus className="size-4" /> Agregar otro método de pago
           </button>
           {/* Un solo renglón dinámico — Total final y Monto del pago ya se
               muestran en el resumen de arriba del modal, no hace falta

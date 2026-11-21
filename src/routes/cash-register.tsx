@@ -6856,7 +6856,7 @@ function ProfesionalesTab({
                       disabled={opt.value === "caja" && cajaCerrada}
                       aria-pressed={liquidarFunds === opt.value}
                       className={cn(
-                        "h-12 rounded-full border px-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
+                        "h-12 whitespace-nowrap rounded-full border px-2 text-[15px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
                         liquidarFunds === opt.value
                           ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
                           : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
@@ -6884,33 +6884,6 @@ function ProfesionalesTab({
                     parcial); "multiple" reusa MultiMethodPaymentSplit, acá
                     con allowPartial: la suma puede ser menor al total
                     (queda como pago parcial), nunca mayor. */}
-                <div className="mb-3 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("simple")}
-                    className={cn(
-                      "h-11 rounded-full text-base font-semibold transition",
-                      paymentMode === "simple"
-                        ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
-                        : "text-white/60 hover:text-white",
-                    )}
-                  >
-                    Pago simple
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode("multiple")}
-                    className={cn(
-                      "h-11 rounded-full text-base font-semibold transition",
-                      paymentMode === "multiple"
-                        ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
-                        : "text-white/60 hover:text-white",
-                    )}
-                  >
-                    Pago múltiple
-                  </button>
-                </div>
-
                 {paymentMode === "simple"
                   ? (() => {
                       const simpleAmount = Number(paymentForm.amount || 0);
@@ -6971,6 +6944,22 @@ function ProfesionalesTab({
                               <span className="text-rose-300">Saldo pendiente: {money(simpleDiff)}</span>
                             )}
                           </div>
+                          {/* Pasa a varios métodos: la fila actual queda y se suma otra vacía. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const otro = paymentOptions.find((o) => o.id !== paymentForm.method)?.id ?? paymentForm.method;
+                              setPaymentAmountTouched(true);
+                              setPaymentSplits([
+                                { method: paymentForm.method, amount: "" },
+                                { method: otro, amount: "" },
+                              ]);
+                              setPaymentMode("multiple");
+                            }}
+                            className="inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
+                          >
+                            <Plus className="size-4" /> Agregar otro método de pago
+                          </button>
                         </div>
                       );
                     })()
