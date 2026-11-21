@@ -6764,18 +6764,24 @@ function ProfesionalesTab({
                 type="button"
                 onClick={() => prepareRun(selectedRow)}
                 disabled={payDisabled}
-                className="h-12 w-full rounded-full bg-[linear-gradient(135deg,#34D399,#10B981)] px-4 text-sm font-bold text-white shadow-[0_0_30px_rgba(16,185,129,0.25)] transition hover:brightness-110 disabled:opacity-50"
+                className="h-12 w-full rounded-full bg-[linear-gradient(135deg,#34D399,#10B981)] px-4 text-base font-bold text-white shadow-[0_0_30px_rgba(16,185,129,0.25)] transition hover:brightness-110 disabled:opacity-50"
               >
                 {preparingRunFor === selectedRow.id ? "Pagando…" : "Pagar"}
               </button>
             }
           >
             <div className="space-y-4">
-              {/* Sin período ni "Comisiones generadas" acá — ya están en
-                  la pantalla principal (tarjeta Período actual + tarjetas
-                  de arriba), no hace falta repetirlas dentro del modal. */}
+              {/* Un solo número grande: lo que se va a pagar. Comisiones, adelantos y demás ya están
+                  en la pantalla de atrás, no se repiten acá. */}
+              <div
+                className="rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-4 text-center"
+                style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)" }}
+              >
+                <div className="text-sm font-semibold text-white/75">Total a pagar</div>
+                <div className="mt-1 text-4xl font-bold tabular-nums text-emerald-300">{money(liquidarFinalTotal)}</div>
+              </div>
               {!liquidarPeriodValid && (
-                <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-3.5 py-2.5 text-xs text-rose-200">
+                <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-3.5 py-2.5 text-sm text-rose-200">
                   No hay comisiones disponibles hasta la fecha seleccionada.
                 </div>
               )}
@@ -6800,48 +6806,42 @@ function ProfesionalesTab({
                 hideAddButton
               />
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setAdjustmentItems((cur) => [...cur, { id: crypto.randomUUID(), amount: "", reason: "" }])}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+                  className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
                 >
-                  <Plus className="size-3.5" /> Agregar adicional
+                  <Plus className="size-4" /> Adicional
                 </button>
                 <button
                   type="button"
                   onClick={() => setDeductionItems((cur) => [...cur, { id: crypto.randomUUID(), amount: "", reason: "" }])}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"
+                  className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full border border-rose-400/25 bg-rose-400/10 px-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
                 >
-                  <Plus className="size-3.5" /> Agregar deducción
+                  <Plus className="size-4" /> Deducción
                 </button>
               </div>
 
-              {/* Sin Comisiones pendientes/nuevas ni Adelantos acá — ya
-                  están en las tarjetas de la pantalla principal, este
-                  resumen solo agrega lo que se puede tocar en este
-                  modal (adicionales/deducciones) y el total final. */}
-              <div className="space-y-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-sm" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60">Adicionales</span>
-                  <span className="font-semibold text-emerald-300">
-                    {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
-                  </span>
+              {(liquidarAdjustmentsSum > 0 || liquidarDeductionsSum > 0) && (
+                <div className="space-y-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-base" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
+                  {liquidarAdjustmentsSum > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70">Adicionales</span>
+                      <span className="font-semibold text-emerald-300">+{money(liquidarAdjustmentsSum)}</span>
+                    </div>
+                  )}
+                  {liquidarDeductionsSum > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/70">Deducciones</span>
+                      <span className="font-semibold text-rose-300">−{money(liquidarDeductionsSum)}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60">Deducciones</span>
-                  <span className="font-semibold text-rose-300">
-                    {liquidarValidDeductionsCount > 0 ? `${liquidarValidDeductionsCount} · ` : ""}−{money(liquidarDeductionsSum)}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                  <span className="font-semibold text-white">Total final</span>
-                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
-                </div>
-              </div>
+              )}
 
               <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                <div className="text-sm font-semibold text-white">¿De dónde sale el dinero?</div>
+                <div className="text-base font-semibold text-white">¿De dónde sale el dinero?</div>
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
@@ -6856,7 +6856,7 @@ function ProfesionalesTab({
                       disabled={opt.value === "caja" && cajaCerrada}
                       aria-pressed={liquidarFunds === opt.value}
                       className={cn(
-                        "h-11 rounded-full border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
+                        "h-12 rounded-full border px-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
                         liquidarFunds === opt.value
                           ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
                           : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
@@ -6866,13 +6866,13 @@ function ProfesionalesTab({
                     </button>
                   ))}
                 </div>
-                <p className="text-xs leading-snug text-white/55">
+                <p className="text-sm leading-snug text-white/65">
                   {liquidarFunds === "caja"
-                    ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco, según el medio de pago, y se registra en el cierre."
-                    : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
+                    ? "Sale del efectivo o del banco de la caja."
+                    : "No toca la caja."}
                 </p>
                 {cajaCerrada && (
-                  <p className="text-xs leading-snug text-rose-200/80">
+                  <p className="text-sm leading-snug text-rose-200/90">
                     La caja del día está cerrada: solo se puede usar Fondos externos.
                   </p>
                 )}
@@ -6889,7 +6889,7 @@ function ProfesionalesTab({
                     type="button"
                     onClick={() => setPaymentMode("simple")}
                     className={cn(
-                      "h-9 rounded-full text-sm font-semibold transition",
+                      "h-11 rounded-full text-base font-semibold transition",
                       paymentMode === "simple"
                         ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
                         : "text-white/60 hover:text-white",
@@ -6901,7 +6901,7 @@ function ProfesionalesTab({
                     type="button"
                     onClick={() => setPaymentMode("multiple")}
                     className={cn(
-                      "h-9 rounded-full text-sm font-semibold transition",
+                      "h-11 rounded-full text-base font-semibold transition",
                       paymentMode === "multiple"
                         ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
                         : "text-white/60 hover:text-white",
@@ -6918,10 +6918,9 @@ function ProfesionalesTab({
                       const isCashOverpay = simpleDiff < 0 && paymentForm.method === "cash";
                       return (
                         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                          <p className="text-sm font-semibold text-white">Pago simple</p>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                            <label className="block space-y-1.5 text-sm font-semibold text-white">
-                              Monto del pago
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="block space-y-1.5 text-base font-semibold text-white">
+                              Monto
                               <div className="relative">
                                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/45">
                                   $
@@ -6935,16 +6934,16 @@ function ProfesionalesTab({
                                     setPaymentForm((form) => ({ ...form, amount: event.target.value.replace(/\D/g, "") }));
                                   }}
                                   placeholder="0"
-                                  className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-7 pr-3 text-base font-semibold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                                  className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-8 pr-3 text-xl font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                                 />
                               </div>
                             </label>
-                            <label className="block space-y-1.5 text-sm font-semibold text-white">
+                            <label className="block space-y-1.5 text-base font-semibold text-white">
                               Método
                               <select
                                 value={paymentForm.method}
                                 onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}
-                                className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base text-white outline-none focus:border-violet-400/50"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg text-white outline-none focus:border-violet-400/50"
                               >
                                 {paymentOptions.map((o) => (
                                   <option key={o.id} value={o.id}>
@@ -6959,7 +6958,7 @@ function ProfesionalesTab({
                               pendiente) — esos dos primeros ya se muestran
                               en el resumen de arriba, repetirlos acá era
                               información duplicada. */}
-                          <div className="px-1 text-sm font-semibold">
+                          <div className="px-1 text-base font-semibold">
                             {isCashOverpay ? (
                               <span className="text-emerald-300">Vuelto: {money(Math.abs(simpleDiff))}</span>
                             ) : simpleDiff < 0 ? (
@@ -6967,10 +6966,7 @@ function ProfesionalesTab({
                                 Sobra {money(Math.abs(simpleDiff))} — no puede superar el total
                               </span>
                             ) : simpleDiff === 0 ? (
-                              <div className="space-y-0.5">
-                                <div className="font-bold text-emerald-300">Liquidación completa</div>
-                                <div className="text-xs font-semibold text-emerald-300/80">Saldo pendiente: $0</div>
-                              </div>
+                              <span className="font-bold text-emerald-300">Liquidación completa</span>
                             ) : (
                               <span className="text-rose-300">Saldo pendiente: {money(simpleDiff)}</span>
                             )}
@@ -6988,14 +6984,14 @@ function ProfesionalesTab({
                     />
                   )}
 
-                <label className="mt-3 block space-y-1.5 text-sm font-semibold text-white">
+                <label className="mt-3 block space-y-1.5 text-base font-semibold text-white">
                   Nota
                   <textarea
                     value={paymentForm.note}
                     onChange={(event) => setPaymentForm((form) => ({ ...form, note: event.target.value }))}
                     placeholder="Opcional"
                     rows={2}
-                    className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                   />
                 </label>
               </div>

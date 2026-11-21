@@ -304,7 +304,8 @@ describe("Rendimiento mensual", () => {
     const comp = read("src/components/advisor/rendimiento-mensual.tsx");
     expect(comp).toContain("prev.representative");
     expect(hook).not.toContain("días hábiles");
-    expect(comp).toContain("Mes anterior de arranque: no se compara");
+    // Sin mes anterior comparable no se muestra ningún texto de comparación.
+    expect(comp).not.toContain("Mes anterior de arranque: no se compara");
   });
 
   it("truncateRawToDay recorta el mes a los días 1..N en hora de Argentina para comparar el mes en curso contra el mismo período", () => {
