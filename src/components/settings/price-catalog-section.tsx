@@ -476,18 +476,20 @@ function ImagenCampo({
       {image ? (
         <div className="space-y-3">
           <div className="flex items-center gap-3.5">
-            <img
-              src={image}
-              alt={alt}
-              style={{ objectPosition: position }}
-              className="h-16 w-16 shrink-0 rounded-2xl border border-white/10 object-cover"
-            />
-            <span className="text-base font-semibold text-emerald-300">Imagen cargada</span>
+            <button type="button" onClick={() => setEncuadrando(true)} className="shrink-0 rounded-2xl" aria-label="Mover la imagen">
+              <img
+                src={image}
+                alt={alt}
+                style={{ objectPosition: position }}
+                className="h-20 w-20 rounded-2xl border border-violet-400/40 object-cover"
+              />
+            </button>
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-emerald-300">Imagen cargada</div>
+              <div className="text-base text-white/60">Tocá la imagen para moverla</div>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setEncuadrando(true)} className={cn(pill, "border border-violet-400/40 bg-violet-500/15 text-violet-100")}>
-              Encuadrar
-            </button>
             <ElegirImagen disabled={uploading} onFile={onFile} className={cn(pill, "bg-white/[0.06] text-white/85")}>
               {uploading ? "Subiendo…" : "Cambiar"}
             </ElegirImagen>
@@ -510,7 +512,7 @@ function ImagenCampo({
         ? createPortal(
             <div className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
               <div className="w-full max-w-sm space-y-4 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)]">
-                <div className="text-xl font-semibold text-white">Encuadrar imagen</div>
+                <div className="text-xl font-semibold text-white">Mover imagen</div>
                 <p className="text-base text-white/65">Arrastrá la imagen para elegir qué parte se ve.</p>
                 <DraggableImageCrop src={image} alt={alt} value={position} onChange={onPosition} className="mx-auto max-w-[280px]" />
                 <button type="button" onClick={() => setEncuadrando(false)} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">
