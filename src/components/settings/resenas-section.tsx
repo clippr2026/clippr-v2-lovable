@@ -5,6 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, Field, inputCls } from "@/components/settings/shared";
+import { SelectClippr } from "@/components/ui/select-clippr";
+import { DateClippr } from "@/components/ui/date-clippr";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 type ReviewStatus = "pending" | "published" | "hidden";
 type ReviewRow = {
@@ -83,6 +86,7 @@ export function ResenasSection() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [tab, setTab] = useState<ReviewStatus>("pending");
   const [draft, setDraft] = useState<Draft | null>(null);
+  useBodyScrollLock(Boolean(draft));
   const [saving, setSaving] = useState(false);
   const [toDelete, setToDelete] = useState<ReviewRow | null>(null);
 
@@ -204,16 +208,15 @@ export function ResenasSection() {
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-white/50">Reseñas</div>
-              <div className="mt-2 flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <span
-                  className="bg-gradient-to-r from-sky-300 via-violet-300 to-fuchsia-300 bg-clip-text text-5xl font-extrabold leading-none text-transparent"
+                  className="bg-gradient-to-r from-sky-300 via-violet-300 to-fuchsia-300 bg-clip-text text-6xl font-extrabold leading-none text-transparent"
                   style={{ filter: "drop-shadow(0 0 14px rgba(167,139,250,0.55))" }}
                 >
                   {avg ? avg.toFixed(1).replace(".", ",") : "—"}
                 </span>
                 <div style={{ filter: "drop-shadow(0 0 8px rgba(251,191,36,0.55))" }}>
-                  <Stars value={Math.round(avg ?? 0)} size={20} />
+                  <Stars value={Math.round(avg ?? 0)} size={26} />
                 </div>
               </div>
             </div>
@@ -221,49 +224,36 @@ export function ResenasSection() {
               type="button"
               disabled={manualCount >= MAX_MANUAL}
               onClick={() => setDraft(emptyDraft())}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_26px_-4px_rgba(139,92,246,0.9)] transition hover:brightness-110 disabled:opacity-40"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-base font-semibold text-white shadow-[0_0_26px_-4px_rgba(139,92,246,0.9)] transition hover:brightness-110 disabled:opacity-40"
             >
-              <Plus className="h-4 w-4" /> Cargar reseña
+              <Plus className="h-5 w-5" /> Cargar reseña
             </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {[
-              { label: `${published.length} publicadas`, dot: "bg-emerald-400" },
-              { label: `${counts.pending} pendientes`, dot: "bg-amber-400" },
               { label: `Destacadas ${featuredCount}/${MAX_FEATURED}`, dot: "bg-fuchsia-400" },
               { label: `Cargadas por vos ${manualCount}/${MAX_MANUAL}`, dot: "bg-sky-400" },
             ].map((c) => (
-              <span key={c.label} className="inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/80 ring-1 ring-white/10">
-                <span className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor]", c.dot)} />
+              <span key={c.label} className="inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-4 py-2 text-base text-white/85 ring-1 ring-white/10">
+                <span className={cn("h-2 w-2 rounded-full shadow-[0_0_8px_currentColor]", c.dot)} />
                 {c.label}
               </span>
             ))}
           </div>
-          <p className="mt-4 text-xs text-white/50">
-            Las reseñas que dejan los clientes desde tu página quedan pendientes hasta que las apruebes. Cada cliente puede dejar una reseña por
-            barbero con el que se atendió.
-          </p>
-          <p className="mt-2 text-xs text-white/60">
-            Podés <b className="text-white/85">destacar hasta {MAX_FEATURED} reseñas publicadas</b>: son las que aparecen primero en el carrusel de tu página pública. Si no destacás
-            ninguna, se muestran las más nuevas de 4 y 5 estrellas.
-          </p>
-          <p className="mt-2 text-xs text-white/70">
-            <b className="font-semibold text-white">
-              Como beneficio de bienvenida, podés cargar manualmente hasta 50 reseñas que ya recibiste en Google.
-            </b>{" "}
-            Estas se publican directamente al guardarlas.
+          <p className="mt-4 text-base leading-snug text-white/65">
+            Las reseñas de tu página quedan pendientes hasta que las apruebes. Las destacadas aparecen primero en el carrusel.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-violet-400/20 bg-white/[0.04] p-1.5 shadow-[0_0_30px_-14px_rgba(139,92,246,0.7)]">
+      <div className="grid grid-cols-3 gap-1 rounded-full border border-violet-400/20 bg-white/[0.04] p-1.5 shadow-[0_0_30px_-14px_rgba(139,92,246,0.7)]">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
             className={cn(
-              "rounded-xl px-2 py-2 text-xs font-semibold transition sm:text-sm",
+              "h-11 rounded-full px-2 text-base font-semibold transition",
               tab === t.key
                 ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_22px_-4px_rgba(139,92,246,0.9)]"
                 : "text-muted-foreground hover:bg-white/[0.08] hover:text-foreground",
@@ -279,12 +269,9 @@ export function ResenasSection() {
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-fuchsia-500/25 text-amber-300 ring-1 ring-violet-300/30 shadow-[0_0_30px_-4px_rgba(167,139,250,0.7)]">
             <Star className="h-6 w-6 fill-current" />
           </div>
-          <p className="mt-4 text-sm font-medium text-white/80">
+          <p className="mt-4 text-lg font-semibold text-white">
             {tab === "pending" ? "No hay reseñas pendientes." : tab === "published" ? "Todavía no hay reseñas publicadas." : "No hay reseñas ocultas."}
           </p>
-          {tab === "published" ? (
-            <p className="mt-1 text-xs text-white/50">Cargá las que ya recibiste en Google y se publican al instante.</p>
-          ) : null}
         </div>
       ) : (
         <div className="space-y-3">
@@ -301,31 +288,31 @@ export function ResenasSection() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{r.client_name}</span>
+                    <span className="text-lg font-semibold text-white">{r.client_name}</span>
                     {r.professional_id && barberName.get(r.professional_id) ? (
-                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/70 ring-1 ring-white/10">
+                      <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-sm text-white/75 ring-1 ring-white/10">
                         Para {barberName.get(r.professional_id)}
                       </span>
                     ) : null}
                   </div>
                   <div className="mt-1 flex items-center gap-2">
-                    <Stars value={r.rating} size={15} />
-                    <span className="text-xs text-white/45">{r.review_date}</span>
+                    <Stars value={r.rating} size={20} />
+                    <span className="text-sm text-white/60">{r.review_date}</span>
                   </div>
                 </div>
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+                <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-sm text-white/60">
                   {r.source === "page" ? "Desde la página" : r.origin_note ? `Cargada · ${r.origin_note}` : "Cargada por vos"}
                 </span>
               </div>
-              {r.comment ? <p className="mt-2 text-sm text-white/80">"{r.comment}"</p> : null}
+              {r.comment ? <p className="mt-2 text-base leading-snug text-white/85">"{r.comment}"</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {r.status !== "published" && (
                   <button
                     type="button"
                     onClick={() => setStatus(r, "published")}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.9)]"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.9)]"
                   >
-                    {r.status === "pending" ? <Check className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {r.status === "pending" ? <Check className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     {r.status === "pending" ? "Aprobar" : "Publicar"}
                   </button>
                 )}
@@ -335,7 +322,7 @@ export function ResenasSection() {
                     onClick={() => void toggleFeatured(r)}
                     disabled={!r.featured && featuredCount >= MAX_FEATURED}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-40",
+                      "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ring-1 transition disabled:opacity-40",
                       r.featured
                         ? "bg-fuchsia-500/20 text-fuchsia-200 ring-fuchsia-400/40 shadow-[0_0_18px_-6px_rgba(217,70,239,0.9)]"
                         : "bg-white/5 ring-white/10 hover:bg-white/10",
@@ -349,7 +336,7 @@ export function ResenasSection() {
                   <button
                     type="button"
                     onClick={() => setStatus(r, "hidden")}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/10"
                   >
                     <EyeOff className="h-3.5 w-3.5" /> Ocultar
                   </button>
@@ -368,7 +355,7 @@ export function ResenasSection() {
                         origin_note: r.origin_note ?? "",
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/10"
                   >
                     <Pencil className="h-3.5 w-3.5" /> Editar
                   </button>
@@ -376,7 +363,7 @@ export function ResenasSection() {
                 <button
                   type="button"
                   onClick={() => setToDelete(r)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 ring-1 ring-red-500/20 hover:bg-red-500/20"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 ring-1 ring-red-500/20 hover:bg-red-500/20"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Borrar
                 </button>
@@ -389,13 +376,13 @@ export function ResenasSection() {
       {draft ? (
         <div className="fixed inset-0 z-[300] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDraft(null)}>
           <div
-            className="max-h-[92vh] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl border border-white/10 bg-[#0d0b14] p-5 text-white shadow-2xl"
+            className="max-h-[92vh] w-full max-w-md space-y-4 overflow-y-auto overscroll-contain rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 text-white shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold">{draft.id ? "Editar reseña" : "Cargar reseña"}</h3>
-              <button type="button" onClick={() => setDraft(null)} className="rounded-full p-1.5 hover:bg-white/10" aria-label="Cerrar">
-                <X className="h-4 w-4" />
+              <h3 className="text-xl font-semibold">{draft.id ? "Editar reseña" : "Cargar reseña"}</h3>
+              <button type="button" onClick={() => setDraft(null)} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10" aria-label="Cerrar">
+                <X className="h-5 w-5" />
               </button>
             </div>
             <Field label="Nombre del cliente">
@@ -420,27 +407,14 @@ export function ResenasSection() {
               />
             </Field>
             <Field label="Barbero (opcional)">
-              <select
-                className={inputCls}
-                value={draft.professional_id}
-                onChange={(e) => setDraft({ ...draft, professional_id: e.target.value })}
-              >
-                <option value="">Sin barbero</option>
-                {barbers.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.full_name}
-                  </option>
-                ))}
-              </select>
+              <SelectClippr
+                opciones={[{ id: "", label: "Sin barbero" }, ...barbers.map((b) => ({ id: b.id, label: b.full_name }))]}
+                valor={draft.professional_id}
+                onChange={(v) => setDraft({ ...draft, professional_id: v })}
+              />
             </Field>
             <Field label="Fecha de la reseña" hint="Poné la fecha original de la reseña. No puede ser futura.">
-              <input
-                type="date"
-                className={inputCls}
-                value={draft.review_date}
-                max={todayAR()}
-                onChange={(e) => setDraft({ ...draft, review_date: e.target.value })}
-              />
+              <DateClippr value={draft.review_date} onChange={(iso) => setDraft({ ...draft, review_date: iso > todayAR() ? todayAR() : iso })} />
             </Field>
             <Field label="Nota privada (opcional)" hint="Solo la ves vos. Por ejemplo: Google, WhatsApp, Instagram.">
               <input
@@ -454,7 +428,7 @@ export function ResenasSection() {
               type="button"
               disabled={saving}
               onClick={() => void saveDraft()}
-              className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              className="h-12 w-full rounded-full bg-emerald-500 text-base font-semibold text-white disabled:opacity-60"
             >
               {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Cargar y publicar"}
             </button>
