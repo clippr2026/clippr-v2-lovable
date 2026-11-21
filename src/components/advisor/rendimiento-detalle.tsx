@@ -540,13 +540,6 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
           color="bg-sky-400/70"
         />
       </Block>
-      <Block title="Un servicio vs combo" hint="Vender más de un servicio por visita sube el ticket.">
-        <Bars
-          rows={[cmp("Un solo servicio", t.unServicio), cmp("Combo", t.combo)].filter((r) => (r.count ?? 0) > 0)}
-          sub={(r) => `${r.count} ventas`}
-          color="bg-fuchsia-400/70"
-        />
-      </Block>
     </div>
   );
 }
