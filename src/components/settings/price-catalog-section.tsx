@@ -353,7 +353,7 @@ function DraggableImageCrop({
         role="button"
         tabIndex={0}
         className={cn(
-          "relative aspect-square w-full cursor-grab touch-none select-none overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
+          "relative aspect-square w-full cursor-grab touch-none select-none [-webkit-touch-callout:none] overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 active:cursor-grabbing",
           dragging && "ring-2 ring-primary/50",
           className,
         )}
@@ -417,6 +417,7 @@ function DraggableImageCrop({
           alt={alt}
           draggable={false}
           loading="lazy"
+          className="pointer-events-none select-none [-webkit-touch-callout:none]"
           onLoad={(event) => {
             const img = event.currentTarget;
             setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
@@ -476,12 +477,13 @@ function ImagenCampo({
       {image ? (
         <div className="space-y-3">
           <div className="flex items-center gap-3.5">
-            <button type="button" onClick={() => setEncuadrando(true)} className="shrink-0 rounded-2xl" aria-label="Mover la imagen">
+            <button type="button" onClick={() => setEncuadrando(true)} className="shrink-0 select-none rounded-2xl [-webkit-touch-callout:none]" aria-label="Mover la imagen">
               <img
                 src={image}
                 alt={alt}
                 style={{ objectPosition: position }}
-                className="h-20 w-20 rounded-2xl border border-violet-400/40 object-cover"
+                draggable={false}
+                className="pointer-events-none h-20 w-20 select-none rounded-2xl border border-violet-400/40 object-cover [-webkit-touch-callout:none]"
               />
             </button>
             <div className="min-w-0">
