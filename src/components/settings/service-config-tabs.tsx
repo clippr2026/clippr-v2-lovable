@@ -541,6 +541,7 @@ type PromoDraft = {
   useMaxPerClient: boolean;
   maxPerClient: string;
   groupSize: string; // "" = promo común
+  daysSpecial: boolean; // false = todos los días
 };
 
 function defaultDays(): Promotion["days"] {
@@ -569,6 +570,7 @@ function draftFromPromo(p: Promotion): PromoDraft {
     useMaxPerClient: p.maxUsesPerClient != null,
     maxPerClient: p.maxUsesPerClient != null ? String(p.maxUsesPerClient) : "",
     groupSize: (p.groupSize ?? 0) >= 2 ? String(p.groupSize) : "",
+    daysSpecial: Object.values(p.days ?? {}).some((d) => !d.enabled || d.start || d.end),
   };
 }
 
@@ -645,6 +647,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
       endDate: "",
       days: defaultDays(),
       groupSize: "",
+      daysSpecial: false,
       useMaxTotal: false,
       maxTotal: "",
       useMaxPerClient: false,
@@ -667,7 +670,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
     setSaving(true);
     const ok = await persist((current) => {
       const prev = current.find((p) => p.id === draft.id) ?? null;
-      const daysCustom = WEEK.some((k) => !closed.has(k) && !draft.days[k]?.enabled);
+      const daysCustom = draft.daysSpecial && WEEK.some((k) => !closed.has(k) && !draft.days[k]?.enabled);
       const promo: Promotion = {
         id: prev?.id ?? crypto.randomUUID(),
         name: draft.name.trim(),
@@ -853,7 +856,19 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
 
         <div className={cardCls}>
           <div className="mb-3 text-lg font-semibold text-white">Días de la promo</div>
-          <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
+          <SelectClippr
+            opciones={[
+              { id: "siempre", label: "Siempre" },
+              { id: "especiales", label: "Días especiales" },
+            ]}
+            valor={draft.daysSpecial ? "especiales" : "siempre"}
+            onChange={(v) => set({ daysSpecial: v === "especiales" })}
+          />
+          {draft.daysSpecial ? (
+            <div className="mt-3">
+              <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
+            </div>
+          ) : null}
         </div>
 
         <div className={cardCls}>
