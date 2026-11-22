@@ -203,7 +203,8 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
         const cm = commissions[e.id]?.[serviceId];
         next[e.id] = {
           offers: ov?.enabled !== false,
-          generates: !(cm as { noCommission?: boolean } | undefined)?.noCommission,
+          // Quien tiene la comisión apagada en la base hoy no genera comisión en ningún servicio.
+          generates: e.commissionEnabled && !(cm as { noCommission?: boolean } | undefined)?.noCommission,
           ownPrice: !!ov && ov.useStandardPrice === false,
           price: ov?.price ?? "",
           effPrice: ov && ov.useStandardEffectivePrice === false ? ov.effectivePrice ?? "" : "",
@@ -226,6 +227,10 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
   async function save() {
     if (!businessId) return;
     setSaving(true);
+    const needsAll = employees.some((e) => !e.commissionEnabled && draft[e.id]?.offers && draft[e.id]?.generates);
+    const otherServiceIds: string[] = needsAll
+      ? (((await supabase.from("price_catalog").select("id").eq("business_id", businessId).not("duration_min", "is", null).is("deleted_at", null)).data ?? []) as Array<{ id: string }>).map((r) => r.id)
+      : [];
     const error = await patchBusinessSchedule(businessId, (schedule) => {
       const overrides = { ...(schedule._employeeServiceOverrides ?? {}) } as Record<string, Record<string, ServiceOverrideConfig>>;
       const commissions = { ...(schedule._employeeCommissions ?? {}) } as Record<string, Record<string, unknown>>;
@@ -250,6 +255,17 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
         else delete empCommissions[serviceId];
         commissions[e.id] = empCommissions;
       }
+      // Quien tenía la comisión apagada en la base y ahora genera en este servicio: se enciende su comisión
+      // y en el resto de sus servicios queda sin comisión, para que no cobre donde antes no cobraba.
+      for (const e of employees) {
+        const d = draft[e.id];
+        if (!d || e.commissionEnabled || !d.offers || !d.generates) continue;
+        const empCommissions = { ...(commissions[e.id] ?? {}) };
+        for (const sid of otherServiceIds) {
+          if (sid !== serviceId && !empCommissions[sid]) empCommissions[sid] = { enabled: true, mode: "fixed", value: "0", noCommission: true };
+        }
+        commissions[e.id] = empCommissions;
+      }
       return { ...schedule, _employeeServiceOverrides: overrides, _employeeCommissions: commissions };
     });
     let errorGeneral: string | null = null;
@@ -257,6 +273,10 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
       for (const e of employees) {
         const d = draft[e.id];
         if (!d) continue;
+        if (!e.commissionEnabled && d.offers && d.generates) {
+          const { error: enErr } = await supabase.from("employees").update({ commission_enabled: true }).eq("id", e.id);
+          if (enErr) errorGeneral = enErr.message;
+        }
         const next = d.generalPct.trim() === "" ? null : Number(d.generalPct.replace(",", "."));
         if (next === e.commissionPct || (next != null && !Number.isFinite(next))) continue;
         const { error: upErr } = await supabase.from("employees").update({ commission_pct: next }).eq("id", e.id);
@@ -265,6 +285,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
     }
     setSaving(false);
     if (error || errorGeneral) return toast.error("No se pudo guardar: " + (error ?? errorGeneral));
+    employeesCache.clear();
     setSnap(JSON.stringify(draft));
     toast.success("Profesionales guardados");
   }
@@ -337,14 +358,11 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-base font-semibold text-white">Genera comisión</span>
                   <div className="flex items-center gap-2.5">
-                    <span className="text-lg text-white/75">{d.generates && e.commissionEnabled ? "Sí" : "No"}</span>
-                    <Toggle on={d.generates && e.commissionEnabled} onChange={(v) => update(e.id, { generates: v })} />
+                    <span className="text-lg text-white/75">{d.generates ? "Sí" : "No"}</span>
+                    <Toggle on={d.generates} onChange={(v) => update(e.id, { generates: v })} />
                   </div>
                 </div>
-                {!e.commissionEnabled ? (
-                  <p className="text-base text-amber-200">Tiene la comisión apagada en Equipo.</p>
-                ) : null}
-                {d.generates && e.commissionEnabled ? (
+                {d.generates ? (
                 <div>
                   <div className="mb-1.5 text-base font-semibold text-white">Comisión en este servicio</div>
                   <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
