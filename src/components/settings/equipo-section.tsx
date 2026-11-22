@@ -523,14 +523,15 @@ function ApprovalModeCard({
       />
 
       {enabled && (
-        <PermissionToggleRow
-          icon={ShieldCheck}
-          tone="amber"
-          title="Ventas con aprobación"
-          description="Quedan pendientes hasta que un admin las apruebe."
-          on={mode === "manual"}
-          onChange={(v) => onChangeMode(v ? "manual" : "auto")}
-        />
+        <select
+          value={mode === "manual" ? "manual" : "auto"}
+          onChange={(e) => onChangeMode(e.target.value === "manual" ? "manual" : "auto")}
+          aria-label="Cómo cobra"
+          className={inputCls}
+        >
+          <option value="auto">Cobra directo en caja</option>
+          <option value="manual">Un admin aprueba cada cobro</option>
+        </select>
       )}
     </div>
   );
