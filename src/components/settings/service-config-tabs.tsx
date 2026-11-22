@@ -349,7 +349,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                     </div>
                   ) : (
                     <p className="text-lg text-white/70">
-                      {money(listPrice)}
+                      Lista {money(listPrice)}
                       {cashPrice > 0 ? ` · Efectivo ${money(cashPrice)}` : ""}
                     </p>
                   )}
