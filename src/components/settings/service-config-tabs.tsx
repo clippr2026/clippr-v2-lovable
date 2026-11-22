@@ -768,7 +768,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
                 placeholder="Ej: 2"
                 className={inputCls}
               />
-              <p className="mt-2 text-lg text-white/70">El descuento es por persona y vale si reservan todos juntos.</p>
             </div>
           ) : null}
         </div>
@@ -796,6 +795,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
               Lista {money(listPrice)} → <b className="text-emerald-300">{money(Math.max(0, finalPreview))}</b>
             </p>
           ) : null}
+          {draft.groupSize ? <p className="mt-2 text-lg text-white/70">El descuento es por persona.</p> : null}
         </div>
 
         <div className={cardCls}>
