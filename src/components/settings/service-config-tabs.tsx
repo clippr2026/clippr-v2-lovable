@@ -443,16 +443,13 @@ function DaysEditor({ value, onChange }: { value: ServiceWindowMap; onChange: (n
 }
 
 export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: string; onRegister?: (api: TabSaveApi | null) => void }) {
-  const { employees, loading, businessId } = useBranchEmployees();
+  const { loading, businessId } = useBranchEmployees();
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [svcCustom, setSvcCustom] = React.useState(false);
   const [svcDays, setSvcDays] = React.useState<ServiceWindowMap>(fullWeek());
-  const [offers, setOffers] = React.useState<Record<string, boolean>>({});
-  const [empCustom, setEmpCustom] = React.useState<Record<string, boolean>>({});
-  const [empDays, setEmpDays] = React.useState<Record<string, ServiceWindowMap>>({});
   const [snap, setSnap] = React.useState<string | null>(null);
-  const curSnap = JSON.stringify({ svcCustom, svcDays, offers, empCustom, empDays });
+  const curSnap = JSON.stringify({ svcCustom, svcDays });
 
   React.useEffect(() => {
     if (!businessId || loading) return;
@@ -460,28 +457,15 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
     void readBusinessSchedule(businessId).then((schedule) => {
       if (cancelled) return;
       const cfg = normalizeServiceScheduleConfig(schedule);
-      const overrides = (schedule._employeeServiceOverrides ?? {}) as Record<string, Record<string, ServiceOverrideConfig>>;
       setSvcCustom(!!cfg.service[serviceId]);
       setSvcDays(fullWeek(cfg.service[serviceId]));
-      const o: Record<string, boolean> = {};
-      const c: Record<string, boolean> = {};
-      const d: Record<string, ServiceWindowMap> = {};
-      for (const e of employees) {
-        o[e.id] = overrides[e.id]?.[serviceId]?.enabled !== false;
-        const own = cfg.employee[serviceId]?.[e.id];
-        c[e.id] = !!own;
-        d[e.id] = fullWeek(own);
-      }
-      setOffers(o);
-      setEmpCustom(c);
-      setEmpDays(d);
-      setSnap(JSON.stringify({ svcCustom: !!cfg.service[serviceId], svcDays: fullWeek(cfg.service[serviceId]), offers: o, empCustom: c, empDays: d }));
+      setSnap(JSON.stringify({ svcCustom: !!cfg.service[serviceId], svcDays: fullWeek(cfg.service[serviceId]) }));
       setReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [businessId, loading, employees, serviceId]);
+  }, [businessId, loading, serviceId]);
 
   async function save() {
     if (!businessId) return;
@@ -490,15 +474,7 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
       const svc = { ...(schedule._serviceSchedules ?? {}) } as Record<string, unknown>;
       if (svcCustom) svc[serviceId] = svcDays;
       else delete svc[serviceId];
-      const perSvc = { ...(schedule._serviceEmployeeSchedules ?? {}) } as Record<string, Record<string, unknown>>;
-      const inner = { ...(perSvc[serviceId] ?? {}) };
-      for (const e of employees) {
-        if (empCustom[e.id] && offers[e.id]) inner[e.id] = empDays[e.id];
-        else delete inner[e.id];
-      }
-      if (Object.keys(inner).length > 0) perSvc[serviceId] = inner;
-      else delete perSvc[serviceId];
-      return { ...schedule, _serviceSchedules: svc, _serviceEmployeeSchedules: perSvc };
+      return { ...schedule, _serviceSchedules: svc };
     });
     setSaving(false);
     if (error) return toast.error("No se pudo guardar: " + error);
@@ -509,44 +485,25 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
   useRegisterTab(onRegister, snap !== null && curSnap !== snap, saving, save);
 
   if (loading || !ready) return <Loading />;
-  const doers = employees.filter((e) => offers[e.id]);
 
   return (
-    <div className="space-y-4">
-      <div className={cardCls}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-lg font-semibold text-white">Días y horarios del servicio</div>
-            <div className="text-lg text-white/70">{svcCustom ? "Solo en estos días y horas" : "Todos los días, según el horario del local"}</div>
-          </div>
-          <Toggle on={svcCustom} onChange={setSvcCustom} />
-        </div>
-        {svcCustom ? (
-          <div className="mt-3">
-            <DaysEditor value={svcDays} onChange={setSvcDays} />
-          </div>
-        ) : null}
+    <div className={cardCls}>
+      <div className="text-lg font-semibold text-white">Días y horarios del servicio</div>
+      <div className="mt-3">
+        <SelectClippr
+          opciones={[
+            { id: "local", label: "Mismo día y horario que el local" },
+            { id: "custom", label: "Día y horario personalizado" },
+          ]}
+          valor={svcCustom ? "custom" : "local"}
+          onChange={(v) => setSvcCustom(v === "custom")}
+        />
       </div>
-
-      <div className="text-lg font-semibold text-white">Horario por profesional</div>
-      <p className="-mt-2 text-lg text-white/70">Solo acota; nunca pasa de su horario general.</p>
-      {doers.length === 0 ? <Empty>Ningún profesional hace este servicio todavía.</Empty> : null}
-      {doers.map((e) => (
-        <div key={e.id} className={cardCls}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-lg font-semibold text-white">{e.name}</div>
-              <div className="text-lg text-white/70">{empCustom[e.id] ? "Horario propio en este servicio" : "Usa su horario general"}</div>
-            </div>
-            <Toggle on={!!empCustom[e.id]} onChange={(v) => setEmpCustom((c) => ({ ...c, [e.id]: v }))} />
-          </div>
-          {empCustom[e.id] ? (
-            <div className="mt-3">
-              <DaysEditor value={empDays[e.id] ?? fullWeek()} onChange={(next) => setEmpDays((d) => ({ ...d, [e.id]: next }))} />
-            </div>
-          ) : null}
+      {svcCustom ? (
+        <div className="mt-3">
+          <DaysEditor value={svcDays} onChange={setSvcDays} />
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }
