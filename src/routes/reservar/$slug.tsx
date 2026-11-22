@@ -592,6 +592,16 @@ function PublicBookingPage() {
       );
       return sum + resolved.duration_min;
     }, 0) || 30;
+  // Duración del servicio elegido con un profesional puntual (cada uno puede tener la suya).
+  const durationFor = (employeeId: string) =>
+    selectedServices.reduce((sum, service) => {
+      const resolved = resolveServicePricing(
+        { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+        employeeId,
+        employeeServiceOverrides,
+      );
+      return sum + resolved.duration_min;
+    }, 0) || 30;
   // Precio con el override de Fase 1 ya resuelto pero SIN el descuento de
   // la promoción — se usa para mostrar el "tachado" cuando corresponde.
   const originalTotalPrice = selectedServices.reduce((sum, service) => {
@@ -708,13 +718,17 @@ function PublicBookingPage() {
     const empty = { days: null as typeof baseSlots | null, at: new Map<number, string[]>() };
     if (groupSize < 2 || groupMode !== "different") return empty;
     const at = new Map<number, string[]>();
-    const perEmployee = employeesForSelectedServices.filter((e) => groupEmployeeIds.includes(e.id)).map((employee) =>
+    // Los horarios salen de la duración más larga entre los elegidos: si uno
+    // tarda 60 y otro 40, se ofrece cada 60 y los dos entran seguro.
+    const chosen = employeesForSelectedServices.filter((e) => groupEmployeeIds.includes(e.id));
+    const groupDuration = Math.max(totalDuration, ...chosen.map((e) => durationFor(e.id)));
+    const perEmployee = chosen.map((employee) =>
       buildSlots(
         schedule,
         appointments,
         [employee],
         employee.id,
-        totalDuration,
+        groupDuration,
         Math.max(1, reservationSettings.maxAdvance || 10),
         employeeSchedules,
         businessSpecial,
@@ -752,6 +766,8 @@ function PublicBookingPage() {
     schedule,
     appointments,
     totalDuration,
+    selectedServices,
+    employeeServiceOverrides,
     employeeSchedules,
     businessSpecial,
     employeeSpecial,
@@ -1555,7 +1571,7 @@ function PublicBookingPage() {
           if (appt.status === "cancelled" || appt.employee_id !== g.employeeId) return false;
           const apptStart = new Date(appt.starts_at);
           const apptEnd = appt.ends_at ? new Date(appt.ends_at) : addMinutes(apptStart, Number(appt.duration_min ?? totalDuration));
-          return overlaps(g.start, addMinutes(g.start, totalDuration), apptStart, apptEnd);
+          return overlaps(g.start, addMinutes(g.start, durationFor(g.employeeId!)), apptStart, apptEnd);
         }),
       );
       if (alreadyTaken || friendTaken) {
