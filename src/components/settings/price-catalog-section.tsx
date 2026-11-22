@@ -29,6 +29,9 @@ import {
   Image as ImageIcon,
   Globe,
   AlignLeft,
+  Package,
+  Users,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
@@ -991,26 +994,26 @@ function PriceEditorModal({
             </>
           ) : (
             <>
-              <SectionCard label="Información principal">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Package} tono="sky">Información principal</Titulo>}>
                 <div className="space-y-3">
-                  <Field label="Nombre del producto">
+                  <Campo label="Nombre del producto">
                     <input
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className={inputCls}
+                      className={campoCls}
                       placeholder="Nombre del producto"
                       maxLength={MAX_ITEM_NAME_LENGTH}
                     />
-                  </Field>
-                  <Field label="Categoría">{categoryField}</Field>
+                  </Campo>
+                  <Campo label="Categoría">{categoryField}</Campo>
                 </div>
               </SectionCard>
 
-              <SectionCard label="Precios">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Wallet} tono="emerald">Precios</Titulo>}>
                 <div className="space-y-3">
-                  <Field label="Precio de lista">
+                  <Campo label="Precio de lista">
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/60">
                         $
                       </span>
                       <input
@@ -1020,18 +1023,18 @@ function PriceEditorModal({
                         onChange={(e) =>
                           setForm({ ...form, price: e.target.value.replace(/\D/g, "") })
                         }
-                        className={cn(inputCls, "pl-6")}
+                        className={cn(campoCls, "pl-7")}
                         placeholder="0"
                       />
                     </div>
-                  </Field>
+                  </Campo>
                   {cashPriceField}
                 </div>
               </SectionCard>
 
-              <SectionCard label="Precio para colaboradores">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Users} tono="violet">Precio para colaboradores</Titulo>}>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/60">
                     $
                   </span>
                   <input
@@ -1044,13 +1047,13 @@ function PriceEditorModal({
                         staffFixedPrice: e.target.value.replace(/\D/g, ""),
                       })
                     }
-                    className={cn(inputCls, "pl-6")}
+                    className={cn(campoCls, "pl-7")}
                     placeholder="Sin precio especial"
                   />
                 </div>
               </SectionCard>
 
-              <SectionCard label="Imagen del producto">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={ImageIcon} tono="rose">Imagen del producto</Titulo>}>
                 <ImagenCampo
                   image={form.image}
                   position={form.imagePosition}
@@ -1068,7 +1071,7 @@ function PriceEditorModal({
                 />
               </SectionCard>
 
-              <SectionCard label="Reservas online">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Globe} tono="cyan">Reservas online</Titulo>}>
                 <div className="space-y-3">
                   {(() => {
                     const featuredTotal = featuredOthers + (form.bookingShow ? 1 : 0);
@@ -1077,8 +1080,8 @@ function PriceEditorModal({
                       <>
                         <label className="flex items-center justify-between gap-4 cursor-pointer">
                           <div>
-                            <div className="text-sm font-medium">Mostrar en reservas online</div>
-                            <div className="text-xs text-muted-foreground">Aparece en reserva online.</div>
+                            <div className="text-lg font-semibold text-white">Mostrar en reservas online</div>
+                            <div className="text-base text-white/70">Aparece en reserva online.</div>
                           </div>
                           <Toggle
                             on={form.bookingShow}
@@ -1088,8 +1091,8 @@ function PriceEditorModal({
                             }}
                           />
                         </label>
-                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-                          <span className="font-medium text-muted-foreground">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base">
+                          <span className="font-medium text-white/70">
                             Productos destacados: {featuredTotal} de 3
                           </span>
                           {limitReached ? (
@@ -1105,7 +1108,7 @@ function PriceEditorModal({
                       !form.bookingShow && "pointer-events-none opacity-40",
                     )}
                   >
-                    <Field label="Oferta %">
+                    <Campo label="Oferta %">
                       <input
                         type="number"
                         min={0}
@@ -1118,51 +1121,51 @@ function PriceEditorModal({
                             bookingOffer: e.target.value.trim() ? e.target.value : "none",
                           })
                         }
-                        className={inputCls}
+                        className={campoCls}
                         placeholder="20"
                       />
-                    </Field>
-                    <Field label="Mini descripción">
+                    </Campo>
+                    <Campo label="Mini descripción">
                       <input
                         value={form.miniDesc}
                         disabled={!form.bookingShow}
                         onChange={(e) => setForm({ ...form, miniDesc: e.target.value })}
-                        className={inputCls}
+                        className={campoCls}
                         maxLength={60}
                         placeholder="Fijación fuerte y acabado mate natural."
                       />
-                    </Field>
+                    </Campo>
                   </div>
                 </div>
               </SectionCard>
 
-              <SectionCard label="Stock">
+              <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Boxes} tono="amber">Stock</Titulo>}>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Actual</div>
+                    <div className="mb-1.5 text-base font-semibold text-white">Actual</div>
                     <input
                       type="number"
                       value={form.stock}
                       onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                      className={inputCls}
+                      className={campoCls}
                     />
                   </div>
                   <div>
-                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-amber-300/80">Aviso</div>
+                    <div className="mb-1.5 text-base font-semibold text-amber-300">Aviso</div>
                     <input
                       type="number"
                       value={form.warnStock}
                       onChange={(e) => setForm({ ...form, warnStock: e.target.value })}
-                      className={cn(inputCls, "ring-1 ring-amber-400/20 focus:ring-amber-400/40")}
+                      className={cn(campoCls, "ring-1 ring-amber-400/20 focus:ring-amber-400/40")}
                     />
                   </div>
                   <div>
-                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-red-400/80">Crítico</div>
+                    <div className="mb-1.5 text-base font-semibold text-red-300">Crítico</div>
                     <input
                       type="number"
                       value={form.criticalStock}
                       onChange={(e) => setForm({ ...form, criticalStock: e.target.value })}
-                      className={cn(inputCls, "ring-1 ring-red-500/20 focus:ring-red-500/40")}
+                      className={cn(campoCls, "ring-1 ring-red-500/20 focus:ring-red-500/40")}
                     />
                   </div>
                 </div>
