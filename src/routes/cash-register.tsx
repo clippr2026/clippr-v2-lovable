@@ -5084,9 +5084,18 @@ function ProfesionalesTab({
           .select("branch_id")
           .eq("id", row.id)
           .maybeSingle();
-        const periodStart = (lastRun as any)?.prepared_at
-          ? String((lastRun as any).prepared_at).slice(0, 10)
-          : "2000-01-01";
+        // Sin liquidación previa: desde su primer movimiento sin liquidar (igual
+        // que prepare_settlement_run), no desde "siempre".
+        let periodStart = "2000-01-01";
+        if ((lastRun as any)?.prepared_at) {
+          periodStart = String((lastRun as any).prepared_at).slice(0, 10);
+        } else {
+          const { data: first } = await supabase.rpc("first_unsettled_date" as any, {
+            p_business_id: businessId,
+            p_professional_id: row.id,
+          });
+          if (first) periodStart = String(first).slice(0, 10);
+        }
         // Fecha del corte en hora de Argentina (igual que el RPC): con
         // toISOString() el corte de las 23:59 del 01/11 daba 02/11 (UTC) y
         // marcaba como pendiente una caja que quedaba fuera del período.
