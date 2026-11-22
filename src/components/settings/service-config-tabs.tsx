@@ -1,10 +1,10 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2, Trash2 } from "lucide-react";
+import { CalendarDays, CalendarRange, Gauge, KeyRound, Loader2, Tag, Trash2, Users, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Toggle } from "@/components/settings/shared";
+import { Toggle, Titulo } from "@/components/settings/shared";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { DateClippr } from "@/components/ui/date-clippr";
 import { DAY_KEYS, normalizeSchedule, type DayKey } from "@/lib/availability";
@@ -754,7 +754,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         ) : null}
         <div className={cardCls}>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-lg font-semibold text-white">Promo activa</span>
+            <span className="font-semibold text-white"><Titulo icon={Tag} tono="amber">Promo activa</Titulo></span>
             <Toggle on={draft.active} onChange={(v) => set({ active: v })} />
           </div>
           <input value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="Nombre de la promo" className={cn(inputCls, "mt-3")} />
@@ -768,7 +768,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         </div>
 
         <div className={cardCls}>
-          <div className="mb-2 text-lg font-semibold text-white">Tipo de promo</div>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={Users} tono="cyan">Tipo de promo</Titulo></div>
           <SelectClippr
             opciones={[
               { id: "comun", label: "Descuento común" },
@@ -792,7 +792,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         </div>
 
         <div className={cardCls}>
-          <div className="mb-2 text-lg font-semibold text-white">Precio de la promo</div>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={Wallet} tono="emerald">Precio de la promo</Titulo></div>
           <SelectClippr
             opciones={[
               { id: "percent", label: "Descuento en %" },
@@ -819,14 +819,14 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
 
         <div className={cardCls}>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-lg font-semibold text-white">Pide un código</span>
+            <span className="font-semibold text-white"><Titulo icon={KeyRound} tono="violet">Pide un código</Titulo></span>
             <Toggle on={draft.requiresCode} onChange={(v) => set({ requiresCode: v })} />
           </div>
           {draft.requiresCode ? <input value={draft.code} onChange={(e) => set({ code: e.target.value.toUpperCase() })} placeholder="CÓDIGO" className={cn(inputCls, "mt-3 uppercase")} /> : null}
         </div>
 
         <div className={cardCls}>
-          <div className="mb-2 text-lg font-semibold text-white">Profesionales que la usan</div>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={Users} tono="sky">Profesionales que la usan</Titulo></div>
           <div className="flex flex-wrap gap-2">
             {employees.map((e) => {
               const on = draft.employeeIds.includes(e.id);
@@ -845,7 +845,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         </div>
 
         <div className={cardCls}>
-          <div className="mb-2 text-lg font-semibold text-white">Vigencia</div>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={CalendarRange} tono="amber">Vigencia</Titulo></div>
           <SelectClippr
             opciones={[
               { id: "siempre", label: "Siempre vigente" },
@@ -871,7 +871,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         </div>
 
         <div className={cardCls}>
-          <div className="mb-3 text-lg font-semibold text-white">Días de la promo</div>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={CalendarDays} tono="violet">Días de la promo</Titulo></div>
           <SelectClippr
             opciones={[
               { id: "siempre", label: "Siempre" },
@@ -890,7 +890,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         <div className={cardCls}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-lg font-semibold text-white">Límite de usos</div>
+              <div className="font-semibold text-white"><Titulo icon={Gauge} tono="rose">Límite de usos</Titulo></div>
               <div className="text-lg text-white/70">{editingPromo ? `${editingPromo.usageCount} usados hasta ahora` : "Total de veces que se puede usar"}</div>
             </div>
             <Toggle on={draft.useMaxTotal} onChange={(v) => set({ useMaxTotal: v })} />

@@ -48,6 +48,7 @@ import {
   normalizePublicBooleanMap,
   getPublicVisibility,
   type PriceRow,
+  Titulo,
 } from "@/components/settings/shared";
 
 // ─────────── Servicios y Catálogo ───────────
@@ -471,26 +472,6 @@ function DraggableImageCrop({
 }
 
 const NEW_CATEGORY_OPTION = "__new_category__";
-
-// Título de tarjeta con ícono de color (estilo Clippr).
-const TITULO_TONOS = {
-  sky: "bg-sky-400/20 text-sky-300",
-  emerald: "bg-emerald-400/20 text-emerald-300",
-  violet: "bg-violet-400/25 text-violet-300",
-  amber: "bg-amber-400/20 text-amber-300",
-  rose: "bg-rose-400/20 text-rose-300",
-  cyan: "bg-cyan-400/20 text-cyan-300",
-} as const;
-function Titulo({ icon: Icon, tono, children }: { icon: React.ComponentType<{ className?: string }>; tono: keyof typeof TITULO_TONOS; children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-3 text-lg">
-      <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", TITULO_TONOS[tono])}>
-        <Icon className="h-5 w-5" />
-      </span>
-      {children}
-    </span>
-  );
-}
 
 // Campo con título grande y claro (estilo Clippr) para la ventana de servicio.
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
