@@ -2307,54 +2307,7 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step === "professional" && employeesForSelectedServices.length > 0 && groupSize > 1 && groupMode === "different" ? (
-                <div className="mt-5 space-y-3">
-                  <p className="text-sm text-white/70">Elegí {groupSize} profesionales distintos, uno por persona.</p>
-                  {employeesForSelectedServices.map((employee) => {
-                    const on = groupEmployeeIds.includes(employee.id);
-                    const slotIdx = on ? groupEmployeeIds.indexOf(employee.id) : groupEmployeeIds.length;
-                    const forWho =
-                      slotIdx >= groupSize ? null : slotIdx === 0 ? "Para vos" : groupSize > 2 ? `Para tu amigo ${slotIdx}` : "Para tu amigo";
-                    return (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        onClick={() =>
-                          setGroupEmployeeIds((cur) =>
-                            cur.includes(employee.id) ? cur.filter((id) => id !== employee.id) : cur.length >= groupSize ? cur : [...cur, employee.id],
-                          )
-                        }
-                        className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left transition hover:bg-white/[0.04]"
-                      >
-                        <span
-                          className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border", on ? "border-transparent" : "border-white/25")}
-                          style={on ? accentFill(accent, accentButtonText) : undefined}
-                        >
-                          {on && <CheckCircle2 className="h-3.5 w-3.5" />}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-medium">{employee.full_name}</span>
-                          {forWho ? <span className="block text-xs text-white/50">{forWho}</span> : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <Button
-                    disabled={groupEmployeeIds.length !== groupSize}
-                    onClick={() => {
-                      setSelectedEmployeeId(groupEmployeeIds[0]);
-                      setSelectedSlot(null);
-                      setStep("datetime");
-                    }}
-                    className="w-full rounded-2xl py-6 font-bold hover:brightness-110"
-                    style={publicButtonStyle(accent, accentButtonText)}
-                  >
-                    Continuar ({groupEmployeeIds.length}/{groupSize})
-                  </Button>
-                </div>
-              ) : null}
-
-              {step === "professional" && employeesForSelectedServices.length > 0 && !(groupSize > 1 && groupMode === "different") ? (
+              {step === "professional" && employeesForSelectedServices.length > 0 ? (
                 (() => {
                   // Precio y duración reales para CADA profesional (mismo
                   // resolver que el resto de la app) — la diferencia ("qué
@@ -2440,8 +2393,24 @@ function PublicBookingPage() {
                   // Un solo listado: primero los de precio estándar, después los de precio
                   // distinto (la tarjeta lleva la etiqueta "Precio diferente").
                   const ordered = [...alanFirst([...standardCards, ...durationOnlyCards]), ...alanFirst(customCards)];
+                  const groupPick = groupSize > 1 && groupMode === "different";
                   return (
+                    <>
+                    {groupPick ? <p className="mb-3 text-sm text-white/70">Elegí {groupSize} profesionales distintos, uno por persona.</p> : null}
                     <PublicProfessionalPicker
+                      multi={
+                        groupPick
+                          ? {
+                              selectedIds: groupEmployeeIds,
+                              labelFor: (id) => {
+                                const idx = groupEmployeeIds.includes(id) ? groupEmployeeIds.indexOf(id) : groupEmployeeIds.length;
+                                return idx >= groupSize ? null : idx === 0 ? "Para vos" : groupSize > 2 ? `Para tu amigo ${idx}` : "Para tu amigo";
+                              },
+                              onToggle: (id) =>
+                                setGroupEmployeeIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= groupSize ? cur : [...cur, id])),
+                            }
+                          : undefined
+                      }
                       items={ordered.map(({ employee, totals, priceChanged, promoPrice, promoPercent }) => ({
                         id: employee.id,
                         name: employee.full_name,
@@ -2468,6 +2437,21 @@ function PublicBookingPage() {
                       onChoose={(id) => { setProOpenId(null); setSelectedEmployeeId(id); setSelectedSlot(null); setStep("datetime"); }}
                       onAny={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
                     />
+                    {groupPick ? (
+                      <Button
+                        disabled={groupEmployeeIds.length !== groupSize}
+                        onClick={() => {
+                          setSelectedEmployeeId(groupEmployeeIds[0]);
+                          setSelectedSlot(null);
+                          setStep("datetime");
+                        }}
+                        className="mt-3 w-full rounded-2xl py-6 font-bold hover:brightness-110"
+                        style={publicButtonStyle(accent, accentButtonText)}
+                      >
+                        Continuar ({groupEmployeeIds.length}/{groupSize})
+                      </Button>
+                    ) : null}
+                    </>
                   );
                 })()
               ) : null}

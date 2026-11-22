@@ -82,6 +82,7 @@ export function PublicProfessionalPicker({
   formatMoney,
   onChoose,
   onAny,
+  multi,
 }: {
   items: ProfessionalPickerItem[];
   ratings: Record<string, ProfessionalRating>;
@@ -98,6 +99,8 @@ export function PublicProfessionalPicker({
   formatMoney: (n: number) => string;
   onChoose: (id: string) => void;
   onAny: () => void;
+  // Reserva grupal con profesionales distintos: se marcan varios en la misma grilla.
+  multi?: { selectedIds: string[]; labelFor: (id: string) => string | null; onToggle: (id: string) => void };
 }) {
   const [showAllReviews, setShowAllReviews] = React.useState(false);
   const open = items.find((i) => i.id === openId) ?? null;
@@ -363,9 +366,21 @@ export function PublicProfessionalPicker({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => onOpenChange(item.id)}
-                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-2 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]"
+                  onClick={() => (multi ? multi.onToggle(item.id) : onOpenChange(item.id))}
+                  className={cn(
+                    "relative flex min-w-0 flex-col gap-3 rounded-3xl border bg-white/[0.04] px-2 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]",
+                    multi?.selectedIds.includes(item.id) ? "border-transparent" : "border-white/10",
+                  )}
+                  style={multi?.selectedIds.includes(item.id) ? { boxShadow: `0 0 0 2px ${accent}, 0 0 18px -2px ${accent}` } : undefined}
                 >
+                  {multi && multi.labelFor(item.id) ? (
+                    <span
+                      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      style={multi.selectedIds.includes(item.id) ? publicButtonStyle(accent, buttonText) : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.65)", WebkitTextFillColor: "rgba(255,255,255,0.65)" }}
+                    >
+                      {multi.labelFor(item.id)}
+                    </span>
+                  ) : null}
                   {item.priceChanged ? (
                     <span
                       className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight"
@@ -416,14 +431,14 @@ export function PublicProfessionalPicker({
               );
             })}
           </div>
-          <button
+          {multi ? null : <button
             type="button"
             onClick={onAny}
             className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-2.5 text-sm font-semibold transition hover:bg-white/[0.055]"
           >
             <UsersRound className="h-4 w-4" style={{ color: accentText }} /> Sin preferencia
             <span className="text-xs font-normal text-white/55">· Disponible</span>
-          </button>
+          </button>}
         </div>
       )}
     </div>
