@@ -1443,7 +1443,7 @@ function PublicBookingPage() {
     if (groupSize > 1) {
       for (let i = 0; i < friends.length; i++) {
         const f = friends[i];
-        const label = `de tu amigo ${i + 1}`;
+        const label = friends.length === 1 ? "de tu amigo" : `de tu amigo ${i + 1}`;
         if (!f.firstName.trim() || !nombreValido(f.firstName)) return toast.error(`Ingresá el nombre ${label}.`);
         if (!f.lastName.trim() || !nombreValido(f.lastName)) return toast.error(`Ingresá el apellido ${label}.`);
         if (!f.phone.trim() || !telefonoValido(f.phone)) return toast.error(`Ingresá un teléfono válido ${label}.`);
@@ -2770,7 +2770,7 @@ function PublicBookingPage() {
                           <UsersRound className="h-5 w-5" />
                         </span>
                         <div className="leading-tight">
-                          <p className="text-base font-bold">Datos de tus amigos</p>
+                          <p className="text-base font-bold">{friends.length === 1 ? "Datos de tu amigo" : "Datos de tus amigos"}</p>
                           <p className="text-xs text-white/60">Nombre, apellido y teléfono</p>
                         </div>
                       </div>
@@ -2778,10 +2778,12 @@ function PublicBookingPage() {
                         const upd = (patch: Partial<typeof f>) => setFriends((cur) => cur.map((x, j) => (j === i ? { ...x, ...patch } : x)));
                         return (
                           <div key={i} className="space-y-2.5 rounded-2xl border border-white/15 bg-white/[0.07] p-3.5">
-                            <p className="flex items-center gap-2 text-sm font-semibold">
-                              <span className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold" style={accentFill(accent, accentButtonText)}>{i + 1}</span>
-                              Amigo {i + 1}
-                            </p>
+                            {friends.length > 1 ? (
+                              <p className="flex items-center gap-2 text-sm font-semibold">
+                                <span className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold" style={accentFill(accent, accentButtonText)}>{i + 1}</span>
+                                Amigo {i + 1}
+                              </p>
+                            ) : null}
                             <div className="grid gap-2.5 sm:grid-cols-3">
                               <Input maxLength={40} value={f.firstName} onChange={(e) => upd({ firstName: e.target.value })} className="border-white/15 bg-black/30 text-white" placeholder="Nombre" />
                               <Input maxLength={40} value={f.lastName} onChange={(e) => upd({ lastName: e.target.value })} className="border-white/15 bg-black/30 text-white" placeholder="Apellido" />
