@@ -4023,7 +4023,7 @@ export function EquipoSection() {
                   <PermissionToggleRow
                     icon={Globe}
                     tone="sky"
-                    title="Reservas online"
+                    title={form.isActive ? "Reservas en línea" : "Sin reservas en línea"}
                     on={form.isActive}
                     onChange={(v) => setForm({ ...form, isActive: v })}
                   />
