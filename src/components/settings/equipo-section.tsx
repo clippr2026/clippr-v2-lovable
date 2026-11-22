@@ -482,24 +482,21 @@ function ApprovalModeCard({
       <PermissionToggleRow
         icon={CalendarPlus}
         tone="sky"
-        title="Puede agregar turnos desde su panel"
-        description="Puede cargar turnos nuevos en su agenda."
+        title="Agregar turnos"
         on={canAddTurno}
         onChange={onToggleCanAddTurno}
       />
       <PermissionToggleRow
         icon={Trash2}
         tone="rose"
-        title="Puede cancelar turnos desde su panel"
-        description="Puede cancelar los turnos de su agenda."
+        title="Cancelar turnos"
         on={canCancelTurno}
         onChange={onToggleCanCancelTurno}
       />
       <PermissionToggleRow
         icon={MessageCircle}
         tone="emerald"
-        title="Mostrar el WhatsApp del cliente"
-        description="Si está apagado, no ve el botón de WhatsApp en sus turnos."
+        title="Ver WhatsApp del cliente"
         on={showWhatsapp}
         onChange={onToggleShowWhatsapp}
       />
@@ -507,8 +504,7 @@ function ApprovalModeCard({
       <PermissionToggleRow
         icon={DollarSign}
         tone="emerald"
-        title="Puede cobrar"
-        description="Puede registrar el cobro de sus servicios."
+        title="Cobrar"
         on={enabled}
         onChange={onToggleEnabled}
       />
@@ -517,8 +513,8 @@ function ApprovalModeCard({
         <PermissionToggleRow
           icon={ShieldCheck}
           tone="amber"
-          title="Exigir aprobación de ventas"
-          description="Sus ventas quedan pendientes hasta que un administrador las apruebe."
+          title="Ventas con aprobación"
+          description="Quedan pendientes hasta que un admin las apruebe."
           on={mode === "manual"}
           onChange={(v) => onChangeMode(v ? "manual" : "auto")}
         />
@@ -3204,8 +3200,7 @@ export function EquipoSection() {
         <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
           <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
           <span>
-            La persona crea su contraseña desde la invitación que recibe por
-            email.
+            Recibe una invitación por mail para crear su contraseña.
           </span>
         </div>
 
@@ -3216,10 +3211,8 @@ export function EquipoSection() {
         <div className="rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-300/20 overflow-hidden">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-emerald-200">Permisos incluidos</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Según el rol seleccionado: {ROLE_LABEL_BY_ID[accessForm.role]}.
-              </div>
+              <div className="text-xs font-bold uppercase tracking-wide text-emerald-200">Puede acceder</div>
+              <div className="text-sm text-muted-foreground mt-0.5">{ROLE_LABEL_BY_ID[accessForm.role]}</div>
             </div>
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-300/20">
               <ShieldCheck className="h-4.5 w-4.5 text-violet-200" />
@@ -3231,9 +3224,6 @@ export function EquipoSection() {
                 tildado, un único mensaje en vez de la lista completa de
                 módulos apagados. */}
             <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
-                Puede acceder
-              </div>
               {liveAccessLabels.length === 0 ? (
                 <div className="text-xs text-muted-foreground">
                   Sin accesos habilitados
@@ -3431,59 +3421,66 @@ export function EquipoSection() {
             onClick={() => setAddChooserOpen(false)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl bg-[#15161c] p-5 shadow-2xl ring-1 ring-white/10"
+              className="w-full max-w-sm rounded-3xl bg-[#08070f] p-5 shadow-2xl ring-1 ring-violet-400/30"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-lg font-semibold">Agregar persona</div>
-              <p className="mt-1 text-sm text-muted-foreground">Elegí el rol de la persona.</p>
-              <label className="mt-4 block text-sm font-semibold">
-                Rol
-                <select
-                  value={chooserRole}
-                  onChange={(e) => setChooserRole(e.target.value as RolePermissionId)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"
+              <div className="text-xl font-bold">Agregar persona</div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {(["profesional", "admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setChooserRole(role)}
+                    className={cn(
+                      "h-11 rounded-full px-4 text-base font-semibold ring-1 transition-colors",
+                      chooserRole === role
+                        ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40 shadow-[0_0_18px_-4px_rgba(139,92,246,0.7)]"
+                        : "bg-white/[0.04] text-white/70 ring-white/10",
+                    )}
+                  >
+                    {role === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[role]}
+                  </button>
+                ))}
+              </div>
+              {chooserRole !== "profesional" && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={chooserAtiende}
+                  onClick={() => setChooserAtiende((v) => !v)}
+                  className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-left ring-1 ring-white/10"
                 >
-                  {(["profesional", "admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
-                    <option key={role} value={role}>
-                      {role === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[role]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label
-                className={cn(
-                  "mt-3 flex items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10",
-                  chooserRole === "profesional" ? "cursor-not-allowed opacity-80" : "cursor-pointer",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={chooserRole === "profesional" || chooserAtiende}
-                  disabled={chooserRole === "profesional"}
-                  onChange={(e) => setChooserAtiende(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-sky-400"
-                />
-                <span className="text-sm">
-                  <b>Atiende clientes</b>
-                  <span className="block text-xs text-muted-foreground">
-                    {chooserRole === "profesional"
-                      ? "Un barbero siempre atiende clientes: aparece en la Agenda y cobra sus servicios."
-                      : "Aparece en la Agenda y puede cobrar sus servicios."}
+                  <span>
+                    <span className="block text-base font-semibold">Atiende clientes</span>
+                    <span className="block text-sm text-muted-foreground">Aparece en la Agenda y cobra</span>
                   </span>
-                </span>
-              </label>
+                  <span
+                    className={cn(
+                      "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+                      chooserAtiende ? "bg-emerald-500/80" : "bg-white/20",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-1 h-5 w-5 rounded-full bg-white transition-all",
+                        chooserAtiende ? "left-6" : "left-1",
+                      )}
+                    />
+                  </span>
+                </button>
+              )}
               <div className="mt-5 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setAddChooserOpen(false)}
-                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10"
+                  className="h-12 flex-1 rounded-full bg-white/5 px-4 text-base text-muted-foreground ring-1 ring-white/10"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={continueAddPerson}
-                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                  className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]"
                 >
                   Continuar
                 </button>
@@ -3501,7 +3498,7 @@ export function EquipoSection() {
             onClick={() => !linkSaving && setLinkBarberFor(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl bg-[#15161c] p-5 shadow-2xl ring-1 ring-white/10"
+              className="w-full max-w-sm rounded-3xl bg-[#08070f] p-5 shadow-2xl ring-1 ring-violet-400/30"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-lg font-semibold">Atiendo clientes</div>
@@ -3819,9 +3816,9 @@ export function EquipoSection() {
                   <div className="truncate text-base font-semibold">
                     {editingEmp ? form.fullName || "Editar profesional" : "Nuevo profesional"}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {editingEmp ? "Perfil, horarios, comisiones y acceso" : "Completá los datos y guardá una sola vez"}
-                  </div>
+                  {!editingEmp && (
+                    <div className="text-xs text-muted-foreground">Completá los datos y guardá una sola vez</div>
+                  )}
                 </div>
                 <button
                   onClick={() => setOpen(false)}
@@ -3845,15 +3842,17 @@ export function EquipoSection() {
                       <button
                         key={id}
                         onClick={() => setDlgTab(id)}
+                        aria-label={label}
                         className={cn(
-                          "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2.5 text-sm font-semibold transition-all",
+                          active ? "flex-[2] px-3" : "flex-1 px-2",
                           active
                             ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
                             : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
                         )}
                       >
-                        <TabIcon className="h-3.5 w-3.5" />
-                        {label}
+                        <TabIcon className="h-4 w-4" />
+                        {active && label}
                       </button>
                     );
                   })}
@@ -3870,13 +3869,7 @@ export function EquipoSection() {
             <div ref={proModalScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
                 <div className="space-y-4">
-                  <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
-                    <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                    <span>
-                      Completá los <b>datos</b> del profesional y elegí qué puede hacer desde su propio panel.
-                    </span>
-                  </div>
-                  <DlgSection title="Datos del profesional" hint="Foto, nombre y contacto." icon={UserPlus} tone="sky">
+                  <DlgSection title="Datos del profesional" icon={UserPlus} tone="sky">
                   <div className="flex items-center gap-3">
                     <label className="group relative h-14 w-14 shrink-0 cursor-pointer rounded-full">
                       <div className="h-14 w-14 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-lg ring-1 ring-white/10">
@@ -3905,9 +3898,7 @@ export function EquipoSection() {
                       />
                     </label>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold">
-                        Foto del profesional
-                      </div>
+                      {!form.avatarUrl && <div className="text-sm font-semibold">Agregar foto</div>}
                       {form.avatarUrl && (
                         <button
                           type="button"
@@ -4015,12 +4006,11 @@ export function EquipoSection() {
 
                   </DlgSection>
 
-                  <DlgSection title="Reservas y permisos" hint="Qué puede hacer desde su propio panel." icon={ShieldCheck} tone="emerald">
+                  <DlgSection title="Permisos" icon={ShieldCheck} tone="emerald">
                   <PermissionToggleRow
                     icon={Globe}
                     tone="sky"
-                    title="Acepta reservas en línea"
-                    description="Los clientes lo pueden elegir en tu página de reservas."
+                    title="Reservas online"
                     on={form.isActive}
                     onChange={(v) => setForm({ ...form, isActive: v })}
                   />
@@ -4051,17 +4041,7 @@ export function EquipoSection() {
 
               {dlgTab === "horarios" && (
                 <div className="space-y-4">
-                  <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
-                    <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                    <span>
-                      Los días desactivados <b>no reciben turnos</b>. Podés sumar un <b>descanso</b> en cada día.
-                    </span>
-                  </div>
                   <div className="space-y-3 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-violet-200/85">
-                    <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-sky-400 to-violet-500" />
-                    Días de trabajo
-                  </div>
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     return (
@@ -4077,11 +4057,7 @@ export function EquipoSection() {
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-sm font-semibold">{label}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {d.enabled
-                                ? `${d.start} a ${d.end}${d.breakStart && d.breakEnd ? ` · descanso ${d.breakStart}–${d.breakEnd}` : ""}`
-                                : "No atiende este día"}
-                            </div>
+                            {!d.enabled && <div className="text-xs text-muted-foreground">No atiende este día</div>}
                           </div>
                           <button
                             type="button"
@@ -4102,9 +4078,6 @@ export function EquipoSection() {
                           </button>
                         </div>
                         <div className={cn("space-y-2 rounded-xl bg-sky-400/[0.06] p-3 ring-1 ring-sky-300/20", !d.enabled && "opacity-40")}>
-                          <div className="text-xs font-bold uppercase tracking-wide text-sky-200">
-                            Horario
-                          </div>
                           <div className="flex items-center gap-2">
                             <input
                               type="time"
@@ -4198,20 +4171,10 @@ export function EquipoSection() {
 
               {dlgTab === "comisiones" && (
                 <div className="space-y-4">
-                  {commTab === "catalogo" && (
-                    <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
-                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                      <span>
-                        Activá los <b>productos</b> por los que este profesional gana <b>comisión</b> y elegí cuánto. El precio lo
-                        define el local en Catálogo.
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs leading-relaxed text-sky-100 ring-1 ring-sky-300/20">
-                    <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                  <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-sm leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                    <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
                     <span>
-                      La comisión, el precio y los servicios que hace cada profesional se cargan desde <b>Servicios</b>: tocá un servicio,
-                      Editar y la pestaña <b>Profesionales</b>.
+                      Activá los productos con comisión. Los servicios se cargan desde <b>Servicios → Profesionales</b>.
                     </span>
                   </div>
 
@@ -4536,9 +4499,6 @@ export function EquipoSection() {
                                               <div className="flex items-center justify-between gap-3">
                                                 <div className="min-w-0">
                                                   <div className="truncate text-sm font-semibold">{item.name}</div>
-                                                  <div className="text-xs text-muted-foreground">
-                                                    {cfg.enabled ? "Gana comisión por este producto" : "Sin comisión"}
-                                                  </div>
                                                 </div>
                                                 <button
                                                   type="button"
