@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/settings/shared";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { DateClippr } from "@/components/ui/date-clippr";
-import { DAY_KEYS, type DayKey } from "@/lib/availability";
+import { DAY_KEYS, normalizeSchedule, type DayKey } from "@/lib/availability";
 import {
   backfillPromotionVigencia,
   type Promotion,
@@ -38,8 +38,6 @@ const DAY_LABEL: Record<DayKey, string> = {
 };
 const WEEK: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-const timeCls =
-  "flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white focus:border-violet-400/50 focus:outline-none disabled:opacity-40";
 const inputCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
 const cardCls =
@@ -409,7 +407,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
 
 // ─────────────────────────────────── Horarios ───────────────────────────────
 
-const DEFAULT_WINDOW: ServiceDayWindow = { enabled: true, start: "11:00", end: "20:00" };
+const DEFAULT_WINDOW: ServiceDayWindow = { enabled: true, start: "00:00", end: "23:59" };
 
 function fullWeek(map?: ServiceWindowMap): ServiceWindowMap {
   const out: ServiceWindowMap = {};
@@ -417,24 +415,46 @@ function fullWeek(map?: ServiceWindowMap): ServiceWindowMap {
   return out;
 }
 
-function DaysEditor({ value, onChange }: { value: ServiceWindowMap; onChange: (next: ServiceWindowMap) => void }) {
+// Días del local que no abren: no se pueden elegir.
+function useClosedDays(businessId: string | null | undefined): Set<DayKey> {
+  const [closed, setClosed] = React.useState<Set<DayKey>>(new Set());
+  React.useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+    void readBusinessSchedule(businessId).then((schedule) => {
+      if (cancelled) return;
+      const local = normalizeSchedule(schedule);
+      setClosed(new Set(DAY_KEYS.filter((k) => !local[k]?.enabled)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+  return closed;
+}
+
+function DaysPicker({
+  value,
+  onChange,
+  closed,
+}: {
+  value: Partial<Record<DayKey, { enabled: boolean }>>;
+  onChange: (k: DayKey, enabled: boolean) => void;
+  closed: Set<DayKey>;
+}) {
   return (
     <div className="space-y-2.5">
       {WEEK.map((k) => {
-        const w = value[k] ?? DEFAULT_WINDOW;
-        const set = (patch: Partial<ServiceDayWindow>) => onChange({ ...value, [k]: { ...w, ...patch } });
+        const isClosed = closed.has(k);
         return (
-          <div key={k} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold text-white">{DAY_LABEL[k]}</span>
-              <Toggle on={w.enabled} onChange={(v) => set({ enabled: v })} />
+          <div key={k} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="min-w-0">
+              <div className="text-lg font-semibold text-white">{DAY_LABEL[k]}</div>
+              {isClosed ? <div className="text-lg text-white/70">El local no abre</div> : null}
             </div>
-            {w.enabled ? (
-              <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                <input type="time" value={w.start} onChange={(e) => set({ start: e.target.value })} className={timeCls} />
-                <input type="time" value={w.end} onChange={(e) => set({ end: e.target.value })} className={timeCls} />
-              </div>
-            ) : null}
+            <div className={isClosed ? "pointer-events-none opacity-40" : undefined}>
+              <Toggle on={!isClosed && (value[k]?.enabled ?? true)} onChange={(v) => onChange(k, v)} />
+            </div>
           </div>
         );
       })}
@@ -444,6 +464,7 @@ function DaysEditor({ value, onChange }: { value: ServiceWindowMap; onChange: (n
 
 export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: string; onRegister?: (api: TabSaveApi | null) => void }) {
   const { loading, businessId } = useBranchEmployees();
+  const closed = useClosedDays(businessId);
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [svcCustom, setSvcCustom] = React.useState(false);
@@ -488,12 +509,12 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
 
   return (
     <div className={cardCls}>
-      <div className="text-lg font-semibold text-white">Días y horarios del servicio</div>
+      <div className="text-lg font-semibold text-white">Días del servicio</div>
       <div className="mt-3">
         <SelectClippr
           opciones={[
-            { id: "local", label: "Mismo día y horario que el local" },
-            { id: "custom", label: "Día y horario personalizado" },
+            { id: "local", label: "Mismos días que el local" },
+            { id: "custom", label: "Días personalizados" },
           ]}
           valor={svcCustom ? "custom" : "local"}
           onChange={(v) => setSvcCustom(v === "custom")}
@@ -501,7 +522,7 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
       </div>
       {svcCustom ? (
         <div className="mt-3">
-          <DaysEditor value={svcDays} onChange={setSvcDays} />
+          <DaysPicker value={svcDays} closed={closed} onChange={(k, enabled) => setSvcDays((d) => ({ ...d, [k]: { ...(d[k] ?? DEFAULT_WINDOW), enabled } }))} />
         </div>
       ) : null}
     </div>
@@ -525,6 +546,7 @@ type PromoDraft = {
   startDate: string;
   endDate: string;
   days: Promotion["days"];
+  daysCustom: boolean;
   useMaxTotal: boolean;
   maxTotal: string;
   useMaxPerClient: boolean;
@@ -551,6 +573,7 @@ function draftFromPromo(p: Promotion): PromoDraft {
     startDate: p.startDate,
     endDate: p.endDate,
     days: p.days ?? defaultDays(),
+    daysCustom: Object.values(p.days ?? {}).some((d) => !d.enabled || d.start || d.end),
     useMaxTotal: p.maxUsesTotal != null,
     maxTotal: p.maxUsesTotal != null ? String(p.maxUsesTotal) : "",
     useMaxPerClient: p.maxUsesPerClient != null,
@@ -560,6 +583,7 @@ function draftFromPromo(p: Promotion): PromoDraft {
 
 export function ServicePromoTab({ serviceId, serviceName, listPrice }: { serviceId: string; serviceName: string; listPrice: number }) {
   const { employees, loading, businessId, activeBranchId } = useBranchEmployees();
+  const closed = useClosedDays(businessId);
   const [promos, setPromos] = React.useState<Promotion[]>([]);
   const [names, setNames] = React.useState<Record<string, string>>({});
   const [ready, setReady] = React.useState(false);
@@ -623,6 +647,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
       startDate: "",
       endDate: "",
       days: defaultDays(),
+      daysCustom: false,
       useMaxTotal: false,
       maxTotal: "",
       useMaxPerClient: false,
@@ -658,10 +683,10 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         serviceIds: prev?.serviceIds ?? [serviceId],
         categoryNames: prev?.categoryNames ?? [],
         employeeIds: draft.employeeIds,
-        hasVigencia: draft.hasVigencia,
-        startDate: draft.startDate,
-        endDate: draft.endDate,
-        days: draft.days,
+        hasVigencia: draft.hasVigencia || draft.daysCustom,
+        startDate: draft.hasVigencia ? draft.startDate : "",
+        endDate: draft.hasVigencia ? draft.endDate : "",
+        days: draft.daysCustom ? draft.days : defaultDays(),
         maxUsesTotal: draft.useMaxTotal ? Math.max(0, Number(draft.maxTotal) || 0) : null,
         maxUsesPerClient: draft.useMaxPerClient ? Math.max(0, Number(draft.maxPerClient) || 0) : null,
         usageCount: prev?.usageCount ?? 0,
@@ -771,7 +796,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-white">Vigencia</div>
-              <div className="text-lg text-white/70">{draft.hasVigencia ? "Solo en estas fechas y días" : "Siempre vigente"}</div>
+              <div className="text-lg text-white/70">{draft.hasVigencia ? "Solo en estas fechas" : "Siempre vigente"}</div>
             </div>
             <Toggle on={draft.hasVigencia} onChange={(v) => set({ hasVigencia: v })} />
           </div>
@@ -787,24 +812,25 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
                   <DateClippr value={draft.endDate} onChange={(v) => set({ endDate: v })} placeholder="Sin fin" />
                 </div>
               </div>
-              <div className="text-lg text-white/70">Días y horario (vacío = todo el día)</div>
-              {WEEK.map((k) => {
-                const d = draft.days[k] ?? { enabled: true, start: "", end: "" };
-                return (
-                  <div key={k} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-semibold text-white">{DAY_LABEL[k]}</span>
-                      <Toggle on={d.enabled} onChange={(v) => setDay(k, { enabled: v })} />
-                    </div>
-                    {d.enabled ? (
-                      <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                        <input type="time" value={d.start} onChange={(e) => setDay(k, { start: e.target.value })} className={timeCls} />
-                        <input type="time" value={d.end} onChange={(e) => setDay(k, { end: e.target.value })} className={timeCls} />
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+            </div>
+          ) : null}
+        </div>
+
+        <div className={cardCls}>
+          <div className="text-lg font-semibold text-white">Días de la promo</div>
+          <div className="mt-3">
+            <SelectClippr
+              opciones={[
+                { id: "todos", label: "Todos los días" },
+                { id: "custom", label: "Días personalizados" },
+              ]}
+              valor={draft.daysCustom ? "custom" : "todos"}
+              onChange={(v) => set({ daysCustom: v === "custom" })}
+            />
+          </div>
+          {draft.daysCustom ? (
+            <div className="mt-3">
+              <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
             </div>
           ) : null}
         </div>
