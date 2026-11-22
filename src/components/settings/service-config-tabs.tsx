@@ -313,12 +313,16 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
             {d.offers ? (
               <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
                 <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="text-base font-semibold text-white">Precio</span>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-lg text-white/75">{d.ownPrice ? "Propio" : "Del servicio"}</span>
-                      <Toggle on={d.ownPrice} onChange={(v) => update(e.id, { ownPrice: v })} />
-                    </div>
+                  <div className="mb-1.5 text-base font-semibold text-white">Precio</div>
+                  <div className="mb-2.5">
+                    <SelectClippr
+                      opciones={[
+                        { id: "servicio", label: "Del servicio" },
+                        { id: "propio", label: "Propio" },
+                      ]}
+                      valor={d.ownPrice ? "propio" : "servicio"}
+                      onChange={(v) => update(e.id, { ownPrice: v === "propio" })}
+                    />
                   </div>
                   {d.ownPrice ? (
                     <div className="grid grid-cols-2 gap-2.5">
@@ -343,7 +347,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                             inputMode="numeric"
                             value={d.effPrice}
                             onChange={(ev) => update(e.id, { effPrice: ev.target.value.replace(/\D/g, "") })}
-                            placeholder={cashPrice > 0 ? String(cashPrice) : "Igual al de lista"}
+                            placeholder={cashPrice > 0 ? String(cashPrice) : "Igual a lista"}
                             className={cn(inputCls, "pl-7")}
                           />
                         </div>
@@ -365,15 +369,15 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                 </div>
                 {d.generates ? (
                   <div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-base font-semibold text-white">Comisión</span>
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-lg text-white/75">
-                          {d.ownComm ? "Propia" : serviceComm ? `Del servicio (${serviceComm})` : "Del servicio"}
-                        </span>
-                        <Toggle on={d.ownComm} onChange={(v) => update(e.id, { ownComm: v })} />
-                      </div>
-                    </div>
+                    <div className="mb-1.5 text-base font-semibold text-white">Comisión</div>
+                    <SelectClippr
+                      opciones={[
+                        { id: "servicio", label: serviceComm ? `Del servicio (${serviceComm})` : "Del servicio" },
+                        { id: "propia", label: "Propia" },
+                      ]}
+                      valor={d.ownComm ? "propia" : "servicio"}
+                      onChange={(v) => update(e.id, { ownComm: v === "propia" })}
+                    />
                     {d.ownComm ? (
                       <div className="mt-2.5 grid grid-cols-[110px_minmax(0,1fr)] gap-2">
                         <SelectClippr
