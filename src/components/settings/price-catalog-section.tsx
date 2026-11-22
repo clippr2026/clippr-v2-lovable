@@ -820,10 +820,14 @@ function PriceEditorModal({
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
+            type="button"
             onClick={handleClose}
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
+            aria-label="Cerrar"
+            className="relative z-10 -mr-2 grid h-12 w-12 shrink-0 touch-manipulation place-items-center rounded-full text-white/80 transition hover:bg-white/10 active:bg-white/15"
           >
-            ✕
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         </div>
 
@@ -1167,13 +1171,6 @@ function PriceEditorModal({
               Eliminar
             </button>
           )}
-          <button
-            onClick={handleClose}
-            disabled={saving}
-            className="h-12 rounded-2xl border border-white/25 bg-white/15 px-4 text-base font-bold text-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.6)] transition active:scale-95 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
           <button
             onClick={() => (onTab ? void tabApi?.save() : onSave())}
             disabled={activeSaving || !activeDirty || (!onTab && !form.name.trim())}
