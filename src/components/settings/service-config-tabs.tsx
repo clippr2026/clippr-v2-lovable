@@ -42,7 +42,8 @@ const timeCls =
   "flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white focus:border-violet-400/50 focus:outline-none disabled:opacity-40";
 const inputCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
-const cardCls = "rounded-2xl border border-white/10 bg-white/[0.05] p-3.5";
+const cardCls =
+  "rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)]";
 const saveBtnCls =
   "h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] disabled:opacity-60";
 
@@ -162,7 +163,7 @@ function Loading() {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-2xl border border-dashed border-white/15 p-4 text-base text-white/60">{children}</p>;
+  return <p className="rounded-2xl border border-dashed border-white/15 p-4 text-lg text-white/70">{children}</p>;
 }
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
@@ -275,7 +276,6 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
 
   return (
     <div className="space-y-3">
-      <p className="text-base text-white/65">Quién lo hace, su precio y su comisión.</p>
       {employees.map((e) => {
         const d = draft[e.id];
         if (!d) return null;
@@ -294,14 +294,14 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="text-base font-semibold text-white">Precio</span>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-base text-white/65">{d.ownPrice ? "Precio propio" : "Usa el del servicio"}</span>
+                      <span className="text-lg text-white/75">{d.ownPrice ? "Propio" : "Del servicio"}</span>
                       <Toggle on={d.ownPrice} onChange={(v) => update(e.id, { ownPrice: v })} />
                     </div>
                   </div>
                   {d.ownPrice ? (
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <div className="mb-1 text-base text-white/60">Precio de lista</div>
+                        <div className="mb-1 text-lg text-white/70">Precio de lista</div>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
                           <input
@@ -314,7 +314,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                         </div>
                       </div>
                       <div>
-                        <div className="mb-1 text-base text-white/60">Precio en efectivo</div>
+                        <div className="mb-1 text-lg text-white/70">Precio en efectivo</div>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
                           <input
@@ -328,7 +328,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                       </div>
                     </div>
                   ) : (
-                    <p className="text-base text-white/60">
+                    <p className="text-lg text-white/70">
                       Lista {money(listPrice)}
                       {cashPrice > 0 ? ` · Efectivo ${money(cashPrice)}` : ""}
                     </p>
@@ -337,7 +337,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-base font-semibold text-white">Genera comisión</span>
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base text-white/65">{d.generates && e.commissionEnabled ? "Sí" : "No"}</span>
+                    <span className="text-lg text-white/75">{d.generates && e.commissionEnabled ? "Sí" : "No"}</span>
                     <Toggle on={d.generates && e.commissionEnabled} onChange={(v) => update(e.id, { generates: v })} />
                   </div>
                 </div>
@@ -494,7 +494,7 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-lg font-semibold text-white">Días y horarios del servicio</div>
-            <div className="text-base text-white/60">{svcCustom ? "Solo en estos días y horas" : "Todos los días, según el horario del local"}</div>
+            <div className="text-lg text-white/70">{svcCustom ? "Solo en estos días y horas" : "Todos los días, según el horario del local"}</div>
           </div>
           <Toggle on={svcCustom} onChange={setSvcCustom} />
         </div>
@@ -506,14 +506,14 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
       </div>
 
       <div className="text-lg font-semibold text-white">Horario por profesional</div>
-      <p className="-mt-2 text-base text-white/60">Solo acota; nunca pasa de su horario general.</p>
+      <p className="-mt-2 text-lg text-white/70">Solo acota; nunca pasa de su horario general.</p>
       {doers.length === 0 ? <Empty>Ningún profesional hace este servicio todavía.</Empty> : null}
       {doers.map((e) => (
         <div key={e.id} className={cardCls}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="truncate text-lg font-semibold text-white">{e.name}</div>
-              <div className="text-base text-white/60">{empCustom[e.id] ? "Horario propio en este servicio" : "Usa su horario general"}</div>
+              <div className="text-lg text-white/70">{empCustom[e.id] ? "Horario propio en este servicio" : "Usa su horario general"}</div>
             </div>
             <Toggle on={!!empCustom[e.id]} onChange={(v) => setEmpCustom((c) => ({ ...c, [e.id]: v }))} />
           </div>
@@ -754,7 +754,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
             className={cn(inputCls, "mt-2.5")}
           />
           {draft.value ? (
-            <p className="mt-2 text-base text-white/65">
+            <p className="mt-2 text-lg text-white/75">
               Lista {money(listPrice)} → <b className="text-emerald-300">{money(Math.max(0, finalPreview))}</b>
             </p>
           ) : null}
@@ -791,7 +791,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-white">Vigencia</div>
-              <div className="text-base text-white/60">{draft.hasVigencia ? "Solo en estas fechas y días" : "Siempre vigente"}</div>
+              <div className="text-lg text-white/70">{draft.hasVigencia ? "Solo en estas fechas y días" : "Siempre vigente"}</div>
             </div>
             <Toggle on={draft.hasVigencia} onChange={(v) => set({ hasVigencia: v })} />
           </div>
@@ -799,15 +799,15 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
             <div className="mt-3 space-y-3">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <div className="mb-1 text-base text-white/60">Desde</div>
+                  <div className="mb-1 text-lg text-white/70">Desde</div>
                   <DateClippr value={draft.startDate} onChange={(v) => set({ startDate: v })} placeholder="Sin inicio" />
                 </div>
                 <div>
-                  <div className="mb-1 text-base text-white/60">Hasta</div>
+                  <div className="mb-1 text-lg text-white/70">Hasta</div>
                   <DateClippr value={draft.endDate} onChange={(v) => set({ endDate: v })} placeholder="Sin fin" />
                 </div>
               </div>
-              <div className="text-base text-white/60">Días y horario (vacío = todo el día)</div>
+              <div className="text-lg text-white/70">Días y horario (vacío = todo el día)</div>
               {WEEK.map((k) => {
                 const d = draft.days[k] ?? { enabled: true, start: "", end: "" };
                 return (
@@ -833,7 +833,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-white">Límite de usos</div>
-              <div className="text-base text-white/60">{editingPromo ? `${editingPromo.usageCount} usados hasta ahora` : "Total de veces que se puede usar"}</div>
+              <div className="text-lg text-white/70">{editingPromo ? `${editingPromo.usageCount} usados hasta ahora` : "Total de veces que se puede usar"}</div>
             </div>
             <Toggle on={draft.useMaxTotal} onChange={(v) => set({ useMaxTotal: v })} />
           </div>
@@ -841,7 +841,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-white">Límite por cliente</div>
-              <div className="text-base text-white/60">Veces que puede usarla cada cliente</div>
+              <div className="text-lg text-white/70">Veces que puede usarla cada cliente</div>
             </div>
             <Toggle on={draft.useMaxPerClient} onChange={(v) => set({ useMaxPerClient: v })} />
           </div>
@@ -863,7 +863,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
 
   return (
     <div className="space-y-3">
-      <p className="text-base text-white/65">Descuentos de este servicio: precio, días, profesionales, código y límites.</p>
       {mine.length === 0 ? <Empty>Este servicio no tiene promo.</Empty> : null}
       {mine.map((p) => (
         <button key={p.id} type="button" onClick={() => setDraft(draftFromPromo(p))} className={cn(cardCls, "block w-full text-left")}>
@@ -871,7 +870,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
             <span className="min-w-0 truncate text-lg font-semibold text-white">{p.name}</span>
             <span className={cn("shrink-0 text-base font-semibold", p.active ? "text-emerald-300" : "text-white/50")}>{p.active ? "Activa" : "Apagada"}</span>
           </div>
-          <div className="mt-1 text-base text-white/65">
+          <div className="mt-1 text-lg text-white/75">
             {p.discountType === "percent" ? `${p.discountValue}% de descuento` : `${money(Number(p.discountValue) || 0)} de descuento`}
             {p.requiresCode ? ` · Código ${p.code}` : ""}
             {p.maxUsesTotal != null ? ` · ${p.usageCount}/${p.maxUsesTotal} usos` : p.usageCount ? ` · ${p.usageCount} usos` : ""}
