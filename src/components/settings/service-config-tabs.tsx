@@ -311,7 +311,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   <div className="mb-2.5">
                     <SelectClippr
                       opciones={[
-                        { id: "servicio", label: `Precio del servicio (${money(listPrice)})` },
+                        { id: "servicio", label: "Precio del servicio" },
                         { id: "propio", label: "Precio propio" },
                       ]}
                       valor={d.ownPrice ? "propio" : "servicio"}
@@ -347,7 +347,12 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                         </div>
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="text-lg text-white/70">
+                      {money(listPrice)}
+                      {cashPrice > 0 ? ` · Efectivo ${money(cashPrice)}` : ""}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-4">
                   <span className="text-base font-semibold text-white">Genera comisión</span>
