@@ -66,6 +66,7 @@ import {
   isServiceOfferedByEmployee,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
+  isGroupPromotion,
   applyPromotionDiscount,
   normalizeClientKeys,
   hasClientReachedPerClientLimit,
@@ -394,6 +395,17 @@ function PublicBookingPage() {
   const [promoCodeError, setPromoCodeError] = React.useState("");
   const [appliedPromotion, setAppliedPromotion] = React.useState<Promotion | null>(null);
   const [infoModalPromo, setInfoModalPromo] = React.useState<Promotion | null>(null);
+  // Promo para grupos de amigos: cuántos son, si se atienden con el mismo
+  // profesional (uno atrás del otro) o con distintos (a la misma hora), y los
+  // datos de los amigos (el cliente 1 es quien reserva).
+  const [groupMode, setGroupMode] = React.useState<"same" | "different">("same");
+  const [friends, setFriends] = React.useState<{ firstName: string; lastName: string; phone: string }[]>([]);
+  const groupSize = appliedPromotion && isGroupPromotion(appliedPromotion) ? (appliedPromotion.groupSize ?? 0) : 0;
+  React.useEffect(() => {
+    setFriends((cur) =>
+      Array.from({ length: Math.max(0, groupSize - 1) }, (_, i) => cur[i] ?? { firstName: "", lastName: "", phone: "" }),
+    );
+  }, [groupSize]);
   // "" = todavía no eligió nada en el paso "Elegí profesional" (distinto de
   // "any", que es la elección explícita de "Sin preferencia") — así el
   // resumen "Tu reserva" no asume un profesional (ni sus valores
@@ -437,6 +449,7 @@ function PublicBookingPage() {
     clientPhone: string;
     clientEmail?: string;
     products?: { name: string; price: number }[];
+    friends?: { name: string; time: string; professional: string; ok: boolean }[];
   } | null>(null);
 
   // Si el cliente ya reservó antes y su email ya tiene un canal de origen
@@ -495,6 +508,7 @@ function PublicBookingPage() {
           serviceId: service.id,
           employeeId: employee.id,
           category: service.category ?? null,
+          allowGroup: true,
         }),
       ),
     );
@@ -561,7 +575,7 @@ function PublicBookingPage() {
         ? []
         : validPromotions.filter((p) =>
             selectedServices.every((service) =>
-              isPromotionApplicable(p, { serviceId: service.id, category: service.category ?? null }),
+              isPromotionApplicable(p, { serviceId: service.id, category: service.category ?? null, allowGroup: true }),
             ),
           ),
     [validPromotions, selectedServices],
@@ -599,6 +613,7 @@ function PublicBookingPage() {
         serviceId: service.id,
         employeeId: pricingEmployeeId,
         category: service.category ?? null,
+        allowGroup: true,
       });
     return sum + applyPromotionDiscount(resolved.price, applies ? appliedPromotion : null);
   }, 0);
@@ -651,14 +666,16 @@ function PublicBookingPage() {
       }),
     [employeesForSelectedServices, employeeDiffs],
   );
-  const slots = React.useMemo(
+  // Grupo con el mismo profesional: se busca un hueco para todos seguidos.
+  const slotDuration = groupSize > 0 && groupMode === "same" ? totalDuration * groupSize : totalDuration;
+  const baseSlots = React.useMemo(
     () =>
       buildSlots(
         schedule,
         appointments,
         selectedEmployeeId === "any" ? standardEmployeesForSelectedServices : employeesForSelectedServices,
         selectedEmployeeId,
-        totalDuration,
+        slotDuration,
         Math.max(1, reservationSettings.maxAdvance || 10),
         employeeSchedules,
         businessSpecial,
@@ -675,7 +692,7 @@ function PublicBookingPage() {
       employeesForSelectedServices,
       standardEmployeesForSelectedServices,
       selectedEmployeeId,
-      totalDuration,
+      slotDuration,
       employeeSchedules,
       businessSpecial,
       employeeSpecial,
@@ -684,6 +701,65 @@ function PublicBookingPage() {
       businessTimeZone,
     ],
   );
+  // Grupo con profesionales distintos: solo los horarios en que hay al menos
+  // tantos profesionales libres como personas; guarda quiénes son.
+  const groupDifferent = React.useMemo(() => {
+    const empty = { days: null as typeof baseSlots | null, at: new Map<number, string[]>() };
+    if (groupSize < 2 || groupMode !== "different") return empty;
+    const at = new Map<number, string[]>();
+    const perEmployee = employeesForSelectedServices.map((employee) =>
+      buildSlots(
+        schedule,
+        appointments,
+        [employee],
+        employee.id,
+        totalDuration,
+        Math.max(1, reservationSettings.maxAdvance || 10),
+        employeeSchedules,
+        businessSpecial,
+        employeeSpecial,
+        businessTimeZone,
+        reservationSettings.minAdvance,
+        buildServiceRestriction(serviceScheduleCfg, selectedServiceIds),
+      ),
+    );
+    for (const days of perEmployee) {
+      for (const day of days) {
+        for (const slot of day.slots) {
+          const key = slot.time.getTime();
+          at.set(key, [...(at.get(key) ?? []), slot.employeeId]);
+        }
+      }
+    }
+    const base = perEmployee[0] ?? [];
+    const days = base.map((day, i) => {
+      const merged = new Map<number, { time: Date; employeeId: string }>();
+      for (const emp of perEmployee) {
+        for (const slot of emp[i]?.slots ?? []) {
+          const key = slot.time.getTime();
+          if ((at.get(key)?.length ?? 0) >= groupSize && !merged.has(key)) merged.set(key, slot);
+        }
+      }
+      return { ...day, slots: [...merged.values()].sort((a, b) => a.time.getTime() - b.time.getTime()) };
+    });
+    return { days, at };
+  }, [
+    groupSize,
+    groupMode,
+    employeesForSelectedServices,
+    schedule,
+    appointments,
+    totalDuration,
+    employeeSchedules,
+    businessSpecial,
+    employeeSpecial,
+    businessTimeZone,
+    reservationSettings.maxAdvance,
+    reservationSettings.minAdvance,
+    serviceScheduleCfg,
+    selectedServiceIds,
+  ]);
+  const slots = groupDifferent.days ?? baseSlots;
   // Días cerrados del negocio (Agenda → Día cerrado): no se ofrecen horarios esos días.
   React.useEffect(() => {
     const bid = business?.id;
@@ -1178,6 +1254,10 @@ function PublicBookingPage() {
     if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
     // Si el profesional vino fijo por deep link, ese paso
     // nunca se mostró — volver ahí sería confuso.
+    if (step === "datetime" && groupSize > 1 && groupMode === "different") {
+      setStep("promo");
+      return;
+    }
     if (step === "datetime") {
       setStep(
         professionalPreselectedRef.current
@@ -1258,6 +1338,13 @@ function PublicBookingPage() {
     }
     const promo = servicePromotions.find((p) => p.id === promoChoice) ?? null;
     setAppliedPromotion(promo);
+    setSelectedSlot(null);
+    if (promo && isGroupPromotion(promo) && groupMode === "different") {
+      // Cada uno con su profesional, a la misma hora: no se elige profesional acá.
+      setSelectedEmployeeId("any");
+      setStep("datetime");
+      return;
+    }
     setStep(stepAfterPromo);
   }
 
@@ -1345,6 +1432,38 @@ function PublicBookingPage() {
     if (!sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
       return toast.error("Contanos dónde nos conociste.");
 
+    if (groupSize > 1) {
+      for (let i = 0; i < friends.length; i++) {
+        const f = friends[i];
+        const label = `de tu amigo ${i + 1}`;
+        if (!f.firstName.trim() || !nombreValido(f.firstName)) return toast.error(`Ingresá el nombre ${label}.`);
+        if (!f.lastName.trim() || !nombreValido(f.lastName)) return toast.error(`Ingresá el apellido ${label}.`);
+        if (!f.phone.trim() || !telefonoValido(f.phone)) return toast.error(`Ingresá un teléfono válido ${label}.`);
+      }
+      const phones = [clientPhone, ...friends.map((f) => f.phone)].map((x) => x.replace(/\D/g, ""));
+      if (new Set(phones).size !== phones.length) return toast.error("Cada persona tiene que tener un teléfono distinto.");
+    }
+    const groupPlan =
+      groupSize > 1
+        ? (() => {
+            const others =
+              groupMode === "different"
+                ? (groupDifferent.at.get(selectedSlot.time.getTime()) ?? []).filter((id) => id !== selectedSlot.employeeId)
+                : [];
+            return friends.map((friend, i) => ({
+              friend,
+              employeeId: groupMode === "same" ? selectedSlot.employeeId : others[i],
+              start: groupMode === "same" ? addMinutes(selectedSlot.time, (i + 1) * totalDuration) : selectedSlot.time,
+            }));
+          })()
+        : [];
+    if (groupPlan.some((g) => !g.employeeId)) {
+      toast.error("Ese horario ya no está disponible para todos. Elegí otro.");
+      setSelectedSlot(null);
+      setStep("datetime");
+      return;
+    }
+
     // Límite por cliente: recién acá se conocen teléfono/email. Si esta
     // promo es "una vez por cliente" y este cliente ya la usó, se descarta
     // solo para esta reserva (la reserva sigue, sin el descuento) — no
@@ -1373,6 +1492,7 @@ function PublicBookingPage() {
             serviceId: service.id,
             employeeId: selectedSlot!.employeeId,
             category: service.category ?? null,
+            allowGroup: true,
           });
         return sum + applyPromotionDiscount(resolved.price, applies ? promo : null);
       }, 0);
@@ -1419,6 +1539,7 @@ function PublicBookingPage() {
       clientPhone: clientPhone.trim(),
       clientEmail: clientEmail.trim() || undefined,
       products: addedProducts,
+      friends: undefined as { name: string; time: string; professional: string; ok: boolean }[] | undefined,
       startIso: selectedSlot.time.toISOString(),
       appointmentId: undefined as string | undefined,
       manageToken: undefined as string | undefined,
@@ -1436,7 +1557,15 @@ function PublicBookingPage() {
         const apptEnd = appt.ends_at ? new Date(appt.ends_at) : addMinutes(apptStart, Number(appt.duration_min ?? totalDuration));
         return overlaps(start, end, apptStart, apptEnd);
       });
-      if (alreadyTaken) {
+      const friendTaken = groupPlan.some((g) =>
+        appointments.some((appt) => {
+          if (appt.status === "cancelled" || appt.employee_id !== g.employeeId) return false;
+          const apptStart = new Date(appt.starts_at);
+          const apptEnd = appt.ends_at ? new Date(appt.ends_at) : addMinutes(apptStart, Number(appt.duration_min ?? totalDuration));
+          return overlaps(g.start, addMinutes(g.start, totalDuration), apptStart, apptEnd);
+        }),
+      );
+      if (alreadyTaken || friendTaken) {
         toast.error("Ese horario ya fue reservado. Elegí otro turno disponible.");
         setSelectedSlot(null);
         setStep("datetime");
@@ -1510,6 +1639,40 @@ function PublicBookingPage() {
           status: "pending",
         },
       ]);
+      // Amigos del grupo: cada uno con su turno y el mismo beneficio. Si alguno falla, el turno
+      // del cliente que reserva ya quedó confirmado y se le avisa cuál no se pudo.
+      if (groupPlan.length > 0) {
+        const friendResults: NonNullable<typeof confirmationSnapshot.friends> = [];
+        for (const g of groupPlan) {
+          const fname = `${g.friend.firstName.trim()} ${g.friend.lastName.trim()}`;
+          const r = await supabase.rpc("create_public_booking_public_v6", {
+            p_business_id: business.id,
+            p_service_ids: selectedServiceIds.join(","),
+            p_employee_id: g.employeeId,
+            p_starts_at: g.start.toISOString(),
+            p_client_name: fname,
+            p_client_phone: g.friend.phone.trim(),
+            p_client_email: null,
+            p_client_birth_date: null,
+            p_notes: `Reserva grupal con ${clientName.trim()}\n\nOrigen: reserva online`,
+            p_acquisition_source: null,
+            p_acquisition_source_custom: null,
+            p_branch_id: selectedBranchId,
+            p_promotion_id: effectivePromotion?.id ?? null,
+          } as any);
+          if (r.error) console.error("Group booking friend RPC error", r.error);
+          friendResults.push({
+            name: fname,
+            time: formatTime(g.start, businessTimeZone),
+            professional: employees.find((e) => e.id === g.employeeId)?.full_name ?? "",
+            ok: !r.error,
+          });
+        }
+        confirmationSnapshot.friends = friendResults;
+        if (friendResults.some((f) => !f.ok)) {
+          toast.error("Tu turno quedó reservado, pero no se pudo reservar el de algún amigo. Avisale al local.");
+        }
+      }
       // Seña: si las reglas del negocio la piden para este turno, se lleva al cliente a la
       // página del turno (misma identidad visual) para pagar y subir el comprobante.
       if (confirmationSnapshot.appointmentId) {
@@ -1956,6 +2119,9 @@ function PublicBookingPage() {
                           </span>
                           <span className="min-w-0">
                             <span className="block truncate font-medium">{promo.name}</span>
+                            {isGroupPromotion(promo) && (
+                              <span className="block text-xs text-white/50">Para grupos de {promo.groupSize}</span>
+                            )}
                             {remaining != null && (
                               <span className="block text-xs text-white/50">
                                 {remaining} disponibles
@@ -1973,6 +2139,39 @@ function PublicBookingPage() {
                       </div>
                     );
                   })}
+
+                  {(() => {
+                    const chosen = namedPromotions.find((p) => p.id === promoChoice);
+                    if (!chosen || !isGroupPromotion(chosen)) return null;
+                    const n = chosen.groupSize ?? 2;
+                    const canDifferent = employeesOfferingSelectedServices.length >= n;
+                    const opt = (value: "same" | "different", title: string, hint: string) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setGroupMode(value)}
+                        className="flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left transition hover:bg-white/[0.04]"
+                      >
+                        <span
+                          className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border", groupMode === value ? "border-transparent" : "border-white/25")}
+                          style={groupMode === value ? accentFill(accent, accentButtonText) : undefined}
+                        >
+                          {groupMode === value && <CheckCircle2 className="h-3.5 w-3.5" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-medium">{title}</span>
+                          <span className="block text-xs text-white/50">{hint}</span>
+                        </span>
+                      </button>
+                    );
+                    return (
+                      <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                        <p className="text-sm font-semibold">Vienen {n} personas. ¿Cómo se atienden?</p>
+                        {opt("same", "Con el mismo profesional", "Uno después del otro")}
+                        {canDifferent ? opt("different", "Con profesionales distintos", "Todos a la misma hora") : null}
+                      </div>
+                    );
+                  })()}
 
                   {hasCodePromotions && (
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
@@ -2492,6 +2691,21 @@ function PublicBookingPage() {
                     <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" maxLength={254} type="email" inputMode="email" autoComplete="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
+                  {friends.length > 0 ? (
+                    <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-sm font-semibold">Datos de tus amigos</p>
+                      {friends.map((f, i) => {
+                        const upd = (patch: Partial<typeof f>) => setFriends((cur) => cur.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                        return (
+                          <div key={i} className="grid gap-3 sm:grid-cols-3">
+                            <Input maxLength={40} value={f.firstName} onChange={(e) => upd({ firstName: e.target.value })} className="border-white/10 bg-white/[0.04] text-white" placeholder={`Nombre (amigo ${i + 1})`} />
+                            <Input maxLength={40} value={f.lastName} onChange={(e) => upd({ lastName: e.target.value })} className="border-white/10 bg-white/[0.04] text-white" placeholder="Apellido" />
+                            <Input type="tel" inputMode="tel" value={f.phone} onChange={(e) => upd({ phone: limpiarTelefono(e.target.value) })} className="border-white/10 bg-white/[0.04] text-white" placeholder="Teléfono" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   {!sourceAlreadyKnown ? (
                     <AcquisitionSourceField
                       value={acquisitionSource}
@@ -2578,6 +2792,19 @@ function PublicBookingPage() {
                               <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Duración</p>
                               <p className="mt-0.5 text-sm font-semibold">{cb?.duration ?? totalDuration} min</p>
                             </div>
+                            {cb?.friends && cb.friends.length > 0 ? (
+                              <div className="col-span-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Tus amigos</p>
+                                <div className="mt-1 space-y-1">
+                                  {cb.friends.map((f, index) => (
+                                    <div key={`${f.name}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                                      <span className="min-w-0 truncate font-medium">{f.name}{f.professional ? ` · ${f.professional}` : ""}</span>
+                                      <span className="shrink-0 font-semibold">{f.ok ? f.time : "No se pudo reservar"}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                             {cb?.products && cb.products.length > 0 ? (
                               <div className="col-span-2">
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Productos</p>

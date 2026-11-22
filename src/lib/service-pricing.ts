@@ -534,10 +534,10 @@ export function isPromotionCurrentlyValid(
 // employeeId se omite (todavía no se sabe a quién le va a tocar).
 export function isPromotionApplicable(
   promo: Promotion,
-  ctx: { serviceId: string; employeeId?: string | null; category?: string | null },
+  ctx: { serviceId: string; employeeId?: string | null; category?: string | null; allowGroup?: boolean },
 ): boolean {
   // Las de grupo se aplican desde el flujo de reserva grupal, no como promo suelta.
-  if (isGroupPromotion(promo)) return false;
+  if (isGroupPromotion(promo) && !ctx.allowGroup) return false;
   const serviceMatch =
     promo.serviceIds.includes(ctx.serviceId) ||
     (!!ctx.category && promo.categoryNames.includes(ctx.category));
