@@ -516,7 +516,7 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
 
   return (
     <div className={cardCls}>
-      <div className="mb-3 text-lg font-semibold text-white">Días del servicio</div>
+      <div className="mb-3 font-semibold text-white"><Titulo icon={CalendarDays} tono="violet">Días del servicio</Titulo></div>
       <DaysPicker value={svcDays} closed={closed} onChange={(k, enabled) => setSvcDays((d) => ({ ...d, [k]: { ...(d[k] ?? DEFAULT_WINDOW), enabled } }))} />
     </div>
   );
@@ -929,7 +929,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
       {mine.map((p) => (
         <button key={p.id} type="button" onClick={() => openDraft(draftFromPromo(p))} className={cn(cardCls, "block w-full text-left")}>
           <div className="flex items-center justify-between gap-3">
-            <span className="min-w-0 truncate text-lg font-semibold text-white">{p.name}</span>
+            <span className="min-w-0 truncate font-semibold text-white"><Titulo icon={(p.groupSize ?? 0) >= 2 ? Users : Tag} tono={(p.groupSize ?? 0) >= 2 ? "cyan" : "amber"}>{p.name}</Titulo></span>
             <span className={cn("shrink-0 text-base font-semibold", p.active ? "text-emerald-300" : "text-white/50")}>{p.active ? "Activa" : "Apagada"}</span>
           </div>
           <div className="mt-1 text-lg text-white/75">
