@@ -281,6 +281,7 @@ function DraggableImageCrop({
   onChange,
   onPickImage,
   className,
+  hideHint,
 }: {
   src: string;
   alt: string;
@@ -288,6 +289,7 @@ function DraggableImageCrop({
   onChange: (value: string) => void;
   onPickImage?: () => void;
   className?: string;
+  hideHint?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -453,9 +455,11 @@ function DraggableImageCrop({
           }
         />
       </div>
-      <div className="text-center text-[10px] text-muted-foreground">
-        Arrastrá la imagen para acomodarla.
-      </div>
+      {!hideHint && (
+        <div className="text-center text-[10px] text-muted-foreground">
+          Arrastrá la imagen para acomodarla.
+        </div>
+      )}
     </div>
   );
 }
@@ -475,7 +479,7 @@ const campoCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
 
 
-// Imagen del servicio/producto: se carga sin vista previa grande; el encuadre se hace aparte, con el botón "Encuadrar".
+// Imagen del servicio/producto: se carga sin vista previa grande; la imagen se mueve arrastrándola directo en el marco.
 function ImagenCampo({
   image,
   position,
@@ -493,27 +497,14 @@ function ImagenCampo({
   onRemove: () => void;
   onPosition: (pos: string) => void;
 }) {
-  const [encuadrando, setEncuadrando] = useState(false);
   const pill = "inline-flex h-11 items-center justify-center gap-2 rounded-full px-5 text-base font-semibold transition disabled:opacity-50";
   return (
     <>
       {image ? (
         <div className="space-y-3">
-          <div className="flex items-center gap-3.5">
-            <button type="button" onClick={() => setEncuadrando(true)} className="shrink-0 select-none rounded-2xl [-webkit-touch-callout:none]" aria-label="Mover la imagen">
-              <img
-                src={image}
-                alt={alt}
-                style={{ objectPosition: position }}
-                draggable={false}
-                className="pointer-events-none h-20 w-20 select-none rounded-2xl border border-violet-400/40 object-cover [-webkit-touch-callout:none]"
-              />
-            </button>
-            <div className="min-w-0">
-              <div className="text-base font-semibold text-emerald-300">Imagen cargada</div>
-              <div className="text-base text-white/60">Tocá la imagen para moverla</div>
-            </div>
-          </div>
+          <div className="text-base font-semibold text-emerald-300">Imagen cargada</div>
+          <DraggableImageCrop src={image} alt={alt} value={position} onChange={onPosition} hideHint className="mx-auto max-w-[240px]" />
+          <div className="text-center text-base text-white/60">Arrastrá la imagen para moverla</div>
           <div className="flex flex-wrap items-center gap-2">
             <ElegirImagen disabled={uploading} onFile={onFile} className={cn(pill, "bg-white/[0.06] text-white/85")}>
               {uploading ? "Subiendo…" : "Cambiar"}
@@ -533,21 +524,6 @@ function ImagenCampo({
           {uploading ? "Subiendo…" : "Cargar imagen"}
         </ElegirImagen>
       )}
-      {encuadrando && image && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-sm space-y-4 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)]">
-                <div className="text-xl font-semibold text-white">Mover imagen</div>
-                <p className="text-base text-white/65">Arrastrá la imagen para elegir qué parte se ve.</p>
-                <DraggableImageCrop src={image} alt={alt} value={position} onChange={onPosition} className="mx-auto max-w-[280px]" />
-                <button type="button" onClick={() => setEncuadrando(false)} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">
-                  Listo
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </>
   );
 }
