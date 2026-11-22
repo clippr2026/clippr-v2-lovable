@@ -46,13 +46,16 @@ const saveBtnCls =
   "h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] disabled:opacity-60";
 
 // Estado de guardado de una pestaña, que el botón Guardar de la ventana del servicio usa.
-export type TabSaveApi = { dirty: boolean; saving: boolean; save: () => Promise<unknown> };
-function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined, dirty: boolean, saving: boolean, save: () => Promise<unknown>) {
+export type TabSaveApi = { dirty: boolean; saving: boolean; save: () => Promise<unknown>; onDelete?: () => void };
+function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined, dirty: boolean, saving: boolean, save: () => Promise<unknown>, onDelete?: (() => void) | null) {
   const saveRef = React.useRef(save);
   saveRef.current = save;
+  const deleteRef = React.useRef(onDelete);
+  deleteRef.current = onDelete;
+  const canDelete = !!onDelete;
   React.useEffect(() => {
-    register?.({ dirty, saving, save: () => saveRef.current() });
-  }, [register, dirty, saving]);
+    register?.({ dirty, saving, save: () => saveRef.current(), onDelete: canDelete ? () => deleteRef.current?.() : undefined });
+  }, [register, dirty, saving, canDelete]);
   React.useEffect(() => () => register?.(null), [register]);
 }
 
@@ -716,7 +719,20 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
     }
   }
 
-  useRegisterTab(onRegister, !!draft && JSON.stringify(draft) !== draftSnap, saving, save);
+  useRegisterTab(
+    onRegister,
+    !!draft && JSON.stringify(draft) !== draftSnap,
+    saving,
+    save,
+    draft && !promos.some((p) => p.id === draft.id)
+      ? () => setDraft(null)
+      : draft
+      ? () => {
+          const p = promos.find((x) => x.id === draft.id);
+          if (p && window.confirm(p.serviceIds.length > 1 ? "¿Quitar este servicio de la promo?" : "¿Eliminar la promo? No se puede deshacer.")) void removeFromThisService(p);
+        }
+      : null,
+  );
 
   if (loading || !ready) return <Loading />;
 
@@ -890,12 +906,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
           {draft.useMaxPerClient ? <input inputMode="numeric" value={draft.maxPerClient} onChange={(e) => set({ maxPerClient: e.target.value.replace(/\D/g, "") })} placeholder="Ej: 1" className={cn(inputCls, "mt-3")} /> : null}
         </div>
 
-        {editingPromo ? (
-          <button type="button" onClick={() => void removeFromThisService(editingPromo)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-red-500/10 text-base font-semibold text-red-300 ring-1 ring-red-400/30">
-            <Trash2 className="h-4 w-4" />
-            {editingPromo.serviceIds.length > 1 ? "Quitar este servicio de la promo" : "Eliminar promo"}
-          </button>
-        ) : null}
       </div>
     );
   }

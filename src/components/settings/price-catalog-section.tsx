@@ -1193,7 +1193,7 @@ function PriceEditorModal({
         <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3">
           {mode === "edit" && onDelete && (
             <button
-              onClick={onDelete}
+              onClick={onTab && tabApi?.onDelete ? tabApi.onDelete : onDelete}
               disabled={saving}
               className="h-12 rounded-2xl border border-red-400/50 bg-red-500/25 px-4 text-base font-bold text-red-100 shadow-[0_4px_14px_-4px_rgba(239,68,68,0.5)] transition active:scale-95 disabled:opacity-50"
             >
