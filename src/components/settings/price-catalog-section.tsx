@@ -889,7 +889,7 @@ function PriceEditorModal({
               ) : tab === "horarios" ? (
                 <ServiceScheduleTab serviceId={serviceId} onRegister={setTabApi} />
               ) : (
-                <ServicePromoTab serviceId={serviceId} serviceName={form.name} listPrice={Number(form.price) || 0} />
+                <ServicePromoTab serviceId={serviceId} serviceName={form.name} listPrice={Number(form.price) || 0} onRegister={setTabApi} />
               )
             ) : (
               <p className="rounded-2xl border border-dashed border-white/15 p-4 text-base text-white/65">

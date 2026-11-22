@@ -572,13 +572,18 @@ function draftFromPromo(p: Promotion): PromoDraft {
   };
 }
 
-export function ServicePromoTab({ serviceId, serviceName, listPrice }: { serviceId: string; serviceName: string; listPrice: number }) {
+export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister }: { serviceId: string; serviceName: string; listPrice: number; onRegister?: (api: TabSaveApi | null) => void }) {
   const { employees, loading, businessId, activeBranchId } = useBranchEmployees();
   const closed = useClosedDays(businessId);
   const [promos, setPromos] = React.useState<Promotion[]>([]);
   const [names, setNames] = React.useState<Record<string, string>>({});
   const [ready, setReady] = React.useState(false);
   const [draft, setDraft] = React.useState<PromoDraft | null>(null);
+  const [draftSnap, setDraftSnap] = React.useState("");
+  const openDraft = (d: PromoDraft) => {
+    setDraftSnap(JSON.stringify(d));
+    setDraft(d);
+  };
   const [saving, setSaving] = React.useState(false);
 
   const applyPromoData = React.useCallback((d: { schedule: Schedule; names: Record<string, string> }) => {
@@ -707,6 +712,8 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
       setDraft(null);
     }
   }
+
+  useRegisterTab(onRegister, !!draft && JSON.stringify(draft) !== draftSnap, saving, save);
 
   if (loading || !ready) return <Loading />;
 
@@ -868,9 +875,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           {draft.useMaxPerClient ? <input inputMode="numeric" value={draft.maxPerClient} onChange={(e) => set({ maxPerClient: e.target.value.replace(/\D/g, "") })} placeholder="Ej: 1" className={cn(inputCls, "mt-3")} /> : null}
         </div>
 
-        <button type="button" onClick={() => void save()} disabled={saving} className={saveBtnCls}>
-          {saving ? "Guardando…" : "Guardar promo"}
-        </button>
         {editingPromo ? (
           <button type="button" onClick={() => void removeFromThisService(editingPromo)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-red-500/10 text-base font-semibold text-red-300 ring-1 ring-red-400/30">
             <Trash2 className="h-4 w-4" />
@@ -885,7 +889,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
     <div className="space-y-3">
       {mine.length === 0 ? <Empty>Este servicio no tiene promo.</Empty> : null}
       {mine.map((p) => (
-        <button key={p.id} type="button" onClick={() => setDraft(draftFromPromo(p))} className={cn(cardCls, "block w-full text-left")}>
+        <button key={p.id} type="button" onClick={() => openDraft(draftFromPromo(p))} className={cn(cardCls, "block w-full text-left")}>
           <div className="flex items-center justify-between gap-3">
             <span className="min-w-0 truncate text-lg font-semibold text-white">{p.name}</span>
             <span className={cn("shrink-0 text-base font-semibold", p.active ? "text-emerald-300" : "text-white/50")}>{p.active ? "Activa" : "Apagada"}</span>
@@ -898,7 +902,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           </div>
         </button>
       ))}
-      <button type="button" onClick={() => setDraft(newDraft())} className={saveBtnCls}>
+      <button type="button" onClick={() => openDraft(newDraft())} className={saveBtnCls}>
         + Nueva promo
       </button>
     </div>
