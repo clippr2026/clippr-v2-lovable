@@ -36,8 +36,7 @@ import {
   reportSaveStatus,
   Toggle,
   ConfirmDialog,
-  Field,
-  inputCls,
+  TITULO_TONOS,
   normalizePublicBooleanMap,
   getPublicVisibility,
   type PriceRow,
@@ -339,7 +338,7 @@ function PermissionToggleRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3.5 py-3 ring-1 transition-colors",
+        "flex items-center gap-3 rounded-2xl px-3.5 py-3.5 ring-1 transition-colors",
         on ? "bg-white/[0.07] ring-white/20" : "bg-white/[0.03] ring-white/10",
       )}
     >
@@ -347,8 +346,8 @@ function PermissionToggleRow({
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold leading-tight">{title}</div>
-        {description && <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</div>}
+        <div className="text-base font-semibold leading-tight">{title}</div>
+        {description && <div className="mt-0.5 text-sm leading-snug text-muted-foreground">{description}</div>}
       </div>
       <Toggle on={on} onChange={onChange} />
     </div>
@@ -420,6 +419,14 @@ const SECTION_CLS: Record<Tone, { wrap: string; title: string }> = {
 };
 
 // Bloque con fondo de color y título en mayúscula (mismo estilo que los bloques de Comisiones).
+const SECTION_ICON_TONO: Record<Tone, keyof typeof TITULO_TONOS> = {
+  violet: "violet",
+  sky: "sky",
+  emerald: "emerald",
+  amber: "amber",
+  rose: "rose",
+};
+
 function DlgSection({
   title,
   hint,
@@ -433,15 +440,22 @@ function DlgSection({
   tone?: Tone;
   children: React.ReactNode;
 }) {
-  const cls = SECTION_CLS[tone];
   return (
-    <section className={cn("space-y-3 rounded-xl p-3.5 ring-1", cls.wrap)}>
+    <section
+      className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4"
+      style={{
+        backgroundImage:
+          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+      }}
+    >
       <div>
-        <div className={cn("flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide", cls.title)}>
-          <Icon className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-3 text-lg font-semibold text-white">
+          <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", TITULO_TONOS[SECTION_ICON_TONO[tone]])}>
+            <Icon className="h-5 w-5" />
+          </span>
           {title}
         </div>
-        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
+        {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
       </div>
       {children}
     </section>
@@ -524,7 +538,20 @@ function ApprovalModeCard({
 }
 
 const timeCls =
-  "w-full min-w-0 flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none disabled:opacity-40 [color-scheme:dark]";
+  "h-12 w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white focus:border-violet-400/50 focus:outline-none disabled:opacity-40 [color-scheme:dark]";
+
+const inputCls =
+  "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-base font-semibold text-white/85">{label}</div>
+      {children}
+      {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
 
 
 export type RolePermissionId =
@@ -3802,60 +3829,51 @@ export function EquipoSection() {
             // permitido) — eso es lo que dejaba a los botones de abajo
             // "flotando" arriba del borde real, con espacio libre debajo
             // sin aprovechar.
-            className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
+            className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
                 pestaña; solo el contenido de abajo scrollea internamente. */}
-            <div className="shrink-0 space-y-3 border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent px-5 pb-3 pt-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/35 to-violet-500/35 text-sm font-semibold ring-1 ring-white/20">
-                  {(form.fullName[0] || "A").toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-semibold">
-                    {editingEmp ? form.fullName || "Editar profesional" : "Nuevo profesional"}
-                  </div>
-                  {!editingEmp && (
-                    <div className="text-xs text-muted-foreground">Completá los datos y guardá una sola vez</div>
-                  )}
+            <div className="shrink-0 border-b border-white/5">
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="min-w-0">
+                  <h3 className="truncate font-display text-lg font-semibold">
+                    {editingEmp ? form.fullName || "Editar persona" : "Nuevo profesional"}
+                  </h3>
+                  {!editingEmp && <div className="text-sm text-muted-foreground">Completá los datos y guardá una sola vez</div>}
                 </div>
                 <button
+                  type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-full p-1.5 ring-1 ring-white/15 text-muted-foreground hover:bg-white/5"
+                  aria-label="Cerrar"
+                  className="relative z-10 -mr-2 grid h-12 w-12 shrink-0 touch-manipulation place-items-center rounded-full text-white/80 transition hover:bg-white/10 active:bg-white/15"
                 >
-                  ✕
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
                 </button>
               </div>
-              <div className="flex gap-1 overflow-x-auto rounded-xl bg-black/30 p-1 ring-1 ring-white/10">
+              <div className="flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(
                   [
-                    ["perfil", "Perfil", Pencil],
-                    ["horarios", "Horarios", CalendarPlus],
-                    ["comisiones", "Comisiones", DollarSign],
-                    ["acceso", "Acceso", ShieldCheck],
+                    ["perfil", "Perfil"],
+                    ["horarios", "Horarios"],
+                    ["comisiones", "Comisiones"],
+                    ["acceso", "Acceso"],
                   ] as const
-                )
-                  .map(([id, label, TabIcon]) => {
-                    const active = dlgTab === id;
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => setDlgTab(id)}
-                        aria-label={label}
-                        className={cn(
-                          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg py-2.5 text-sm font-semibold transition-all",
-                          active ? "flex-[2] px-3" : "flex-1 px-2",
-                          active
-                            ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
-                            : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
-                        )}
-                      >
-                        <TabIcon className="h-4 w-4" />
-                        {active && label}
-                      </button>
-                    );
-                  })}
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setDlgTab(id)}
+                    className={cn(
+                      "h-11 shrink-0 rounded-full px-4 text-base font-semibold transition",
+                      dlgTab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -4056,7 +4074,7 @@ export function EquipoSection() {
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="text-sm font-semibold">{label}</div>
+                            <div className="text-lg font-semibold">{label}</div>
                             {!d.enabled && <div className="text-xs text-muted-foreground">No atiende este día</div>}
                           </div>
                           <button
@@ -4105,7 +4123,7 @@ export function EquipoSection() {
                         {d.enabled && (
                           <div className="space-y-2 rounded-xl bg-amber-400/[0.06] p-3 ring-1 ring-amber-300/20">
                             <div className="flex items-center justify-between">
-                              <div className="text-xs font-bold uppercase tracking-wide text-amber-200">
+                              <div className="text-base font-semibold text-amber-200">
                                 Descanso
                               </div>
                               <button
@@ -4672,7 +4690,7 @@ export function EquipoSection() {
             </div>
 
             <div
-              className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-3 border-t border-white/5"
+              className="flex shrink-0 items-center gap-2 px-4 pt-3 border-t border-white/5"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
               {editingEmp ? (
@@ -4680,14 +4698,14 @@ export function EquipoSection() {
                   type="button"
                   onClick={() => void startRemoveEmp(editingEmp)}
                   disabled={saving || checkingRemove || deletingId === editingEmp.id}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-transparent px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/40 transition hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
+                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-red-500/15 px-5 text-base font-semibold text-red-100 ring-1 ring-red-400/40 transition disabled:opacity-50"
                 >
                   {deletingId === editingEmp.id || checkingRemove ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Trash2 className="h-4 w-4" />
                   )}
-                  Eliminar perfil
+                  Eliminar
                 </button>
               ) : null}
               {/* Guardar usa flex-1 (llena el espacio que sobra) en vez del
@@ -4698,16 +4716,9 @@ export function EquipoSection() {
                   real del modal — mismo patrón que el footer de Agregar/
                   Editar servicio en price-catalog-section.tsx. */}
               <button
-                onClick={() => setOpen(false)}
-                disabled={saving}
-                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm"
-              >
-                Cancelar
-              </button>
-              <button
                 onClick={saveProfessional}
                 disabled={saving}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-semibold text-white shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
               >
                 {saving ? "Guardando…" : "Guardar"}
               </button>
