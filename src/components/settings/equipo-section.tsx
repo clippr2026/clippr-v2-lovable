@@ -825,42 +825,47 @@ type PersonAccessInfo = {
   atiende?: { on: boolean; onToggle: () => void };
 };
 
-function AccessChips({ access }: { access: PersonAccessInfo }) {
+function AccessChips({ access, hideRole }: { access: PersonAccessInfo; hideRole?: boolean }) {
+  // El estado "Acceso activo" es lo normal: solo se muestra lo que merece atención.
+  const badge = access.badge && access.badge.label !== "Acceso activo" ? access.badge : null;
+  const showRole = !hideRole && access.roleLabel !== "Profesional";
   return (
-    <div className="mt-3 space-y-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-200 ring-1 ring-violet-400/25">
-          {access.roleLabel}
-        </span>
-        {access.badge && (
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px] ring-1", access.badge.cls)}>{access.badge.label}</span>
-        )}
-        {access.expired && (
-          <button
-            type="button"
-            disabled={access.resending}
-            onClick={access.onResend}
-            className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] text-amber-200 ring-1 ring-amber-400/25 disabled:opacity-60"
-          >
-            {access.resending ? "Enviando…" : "Reenviar"}
-          </button>
-        )}
-      </div>
-      <div className="truncate text-xs text-muted-foreground">{access.email}</div>
+    <div className="mt-4 space-y-3">
+      {(showRole || badge || access.expired) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {showRole && (
+            <span className="rounded-full bg-violet-500/15 px-3 py-1 text-base font-semibold text-violet-200 ring-1 ring-violet-400/30">
+              {access.roleLabel}
+            </span>
+          )}
+          {badge && <span className={cn("rounded-full px-3 py-1 text-base font-semibold ring-1", badge.cls)}>{badge.label}</span>}
+          {access.expired && (
+            <button
+              type="button"
+              disabled={access.resending}
+              onClick={access.onResend}
+              className="rounded-full bg-amber-500/15 px-3.5 py-1 text-base font-semibold text-amber-200 ring-1 ring-amber-400/30 disabled:opacity-60"
+            >
+              {access.resending ? "Enviando…" : "Reenviar"}
+            </button>
+          )}
+        </div>
+      )}
+      <div className="truncate text-base text-white/65">{access.email}</div>
       {access.atiende && (
         <button
           type="button"
           onClick={access.atiende.onToggle}
-          className="flex w-full items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-left text-xs ring-1 ring-white/10"
+          className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white/[0.07] px-4 py-3 text-left text-lg font-semibold ring-1 ring-white/15"
         >
           <span>Atiendo clientes</span>
           <span
             className={cn(
-              "inline-flex h-5 w-9 items-center rounded-full px-0.5 transition",
-              access.atiende.on ? "bg-emerald-500/70" : "bg-white/15",
+              "inline-flex h-7 w-12 items-center rounded-full px-0.5 transition",
+              access.atiende.on ? "bg-emerald-500/80" : "bg-white/20",
             )}
           >
-            <span className={cn("h-4 w-4 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-4")} />
+            <span className={cn("h-6 w-6 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-5")} />
           </span>
         </button>
       )}
@@ -891,14 +896,14 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   return (
     <div
       className={cn(
-        "glass rounded-2xl p-4 ring-1 ring-white/5 transition-opacity",
+        "rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-5 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)] transition-opacity",
         (!online || deleting) && "opacity-70",
       )}
     >
       <div className="flex items-center gap-3">
         <div
           className={cn(
-            "h-10 w-10 rounded-full overflow-hidden grid place-items-center text-sm font-semibold text-white bg-gradient-to-br ring-1 ring-white/10",
+            "h-14 w-14 shrink-0 rounded-full overflow-hidden grid place-items-center text-xl font-semibold text-white bg-gradient-to-br ring-2 ring-violet-400/40",
             tintClass,
           )}
         >
@@ -914,8 +919,8 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm ">{displayName}</div>
-          <div className="text-xs text-muted-foreground">{emp.role?.trim() || "Profesional"}</div>
+          <div className="truncate text-xl font-semibold text-white">{displayName}</div>
+          <div className="text-base text-white/65">{emp.role?.trim() || "Profesional"}</div>
         </div>
         {/* Refleja el único switch "Acepta reservas en línea" del perfil
             (employees.is_active). Un clic acá alterna ese mismo campo, así
@@ -926,7 +931,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           onClick={() => onToggleOnline(emp)}
           disabled={deleting}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider transition hover:brightness-110 disabled:opacity-50",
+            "inline-flex shrink-0 items-center gap-2 rounded-full ring-1 px-3 py-1.5 text-base font-semibold transition hover:brightness-110 disabled:opacity-50",
             online
               ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
               : "bg-white/5 ring-white/10 text-muted-foreground",
@@ -935,23 +940,23 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
         >
           <span
             className={cn(
-              "h-1.5 w-1.5 rounded-full",
+              "h-2.5 w-2.5 rounded-full",
               online ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
             )}
           />
-          {online ? "EN LÍNEA" : "SIN RESERVAS"}
+          {online ? "En línea" : "Sin reservas"}
         </button>
       </div>
       {access ? (
-        <AccessChips access={access} />
+        <AccessChips access={access} hideRole />
       ) : (
-        <div className="mt-3 text-xs text-muted-foreground">Sin acceso a Clippr</div>
+        <div className="mt-4 text-base text-white/55">Sin acceso a Clippr</div>
       )}
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <button
           onClick={() => onEdit(emp)}
           disabled={deleting}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs disabled:opacity-50"
+          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-lg font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
         >
           Editar
         </button>
@@ -971,20 +976,20 @@ function AccessPersonCard({
   onEdit?: () => void;
 }) {
   return (
-    <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+    <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-5 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)]">
       <div className="flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-sm font-semibold ring-1 ring-white/10">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-violet-500/20 text-xl font-semibold text-violet-100 ring-2 ring-violet-400/40">
           {(title[0] || "A").toUpperCase()}
         </div>
-        <div className="min-w-0 flex-1 text-sm font-medium">{title}</div>
+        <div className="min-w-0 flex-1 truncate text-xl font-semibold text-white">{title}</div>
       </div>
-      <AccessChips access={access} />
-      <div className="mt-3 flex items-center gap-2">
+      <AccessChips access={access} hideRole={title.trim().toLowerCase() === access.roleLabel.trim().toLowerCase()} />
+      <div className="mt-4 flex items-center gap-2">
         {onEdit && (
           <button
             type="button"
             onClick={onEdit}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+            className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-lg font-semibold text-violet-100 transition hover:bg-violet-500/25"
           >
             Editar
           </button>
@@ -3380,19 +3385,13 @@ export function EquipoSection() {
           clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="mt-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-display font-semibold">Personas del equipo</h3>
-            <p className="text-sm text-muted-foreground">Barberos y quienes pueden entrar a Clippr.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setAddChooserOpen(true)}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20"
-          >
-            <Plus className="h-4 w-4" /> Agregar persona
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAddChooserOpen(true)}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-lg shadow-sky-500/25"
+        >
+          <Plus className="h-5 w-5" /> Agregar persona
+        </button>
 
         {loading ? (
           <div className="grid place-items-center py-16">
