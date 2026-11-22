@@ -713,8 +713,8 @@ function MobileBottomNav() {
       className="lg:hidden fixed z-40 overflow-hidden rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 transition-[left,right,bottom] duration-300 ease-out"
       style={{
         position: "fixed",
-        left: compact ? "22%" : "12px",
-        right: compact ? "22%" : "12px",
+        left: compact ? "7%" : "12px",
+        right: compact ? "7%" : "12px",
         bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
         transform: "translate3d(0, 0, 0)",
         WebkitTransform: "translate3d(0, 0, 0)",
@@ -722,7 +722,7 @@ function MobileBottomNav() {
       }}
     >
       <div
-        className={cn("grid items-center px-1.5 transition-[height] duration-300 ease-out", compact ? "h-[44px]" : "h-[58px]")}
+        className={cn("grid items-center px-1.5 transition-[height] duration-300 ease-out", compact ? "h-[50px]" : "h-[58px]")}
         style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}
       >
         {barItems.map((item) => {
@@ -741,11 +741,11 @@ function MobileBottomNav() {
               <span
                 className={cn(
                   "flex w-full flex-col items-center justify-center gap-0.5 rounded-full transition-all duration-300",
-                  compact ? "h-[34px]" : "h-[46px]",
+                  compact ? "h-[40px]" : "h-[46px]",
                   active ? "bg-gradient-to-b from-sky-400/35 to-violet-500/45 shadow-[0_0_16px_rgba(139,92,246,0.55)] ring-1 ring-violet-300/40" : "bg-transparent",
                 )}
               >
-                <Icon className={cn("transition-all", compact ? "h-[18px] w-[18px]" : "h-[22px] w-[22px]", active ? "text-white" : "text-white/70")} />
+                <Icon className={cn("transition-all", compact ? "h-[20px] w-[20px]" : "h-[22px] w-[22px]", active ? "text-white" : "text-white/70")} />
                 {active && !compact && (
                   <span className="max-w-full truncate px-0.5 text-[9px] font-semibold leading-none text-white">{label}</span>
                 )}
