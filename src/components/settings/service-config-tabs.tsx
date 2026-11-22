@@ -327,7 +327,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   {d.ownPrice ? (
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <div className="mb-1 text-lg text-white/70">Precio de lista</div>
+                        <div className="mb-1 text-lg text-white/70">Lista</div>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
                           <input
@@ -340,7 +340,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                         </div>
                       </div>
                       <div>
-                        <div className="mb-1 text-lg text-white/70">Precio en efectivo</div>
+                        <div className="mb-1 text-lg text-white/70">Efectivo</div>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/50">$</span>
                           <input
