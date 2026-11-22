@@ -3065,7 +3065,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                         : `$${Number(row.price ?? 0).toLocaleString("es-AR")}${typeof row.stock === "number" ? ` · Stock ${row.stock}` : ""}`}
                     </div>
                     {!isService && bookingConfig[row.id]?.show && (
-                      <span className="mt-1.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2.5 py-1 text-sm font-semibold text-violet-200 ring-1 ring-violet-400/25">
+                      <span className="mt-1.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300 ring-1 ring-amber-400/50">
                         <Star className="h-3.5 w-3.5 fill-current" />
                         Online
                       </span>
