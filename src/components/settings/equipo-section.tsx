@@ -490,6 +490,7 @@ function ApprovalModeCard({
   showWhatsapp: boolean;
   onToggleShowWhatsapp: (v: boolean) => void;
 }) {
+  const [modeOpen, setModeOpen] = useState(false);
   return (
     <div className="space-y-2">
       <PermissionToggleRow
@@ -523,15 +524,45 @@ function ApprovalModeCard({
       />
 
       {enabled && (
-        <select
-          value={mode === "manual" ? "manual" : "auto"}
-          onChange={(e) => onChangeMode(e.target.value === "manual" ? "manual" : "auto")}
-          aria-label="Cómo cobra"
-          className={inputCls}
-        >
-          <option value="auto">Cobra directo en caja</option>
-          <option value="manual">Un admin aprueba cada cobro</option>
-        </select>
+        <div>
+          <button
+            type="button"
+            onClick={() => setModeOpen((v) => !v)}
+            aria-expanded={modeOpen}
+            className="flex h-14 w-full items-center justify-between gap-3 rounded-2xl border border-violet-400/40 bg-black/30 px-4 text-left text-base font-semibold text-white shadow-[0_0_18px_-8px_rgba(139,92,246,0.8)]"
+          >
+            {mode === "manual" ? "Un admin aprueba cada cobro" : "Cobra directo en caja"}
+            <svg viewBox="0 0 24 24" className={cn("h-5 w-5 shrink-0 text-violet-300 transition-transform", modeOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          {modeOpen && (
+            <div className="mt-2 space-y-1.5 rounded-2xl border border-white/10 bg-[#08070f] p-1.5">
+              {([
+                ["auto", "Cobra directo en caja"],
+                ["manual", "Un admin aprueba cada cobro"],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    onChangeMode(id);
+                    setModeOpen(false);
+                  }}
+                  className={cn(
+                    "flex h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-base font-semibold",
+                    (mode === "manual" ? "manual" : "auto") === id
+                      ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
+                      : "text-white/75",
+                  )}
+                >
+                  {label}
+                  {(mode === "manual" ? "manual" : "auto") === id && <CheckCircle2 className="h-5 w-5" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -3804,7 +3835,7 @@ export function EquipoSection() {
 
       {open && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
           onClick={() => !saving && setOpen(false)}
         >
           {/* Portal a document.body: esta pantalla vive dentro del
@@ -3825,7 +3856,7 @@ export function EquipoSection() {
             // permitido) — eso es lo que dejaba a los botones de abajo
             // "flotando" arriba del borde real, con espacio libre debajo
             // sin aprovechar.
-            className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
+            className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
