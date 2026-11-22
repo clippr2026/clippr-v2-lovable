@@ -1072,16 +1072,16 @@ function PriceEditorModal({
               </SectionCard>
 
               <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Globe} tono="cyan">Reservas online</Titulo>}>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {(() => {
                     const featuredTotal = featuredOthers + (form.bookingShow ? 1 : 0);
                     const limitReached = !form.bookingShow && featuredOthers >= 3;
                     return (
                       <>
-                        <label className="flex items-center justify-between gap-4 cursor-pointer">
-                          <div>
-                            <div className="text-lg font-semibold text-white">Mostrar en reservas online</div>
-                            <div className="text-base text-white/70">Aparece en reserva online.</div>
+                        <label className="flex cursor-pointer items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-lg font-semibold text-white">Mostrar en la reserva</div>
+                            <div className="text-base text-white/70">Destacados: {featuredTotal} de 3</div>
                           </div>
                           <Toggle
                             on={form.bookingShow}
@@ -1091,23 +1091,11 @@ function PriceEditorModal({
                             }}
                           />
                         </label>
-                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-base">
-                          <span className="font-medium text-white/70">
-                            Productos destacados: {featuredTotal} de 3
-                          </span>
-                          {limitReached ? (
-                            <span className="text-amber-300">Solo podés destacar hasta 3 productos.</span>
-                          ) : null}
-                        </div>
+                        {limitReached ? <p className="text-base text-amber-300">Ya hay 3 destacados.</p> : null}
                       </>
                     );
                   })()}
-                  <div
-                    className={cn(
-                      "grid grid-cols-1 gap-3 sm:grid-cols-2 transition-opacity",
-                      !form.bookingShow && "pointer-events-none opacity-40",
-                    )}
-                  >
+                  <div className={cn("space-y-3 border-t border-white/10 pt-4 transition-opacity", !form.bookingShow && "pointer-events-none opacity-40")}>
                     <Campo label="Oferta %">
                       <input
                         type="number"
@@ -1115,24 +1103,19 @@ function PriceEditorModal({
                         max={90}
                         disabled={!form.bookingShow}
                         value={form.bookingOffer === "none" || form.bookingOffer === "special" ? "" : form.bookingOffer}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            bookingOffer: e.target.value.trim() ? e.target.value : "none",
-                          })
-                        }
+                        onChange={(e) => setForm({ ...form, bookingOffer: e.target.value.trim() ? e.target.value : "none" })}
                         className={campoCls}
-                        placeholder="20"
+                        placeholder="Ej: 20"
                       />
                     </Campo>
-                    <Campo label="Mini descripción">
+                    <Campo label="Descripción corta">
                       <input
                         value={form.miniDesc}
                         disabled={!form.bookingShow}
                         onChange={(e) => setForm({ ...form, miniDesc: e.target.value })}
                         className={campoCls}
                         maxLength={60}
-                        placeholder="Fijación fuerte y acabado mate natural."
+                        placeholder="Ej: Fijación fuerte, acabado mate"
                       />
                     </Campo>
                   </div>
