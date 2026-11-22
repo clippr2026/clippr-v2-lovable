@@ -400,6 +400,7 @@ function PublicBookingPage() {
   // datos de los amigos (el cliente 1 es quien reserva).
   const [groupMode, setGroupMode] = React.useState<"same" | "different">("same");
   const [friends, setFriends] = React.useState<{ firstName: string; lastName: string; phone: string }[]>([]);
+  const [groupEmployeeIds, setGroupEmployeeIds] = React.useState<string[]>([]);
   const groupSize = appliedPromotion && isGroupPromotion(appliedPromotion) ? (appliedPromotion.groupSize ?? 0) : 0;
   React.useEffect(() => {
     setFriends((cur) =>
@@ -707,7 +708,7 @@ function PublicBookingPage() {
     const empty = { days: null as typeof baseSlots | null, at: new Map<number, string[]>() };
     if (groupSize < 2 || groupMode !== "different") return empty;
     const at = new Map<number, string[]>();
-    const perEmployee = employeesForSelectedServices.map((employee) =>
+    const perEmployee = employeesForSelectedServices.filter((e) => groupEmployeeIds.includes(e.id)).map((employee) =>
       buildSlots(
         schedule,
         appointments,
@@ -746,6 +747,7 @@ function PublicBookingPage() {
   }, [
     groupSize,
     groupMode,
+    groupEmployeeIds,
     employeesForSelectedServices,
     schedule,
     appointments,
@@ -1254,10 +1256,6 @@ function PublicBookingPage() {
     if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
     // Si el profesional vino fijo por deep link, ese paso
     // nunca se mostró — volver ahí sería confuso.
-    if (step === "datetime" && groupSize > 1 && groupMode === "different") {
-      setStep("promo");
-      return;
-    }
     if (step === "datetime") {
       setStep(
         professionalPreselectedRef.current
@@ -1339,12 +1337,7 @@ function PublicBookingPage() {
     const promo = servicePromotions.find((p) => p.id === promoChoice) ?? null;
     setAppliedPromotion(promo);
     setSelectedSlot(null);
-    if (promo && isGroupPromotion(promo) && groupMode === "different") {
-      // Cada uno con su profesional, a la misma hora: no se elige profesional acá.
-      setSelectedEmployeeId("any");
-      setStep("datetime");
-      return;
-    }
+    setGroupEmployeeIds([]);
     setStep(stepAfterPromo);
   }
 
@@ -2298,7 +2291,48 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step === "professional" && employeesForSelectedServices.length > 0 ? (
+              {step === "professional" && employeesForSelectedServices.length > 0 && groupSize > 1 && groupMode === "different" ? (
+                <div className="mt-5 space-y-3">
+                  <p className="text-sm text-white/70">Elegí {groupSize} profesionales distintos, uno por persona.</p>
+                  {employeesForSelectedServices.map((employee) => {
+                    const on = groupEmployeeIds.includes(employee.id);
+                    return (
+                      <button
+                        key={employee.id}
+                        type="button"
+                        onClick={() =>
+                          setGroupEmployeeIds((cur) =>
+                            cur.includes(employee.id) ? cur.filter((id) => id !== employee.id) : cur.length >= groupSize ? cur : [...cur, employee.id],
+                          )
+                        }
+                        className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left transition hover:bg-white/[0.04]"
+                      >
+                        <span
+                          className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border", on ? "border-transparent" : "border-white/25")}
+                          style={on ? accentFill(accent, accentButtonText) : undefined}
+                        >
+                          {on && <CheckCircle2 className="h-3.5 w-3.5" />}
+                        </span>
+                        <span className="font-medium">{employee.full_name}</span>
+                      </button>
+                    );
+                  })}
+                  <Button
+                    disabled={groupEmployeeIds.length !== groupSize}
+                    onClick={() => {
+                      setSelectedEmployeeId(groupEmployeeIds[0]);
+                      setSelectedSlot(null);
+                      setStep("datetime");
+                    }}
+                    className="w-full rounded-2xl py-6 font-bold hover:brightness-110"
+                    style={publicButtonStyle(accent, accentButtonText)}
+                  >
+                    Continuar ({groupEmployeeIds.length}/{groupSize})
+                  </Button>
+                </div>
+              ) : null}
+
+              {step === "professional" && employeesForSelectedServices.length > 0 && !(groupSize > 1 && groupMode === "different") ? (
                 (() => {
                   // Precio y duración reales para CADA profesional (mismo
                   // resolver que el resto de la app) — la diferencia ("qué
