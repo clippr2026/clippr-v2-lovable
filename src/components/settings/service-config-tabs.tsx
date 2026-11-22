@@ -4,7 +4,7 @@ import { CalendarDays, CalendarRange, Gauge, KeyRound, Loader2, Tag, Trash2, Use
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Toggle, Titulo } from "@/components/settings/shared";
+import { Toggle, Titulo, ConfirmDialog } from "@/components/settings/shared";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { DateClippr } from "@/components/ui/date-clippr";
 import { DAY_KEYS, normalizeSchedule, type DayKey } from "@/lib/availability";
@@ -585,6 +585,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
   const [ready, setReady] = React.useState(false);
   const [draft, setDraft] = React.useState<PromoDraft | null>(null);
   const [draftSnap, setDraftSnap] = React.useState("");
+  const [confirmBack, setConfirmBack] = React.useState(false);
   const openDraft = (d: PromoDraft) => {
     setDraftSnap(JSON.stringify(d));
     setDraft(d);
@@ -744,9 +745,20 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
     const finalPreview = draft.kind === "final" ? Number(draft.value) || 0 : draft.kind === "percent" ? listPrice * (1 - (Number(draft.value) || 0) / 100) : listPrice - (Number(draft.value) || 0);
     return (
       <div className="space-y-3">
-        <button type="button" onClick={() => setDraft(null)} className="text-base font-semibold text-violet-200">
+        <button type="button" onClick={() => (JSON.stringify(draft) !== draftSnap ? setConfirmBack(true) : setDraft(null))} className="text-base font-semibold text-violet-200">
           ← Volver
         </button>
+        <ConfirmDialog
+          open={confirmBack}
+          title="Cambios sin guardar"
+          message="Si salís ahora se pierden los cambios de esta promo."
+          confirmLabel="Salir sin guardar"
+          onConfirm={() => {
+            setConfirmBack(false);
+            setDraft(null);
+          }}
+          onCancel={() => setConfirmBack(false)}
+        />
         {otherServices.length > 0 ? (
           <p className="rounded-2xl border border-amber-300/25 bg-amber-400/[0.08] p-3 text-base text-amber-100">
             Esta promo también vale para: {otherServices.join(", ")}. Si la cambiás, cambia en todos.
