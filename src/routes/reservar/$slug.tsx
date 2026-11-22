@@ -1911,7 +1911,9 @@ function PublicBookingPage() {
                 {selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin servicio"}
                 <span className="text-white/40">
                   {" "}
-                  · {selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin profesional")}
+                  · {groupSize > 1 && groupMode === "different"
+                    ? groupEmployeeIds.map((id) => employees.find((e) => e.id === id)?.full_name ?? "").filter(Boolean).join(" y ")
+                    : selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin profesional")}
                 </span>
               </p>
               {/* Fecha/horario en su propia línea, sin truncate: a
@@ -1924,7 +1926,7 @@ function PublicBookingPage() {
                 {selectedSlot ? `${formatShortDay(selectedSlot.time, businessTimeZone)} · ${formatTime(selectedSlot.time, businessTimeZone)}` : "Sin horario"}
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">
-                <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}</span>
+                <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}{groupSize > 1 ? " c/u" : ""}</span>
                 {professionalChosen && promoSavings > 0 && (
                   <span className="text-emerald-400"> (ahorrás {formatMoney(promoSavings)})</span>
                 )}
@@ -1937,8 +1939,12 @@ function PublicBookingPage() {
                 {professionalChosen && promoSavings <= 0 && appliedPromotion && (
                   <span className="text-white/40"> (la promo no aplica a tu selección)</span>
                 )}
-                {" · "}
-                <span className="font-semibold text-white">Duración: {professionalChosen ? `${totalDuration} min` : "— min"}</span>
+                {groupSize > 1 && groupMode === "different" && new Set(groupEmployeeIds.map((id) => durationFor(id))).size > 1 ? null : (
+                  <>
+                    {" · "}
+                    <span className="font-semibold text-white">Duración: {professionalChosen ? `${totalDuration} min` : "— min"}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
