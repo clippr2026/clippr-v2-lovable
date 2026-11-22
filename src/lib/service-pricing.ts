@@ -444,7 +444,14 @@ export type Promotion = {
   maxUsesPerClient: number | null;
   usageCount: number;
   usedByClient: Record<string, number>;
+  // Promo para grupos de amigos: cantidad de personas que tienen que reservar
+  // juntas (2 o más). Sin este campo (o menor a 2) es una promo común.
+  groupSize?: number;
 };
+
+export function isGroupPromotion(promo: Pick<Promotion, "groupSize">): boolean {
+  return (promo.groupSize ?? 0) >= 2;
+}
 
 // Las promociones creadas antes de que existiera el switch "Vigencia" no
 // tienen ese campo guardado. Se completa una sola vez al cargar: si ya tenía
@@ -529,6 +536,8 @@ export function isPromotionApplicable(
   promo: Promotion,
   ctx: { serviceId: string; employeeId?: string | null; category?: string | null },
 ): boolean {
+  // Las de grupo se aplican desde el flujo de reserva grupal, no como promo suelta.
+  if (isGroupPromotion(promo)) return false;
   const serviceMatch =
     promo.serviceIds.includes(ctx.serviceId) ||
     (!!ctx.category && promo.categoryNames.includes(ctx.category));

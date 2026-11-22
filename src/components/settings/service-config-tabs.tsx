@@ -539,6 +539,7 @@ type PromoDraft = {
   maxTotal: string;
   useMaxPerClient: boolean;
   maxPerClient: string;
+  groupSize: string; // "" = promo común
 };
 
 function defaultDays(): Promotion["days"] {
@@ -565,6 +566,7 @@ function draftFromPromo(p: Promotion): PromoDraft {
     maxTotal: p.maxUsesTotal != null ? String(p.maxUsesTotal) : "",
     useMaxPerClient: p.maxUsesPerClient != null,
     maxPerClient: p.maxUsesPerClient != null ? String(p.maxUsesPerClient) : "",
+    groupSize: (p.groupSize ?? 0) >= 2 ? String(p.groupSize) : "",
   };
 }
 
@@ -634,6 +636,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
       startDate: "",
       endDate: "",
       days: defaultDays(),
+      groupSize: "",
       useMaxTotal: false,
       maxTotal: "",
       useMaxPerClient: false,
@@ -676,6 +679,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         days: daysCustom ? draft.days : defaultDays(),
         maxUsesTotal: draft.useMaxTotal ? Math.max(0, Number(draft.maxTotal) || 0) : null,
         maxUsesPerClient: draft.useMaxPerClient ? Math.max(0, Number(draft.maxPerClient) || 0) : null,
+        ...(draft.groupSize ? { groupSize: Math.max(2, Number(draft.groupSize) || 2) } : {}),
         usageCount: prev?.usageCount ?? 0,
         usedByClient: prev?.usedByClient ?? {},
       };
@@ -725,6 +729,31 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
             <Toggle on={draft.active} onChange={(v) => set({ active: v })} />
           </div>
           <input value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="Nombre de la promo" className={cn(inputCls, "mt-3")} />
+        </div>
+
+        <div className={cardCls}>
+          <div className="mb-2 text-lg font-semibold text-white">Tipo de promo</div>
+          <SelectClippr
+            opciones={[
+              { id: "comun", label: "Descuento común" },
+              { id: "grupo", label: "Para grupos de amigos" },
+            ]}
+            valor={draft.groupSize ? "grupo" : "comun"}
+            onChange={(v) => set({ groupSize: v === "grupo" ? draft.groupSize || "2" : "" })}
+          />
+          {draft.groupSize ? (
+            <div className="mt-3">
+              <div className="mb-1 text-lg text-white/70">Cantidad de personas</div>
+              <input
+                inputMode="numeric"
+                value={draft.groupSize}
+                onChange={(e) => set({ groupSize: e.target.value.replace(/\D/g, "").slice(0, 2) })}
+                placeholder="Ej: 2"
+                className={inputCls}
+              />
+              <p className="mt-2 text-lg text-white/70">El descuento es por persona y vale si reservan todos juntos.</p>
+            </div>
+          ) : null}
         </div>
 
         <div className={cardCls}>
@@ -851,6 +880,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
           </div>
           <div className="mt-1 text-lg text-white/75">
             {p.discountType === "percent" ? `${p.discountValue}% de descuento` : `${money(Number(p.discountValue) || 0)} de descuento`}
+            {(p.groupSize ?? 0) >= 2 ? ` · Grupos de ${p.groupSize}` : ""}
             {p.requiresCode ? ` · Código ${p.code}` : ""}
             {p.maxUsesTotal != null ? ` · ${p.usageCount}/${p.maxUsesTotal} usos` : p.usageCount ? ` · ${p.usageCount} usos` : ""}
           </div>
