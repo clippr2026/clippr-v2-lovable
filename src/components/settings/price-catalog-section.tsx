@@ -3340,10 +3340,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         typeof document !== "undefined" &&
         createPortal(
         <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
-            <div className="font-display font-semibold text-base">
-              Renombrar categoría
-            </div>
+          <div className="rounded-[28px] border border-violet-400/45 bg-[#08070f] p-6 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] w-full max-w-sm space-y-5">
+            <div className="text-xl font-semibold text-white">Renombrar categoría</div>
             <input
               autoFocus
               value={catInputVal}
@@ -3354,18 +3352,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               }}
               placeholder="Nombre de la categoría"
               maxLength={MAX_CATEGORY_NAME_LENGTH}
-              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
+              className={campoCls}
             />
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-3">
               <button
                 onClick={() => setCatModal(null)}
-                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+                className="h-12 flex-1 rounded-full border border-white/25 bg-white/15 text-base font-bold text-white transition active:scale-95"
               >
                 Cancelar
               </button>
               <button
                 onClick={submitCatModal}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
+                className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white shadow-[0_6px_22px_-4px_rgba(124,92,255,0.9)] transition active:scale-95"
               >
                 Guardar
               </button>

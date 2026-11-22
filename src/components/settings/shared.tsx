@@ -329,26 +329,24 @@ export function ConfirmDialog({
     // "Editar servicio"), que quedan abiertos de fondo cuando este diálogo
     // se dispara desde adentro de ellos.
     <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+      <div className="rounded-[28px] border border-violet-400/45 bg-[#08070f] p-6 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] mx-4 w-full max-w-sm space-y-5">
         <div>
-          <div className="font-display font-semibold text-base text-foreground">
-            {title}
-          </div>
-          <div className="text-sm text-muted-foreground mt-1">{message}</div>
+          <div className="text-xl font-semibold text-white">{title}</div>
+          <div className="mt-2 text-base text-white/70">{message}</div>
         </div>
-        <div className="flex gap-3 justify-end">
+        <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+            className="h-12 flex-1 rounded-full border border-white/25 bg-white/15 text-base font-bold text-white transition active:scale-95"
           >
             Cancelar
           </button>
           <button
             onClick={onConfirm}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              "h-12 flex-1 rounded-full text-base font-bold transition active:scale-95",
               danger
-                ? "bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/40 text-red-300"
+                ? "border border-red-400/50 bg-red-500/25 text-red-100"
                 : "bg-gradient-to-r from-sky-400 to-violet-500 text-white",
             )}
           >
