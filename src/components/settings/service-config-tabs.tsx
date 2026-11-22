@@ -168,7 +168,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
 
-type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; effPrice: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
+type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; effPrice: string; commMode: "percent" | "fixed"; commValue: string; ownComm: boolean; generalPct: string };
 
 const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
@@ -210,6 +210,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
           effPrice: ov && ov.useStandardEffectivePrice === false ? ov.effectivePrice ?? "" : "",
           commMode: cm?.mode === "fixed" && String(cm?.value ?? "").trim() !== "" ? "fixed" : "percent",
           commValue: cm?.value ?? "",
+          ownComm: !(cm as { noCommission?: boolean } | undefined)?.noCommission && String(cm?.value ?? "").trim() !== "",
           generalPct: e.commissionPct == null ? "" : String(e.commissionPct),
         };
       }
@@ -251,7 +252,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
         };
         const empCommissions = { ...(commissions[e.id] ?? {}) };
         if (d.offers && !d.generates) empCommissions[serviceId] = { enabled: true, mode: "fixed", value: "0", noCommission: true };
-        else if (d.offers && d.commValue.trim() !== "") empCommissions[serviceId] = { enabled: true, mode: d.commMode, value: d.commValue.trim() };
+        else if (d.offers && d.ownComm && d.commValue.trim() !== "") empCommissions[serviceId] = { enabled: true, mode: d.commMode, value: d.commValue.trim() };
         else delete empCommissions[serviceId];
         commissions[e.id] = empCommissions;
       }
@@ -363,35 +364,40 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   </div>
                 </div>
                 {d.generates ? (
-                <div>
-                  <div className="mb-1.5 text-base font-semibold text-white">Comisión en este servicio</div>
-                  <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
-                    <SelectClippr
-                      opciones={[
-                        { id: "percent", label: "%" },
-                        { id: "fixed", label: "$ fijo" },
-                      ]}
-                      valor={d.commMode}
-                      onChange={(v) => update(e.id, { commMode: v === "fixed" ? "fixed" : "percent" })}
-                    />
-                    <input
-                      inputMode="decimal"
-                      value={d.commValue}
-                      onChange={(ev) => update(e.id, { commValue: ev.target.value.replace(/[^\d.,]/g, "") })}
-                      placeholder={serviceComm ? `Vacío = ${serviceComm}` : "Vacío = la del servicio"}
-                      className={inputCls}
-                    />
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-base font-semibold text-white">Comisión</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg text-white/75">
+                          {d.ownComm ? "Propia" : serviceComm ? `Del servicio (${serviceComm})` : "Del servicio"}
+                        </span>
+                        <Toggle on={d.ownComm} onChange={(v) => update(e.id, { ownComm: v })} />
+                      </div>
+                    </div>
+                    {d.ownComm ? (
+                      <div className="mt-2.5 grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                        <SelectClippr
+                          opciones={[
+                            { id: "percent", label: "%" },
+                            { id: "fixed", label: "$ fijo" },
+                          ]}
+                          valor={d.commMode}
+                          onChange={(v) => update(e.id, { commMode: v === "fixed" ? "fixed" : "percent" })}
+                        />
+                        <input
+                          inputMode="decimal"
+                          value={d.commValue}
+                          onChange={(ev) => update(e.id, { commValue: ev.target.value.replace(/[^\d.,]/g, "") })}
+                          placeholder={d.commMode === "fixed" ? "Ej: 5000" : "Ej: 50"}
+                          className={inputCls}
+                        />
+                      </div>
+                    ) : !serviceComm ? (
+                      <p className="mt-2 text-lg text-amber-200">
+                        {d.generalPct.trim() ? `El servicio no tiene comisión: usa la general (${d.generalPct}%).` : "El servicio no tiene comisión: no gana nada acá."}
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="mt-1.5 text-base text-white/55">
-                    {d.commValue.trim()
-                      ? "Se usa esta para este profesional."
-                      : serviceComm
-                        ? `Usa la comisión del servicio: ${serviceComm}.`
-                        : d.generalPct.trim()
-                          ? `El servicio no tiene comisión: usa la general del profesional (${d.generalPct}%).`
-                          : "Sin comisión del servicio ni general: no gana comisión acá."}
-                  </p>
-                </div>
                 ) : null}
               </div>
             ) : null}
