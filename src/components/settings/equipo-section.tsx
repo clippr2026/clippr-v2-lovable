@@ -834,38 +834,38 @@ function AccessChips({ access, hideRole }: { access: PersonAccessInfo; hideRole?
       {(showRole || badge || access.expired) && (
         <div className="flex flex-wrap items-center gap-2">
           {showRole && (
-            <span className="rounded-full bg-violet-500/15 px-3 py-1 text-base font-semibold text-violet-200 ring-1 ring-violet-400/30">
+            <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-sm font-semibold text-violet-200 ring-1 ring-violet-400/30">
               {access.roleLabel}
             </span>
           )}
-          {badge && <span className={cn("rounded-full px-3 py-1 text-base font-semibold ring-1", badge.cls)}>{badge.label}</span>}
+          {badge && <span className={cn("rounded-full px-2.5 py-0.5 text-sm font-semibold ring-1", badge.cls)}>{badge.label}</span>}
           {access.expired && (
             <button
               type="button"
               disabled={access.resending}
               onClick={access.onResend}
-              className="rounded-full bg-amber-500/15 px-3.5 py-1 text-base font-semibold text-amber-200 ring-1 ring-amber-400/30 disabled:opacity-60"
+              className="rounded-full bg-amber-500/15 px-3 py-0.5 text-sm font-semibold text-amber-200 ring-1 ring-amber-400/30 disabled:opacity-60"
             >
               {access.resending ? "Enviando…" : "Reenviar"}
             </button>
           )}
         </div>
       )}
-      <div className="truncate text-base text-white/65">{access.email}</div>
+      <div className="truncate text-sm text-white/65">{access.email}</div>
       {access.atiende && (
         <button
           type="button"
           onClick={access.atiende.onToggle}
-          className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white/[0.07] px-4 py-3 text-left text-lg font-semibold ring-1 ring-white/15"
+          className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white/[0.07] px-4 py-2.5 text-left text-base font-semibold ring-1 ring-white/15"
         >
           <span>Atiendo clientes</span>
           <span
             className={cn(
-              "inline-flex h-7 w-12 items-center rounded-full px-0.5 transition",
+              "inline-flex h-6 w-11 items-center rounded-full px-0.5 transition",
               access.atiende.on ? "bg-emerald-500/80" : "bg-white/20",
             )}
           >
-            <span className={cn("h-6 w-6 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-5")} />
+            <span className={cn("h-5 w-5 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-5")} />
           </span>
         </button>
       )}
@@ -896,14 +896,14 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   return (
     <div
       className={cn(
-        "rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-5 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)] transition-opacity",
+        "rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-4 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)] transition-opacity",
         (!online || deleting) && "opacity-70",
       )}
     >
       <div className="flex items-center gap-3">
         <div
           className={cn(
-            "h-14 w-14 shrink-0 rounded-full overflow-hidden grid place-items-center text-xl font-semibold text-white bg-gradient-to-br ring-2 ring-violet-400/40",
+            "h-12 w-12 shrink-0 rounded-full overflow-hidden grid place-items-center text-lg font-semibold text-white bg-gradient-to-br ring-2 ring-violet-400/40",
             tintClass,
           )}
         >
@@ -919,8 +919,8 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-xl font-semibold text-white">{displayName}</div>
-          <div className="text-base text-white/65">{emp.role?.trim() || "Profesional"}</div>
+          <div className="truncate text-lg font-semibold text-white">{displayName}</div>
+          <div className="text-sm text-white/65">{emp.role?.trim() || "Profesional"}</div>
         </div>
         {/* Refleja el único switch "Acepta reservas en línea" del perfil
             (employees.is_active). Un clic acá alterna ese mismo campo, así
@@ -931,7 +931,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           onClick={() => onToggleOnline(emp)}
           disabled={deleting}
           className={cn(
-            "inline-flex shrink-0 items-center gap-2 rounded-full ring-1 px-3 py-1.5 text-base font-semibold transition hover:brightness-110 disabled:opacity-50",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full ring-1 px-2.5 py-1 text-sm font-semibold transition hover:brightness-110 disabled:opacity-50",
             online
               ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
               : "bg-white/5 ring-white/10 text-muted-foreground",
@@ -940,7 +940,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
         >
           <span
             className={cn(
-              "h-2.5 w-2.5 rounded-full",
+              "h-2 w-2 rounded-full",
               online ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
             )}
           />
@@ -950,13 +950,13 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
       {access ? (
         <AccessChips access={access} hideRole />
       ) : (
-        <div className="mt-4 text-base text-white/55">Sin acceso a Clippr</div>
+        <div className="mt-3 text-sm text-white/55">Sin acceso a Clippr</div>
       )}
       <div className="mt-4 flex items-center gap-2">
         <button
           onClick={() => onEdit(emp)}
           disabled={deleting}
-          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-lg font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
+          className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
         >
           Editar
         </button>
@@ -976,12 +976,12 @@ function AccessPersonCard({
   onEdit?: () => void;
 }) {
   return (
-    <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-5 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)]">
+    <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-4 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)]">
       <div className="flex items-center gap-3">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-violet-500/20 text-xl font-semibold text-violet-100 ring-2 ring-violet-400/40">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/20 text-lg font-semibold text-violet-100 ring-2 ring-violet-400/40">
           {(title[0] || "A").toUpperCase()}
         </div>
-        <div className="min-w-0 flex-1 truncate text-xl font-semibold text-white">{title}</div>
+        <div className="min-w-0 flex-1 truncate text-lg font-semibold text-white">{title}</div>
       </div>
       <AccessChips access={access} hideRole={title.trim().toLowerCase() === access.roleLabel.trim().toLowerCase()} />
       <div className="mt-4 flex items-center gap-2">
@@ -989,7 +989,7 @@ function AccessPersonCard({
           <button
             type="button"
             onClick={onEdit}
-            className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-lg font-semibold text-violet-100 transition hover:bg-violet-500/25"
+            className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25"
           >
             Editar
           </button>
@@ -3388,9 +3388,9 @@ export function EquipoSection() {
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-lg shadow-sky-500/25"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
         >
-          <Plus className="h-5 w-5" /> Agregar persona
+          <Plus className="h-4 w-4" /> Agregar persona
         </button>
 
         {loading ? (
