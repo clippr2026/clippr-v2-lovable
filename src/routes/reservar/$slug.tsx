@@ -1926,7 +1926,7 @@ function PublicBookingPage() {
                 {selectedSlot ? `${formatShortDay(selectedSlot.time, businessTimeZone)} · ${formatTime(selectedSlot.time, businessTimeZone)}` : "Sin horario"}
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">
-                <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}</span>
+                <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}{groupSize > 1 ? " c/u" : ""}</span>
                 {professionalChosen && promoSavings > 0 && (
                   <span className="text-emerald-400"> (ahorrás {formatMoney(promoSavings)}{groupSize > 1 ? " c/u" : ""})</span>
                 )}
