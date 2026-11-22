@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { ElegirImagen } from "@/components/ui/elegir-imagen";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { SERVICE_COMMISSION_KEY } from "@/lib/service-pricing";
-import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab, type TabSaveApi } from "@/components/settings/service-config-tabs";
+import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab, prefetchServiceConfig, type TabSaveApi } from "@/components/settings/service-config-tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -670,6 +670,10 @@ function PriceEditorModal({
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [tabApi, setTabApi] = useState<TabSaveApi | null>(null);
+  const { businessId: editorBusinessId, activeBranchId: editorBranchId } = useAuth();
+  useEffect(() => {
+    if (open && isService) prefetchServiceConfig(editorBusinessId, editorBranchId);
+  }, [open, isService, editorBusinessId, editorBranchId]);
   useEffect(() => {
     if (open) {
       setSnapshot(JSON.stringify(form));
@@ -795,7 +799,15 @@ function PriceEditorModal({
     // "Agregar profesional" (commit a084001). padding-bottom reserva el
     // alto real del nav inferior (3.5rem + safe-area en mobile).
     <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
+      <div
+        className={cn(
+          "relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl",
+          // Servicio: alto fijo, así los botones de abajo no suben al cambiar de pestaña.
+          isService
+            ? "h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] lg:h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+            : "max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]",
+        )}
+      >
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button

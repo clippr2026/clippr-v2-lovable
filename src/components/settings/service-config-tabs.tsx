@@ -59,30 +59,70 @@ function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
 
+// Cache en memoria: al cambiar de pestaña se muestra lo ya cargado al instante y se revisa en segundo plano.
+const employeesCache = new Map<string, Emp[]>();
+const scheduleCache = new Map<string, Schedule>();
+const promoCache = new Map<string, { schedule: Schedule; names: Record<string, string> }>();
+
+async function fetchEmployees(businessId: string, branchId: string | null): Promise<Emp[]> {
+  let q = supabase.from("employees").select("id,full_name,is_active,commission_pct,commission_enabled").eq("business_id", businessId);
+  if (branchId) q = q.eq("branch_id", branchId);
+  const { data } = await q.order("full_name");
+  const list = ((data ?? []) as Array<{ id: string; full_name: string | null; is_active: boolean | null; commission_pct: number | string | null; commission_enabled: boolean | null }>)
+    .filter((e) => e.is_active !== false)
+    .map((e) => ({
+      id: e.id,
+      name: e.full_name ?? "Sin nombre",
+      commissionPct: e.commission_pct == null || e.commission_pct === "" ? null : Number(e.commission_pct),
+      commissionEnabled: e.commission_enabled !== false,
+    }));
+  employeesCache.set(`${businessId}|${branchId ?? ""}`, list);
+  return list;
+}
+
+async function fetchSchedule(businessId: string): Promise<Schedule> {
+  const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+  const schedule = (data?.schedule ?? {}) as Schedule;
+  scheduleCache.set(businessId, schedule);
+  return schedule;
+}
+
+async function fetchPromoData(businessId: string, branchId: string) {
+  const [{ data: bs }, { data: svc }] = await Promise.all([
+    supabase.from("branch_settings" as any).select("schedule").eq("business_id", businessId).eq("branch_id", branchId).maybeSingle(),
+    supabase.from("price_catalog").select("id,name").eq("business_id", businessId).not("duration_min", "is", null).is("deleted_at", null),
+  ]);
+  const names: Record<string, string> = {};
+  for (const x of (svc ?? []) as Array<{ id: string; name: string }>) names[x.id] = x.name;
+  const out = { schedule: ((bs as any)?.schedule ?? {}) as Schedule, names };
+  promoCache.set(`${businessId}|${branchId}`, out);
+  return out;
+}
+
+// Se llama al abrir la ventana del servicio: deja listo lo que usan las pestañas.
+export function prefetchServiceConfig(businessId: string | null, branchId: string | null) {
+  if (!businessId) return;
+  void fetchEmployees(businessId, branchId);
+  void fetchSchedule(businessId);
+  if (branchId) void fetchPromoData(businessId, branchId);
+}
+
 function useBranchEmployees() {
   const { businessId, activeBranchId } = useAuth();
-  const [employees, setEmployees] = React.useState<Emp[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const key = businessId ? `${businessId}|${activeBranchId ?? ""}` : "";
+  const cached = key ? employeesCache.get(key) : undefined;
+  const [employees, setEmployees] = React.useState<Emp[]>(cached ?? []);
+  const [loading, setLoading] = React.useState(!cached);
   React.useEffect(() => {
     if (!businessId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
-    let q = supabase.from("employees").select("id,full_name,is_active,commission_pct,commission_enabled").eq("business_id", businessId);
-    if (activeBranchId) q = q.eq("branch_id", activeBranchId);
-    q.order("full_name").then(({ data }) => {
+    void fetchEmployees(businessId, activeBranchId).then((list) => {
       if (cancelled) return;
-      setEmployees(
-        ((data ?? []) as Array<{ id: string; full_name: string | null; is_active: boolean | null; commission_pct: number | string | null; commission_enabled: boolean | null }>)
-          .filter((e) => e.is_active !== false)
-          .map((e) => ({
-            id: e.id,
-            name: e.full_name ?? "Sin nombre",
-            commissionPct: e.commission_pct == null || e.commission_pct === "" ? null : Number(e.commission_pct),
-            commissionEnabled: e.commission_enabled !== false,
-          })),
-      );
+      // Si no cambió nada se conserva la misma lista: así las pestañas no recargan ni pisan lo que se está editando.
+      setEmployees((cur) => (JSON.stringify(cur) === JSON.stringify(list) ? cur : list));
       setLoading(false);
     });
     return () => {
@@ -92,17 +132,24 @@ function useBranchEmployees() {
   return { employees, loading, businessId, activeBranchId };
 }
 
+// Devuelve lo último que se vio al instante (y lo actualiza en segundo plano).
 async function readBusinessSchedule(businessId: string): Promise<Schedule> {
-  const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
-  return (data?.schedule ?? {}) as Schedule;
+  const cached = scheduleCache.get(businessId);
+  if (cached) {
+    void fetchSchedule(businessId);
+    return cached;
+  }
+  return fetchSchedule(businessId);
 }
 
 // Lee el horario del negocio justo antes de escribir y solo cambia lo que `mutate` toca.
 async function patchBusinessSchedule(businessId: string, mutate: (schedule: Schedule) => Schedule): Promise<string | null> {
-  const existing = await readBusinessSchedule(businessId);
+  const existing = await fetchSchedule(businessId);
+  const next = mutate({ ...existing });
   const { error } = await supabase
     .from("business_settings")
-    .upsert({ business_id: businessId, schedule: mutate({ ...existing }) }, { onConflict: "business_id" });
+    .upsert({ business_id: businessId, schedule: next }, { onConflict: "business_id" });
+  if (!error) scheduleCache.set(businessId, next);
   return error ? error.message : null;
 }
 
@@ -539,22 +586,20 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
   const [draft, setDraft] = React.useState<PromoDraft | null>(null);
   const [saving, setSaving] = React.useState(false);
 
+  const applyPromoData = React.useCallback((d: { schedule: Schedule; names: Record<string, string> }) => {
+    setPromos((Array.isArray(d.schedule._promotions) ? (d.schedule._promotions as Promotion[]) : []).map(backfillPromotionVigencia));
+    setNames(d.names);
+    setReady(true);
+  }, []);
   const load = React.useCallback(async () => {
     if (!businessId || !activeBranchId) {
       setReady(true);
       return;
     }
-    const [{ data: bs }, { data: svc }] = await Promise.all([
-      supabase.from("branch_settings" as any).select("schedule").eq("business_id", businessId).eq("branch_id", activeBranchId).maybeSingle(),
-      supabase.from("price_catalog").select("id,name").eq("business_id", businessId).not("duration_min", "is", null).is("deleted_at", null),
-    ]);
-    const schedule = ((bs as any)?.schedule ?? {}) as Schedule;
-    setPromos((Array.isArray(schedule._promotions) ? (schedule._promotions as Promotion[]) : []).map(backfillPromotionVigencia));
-    const map: Record<string, string> = {};
-    for (const s of (svc ?? []) as Array<{ id: string; name: string }>) map[s.id] = s.name;
-    setNames(map);
-    setReady(true);
-  }, [businessId, activeBranchId]);
+    const cached = promoCache.get(`${businessId}|${activeBranchId}`);
+    if (cached) applyPromoData(cached);
+    applyPromoData(await fetchPromoData(businessId, activeBranchId));
+  }, [businessId, activeBranchId, applyPromoData]);
   React.useEffect(() => {
     void load();
   }, [load]);
