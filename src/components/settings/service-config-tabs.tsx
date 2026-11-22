@@ -364,7 +364,6 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                 </div>
                 {d.generates ? (
                   <div>
-                    <div className="mb-1.5 text-base font-semibold text-white">Comisión</div>
                     <SelectClippr
                       opciones={[
                         { id: "servicio", label: serviceComm ? `Del servicio (${serviceComm})` : "Del servicio" },
