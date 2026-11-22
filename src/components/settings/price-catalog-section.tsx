@@ -849,7 +849,7 @@ function PriceEditorModal({
               [
                 ["datos", "Datos"],
                 ["profesionales", "Profesionales"],
-                ["horarios", "Horarios"],
+                ["horarios", "Días"],
                 ["promo", "Promo"],
               ] as const
             ).map(([id, label]) => (

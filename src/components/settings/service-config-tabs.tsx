@@ -467,10 +467,9 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
   const closed = useClosedDays(businessId);
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [svcCustom, setSvcCustom] = React.useState(false);
   const [svcDays, setSvcDays] = React.useState<ServiceWindowMap>(fullWeek());
   const [snap, setSnap] = React.useState<string | null>(null);
-  const curSnap = JSON.stringify({ svcCustom, svcDays });
+  const curSnap = JSON.stringify({ svcDays });
 
   React.useEffect(() => {
     if (!businessId || loading) return;
@@ -478,9 +477,8 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
     void readBusinessSchedule(businessId).then((schedule) => {
       if (cancelled) return;
       const cfg = normalizeServiceScheduleConfig(schedule);
-      setSvcCustom(!!cfg.service[serviceId]);
       setSvcDays(fullWeek(cfg.service[serviceId]));
-      setSnap(JSON.stringify({ svcCustom: !!cfg.service[serviceId], svcDays: fullWeek(cfg.service[serviceId]) }));
+      setSnap(JSON.stringify({ svcDays: fullWeek(cfg.service[serviceId]) }));
       setReady(true);
     });
     return () => {
@@ -493,7 +491,12 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
     setSaving(true);
     const error = await patchBusinessSchedule(businessId, (schedule) => {
       const svc = { ...(schedule._serviceSchedules ?? {}) } as Record<string, unknown>;
-      if (svcCustom) svc[serviceId] = svcDays;
+      const custom = WEEK.some((k) => !closed.has(k) && !svcDays[k]?.enabled);
+      if (custom) {
+        const next = { ...svcDays };
+        for (const k of closed) next[k] = { ...(next[k] ?? DEFAULT_WINDOW), enabled: false };
+        svc[serviceId] = next;
+      }
       else delete svc[serviceId];
       return { ...schedule, _serviceSchedules: svc };
     });
@@ -509,22 +512,8 @@ export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: strin
 
   return (
     <div className={cardCls}>
-      <div className="text-lg font-semibold text-white">Días del servicio</div>
-      <div className="mt-3">
-        <SelectClippr
-          opciones={[
-            { id: "local", label: "Mismos días que el local" },
-            { id: "custom", label: "Días personalizados" },
-          ]}
-          valor={svcCustom ? "custom" : "local"}
-          onChange={(v) => setSvcCustom(v === "custom")}
-        />
-      </div>
-      {svcCustom ? (
-        <div className="mt-3">
-          <DaysPicker value={svcDays} closed={closed} onChange={(k, enabled) => setSvcDays((d) => ({ ...d, [k]: { ...(d[k] ?? DEFAULT_WINDOW), enabled } }))} />
-        </div>
-      ) : null}
+      <div className="mb-3 text-lg font-semibold text-white">Días del servicio</div>
+      <DaysPicker value={svcDays} closed={closed} onChange={(k, enabled) => setSvcDays((d) => ({ ...d, [k]: { ...(d[k] ?? DEFAULT_WINDOW), enabled } }))} />
     </div>
   );
 }
@@ -546,7 +535,6 @@ type PromoDraft = {
   startDate: string;
   endDate: string;
   days: Promotion["days"];
-  daysCustom: boolean;
   useMaxTotal: boolean;
   maxTotal: string;
   useMaxPerClient: boolean;
@@ -573,7 +561,6 @@ function draftFromPromo(p: Promotion): PromoDraft {
     startDate: p.startDate,
     endDate: p.endDate,
     days: p.days ?? defaultDays(),
-    daysCustom: Object.values(p.days ?? {}).some((d) => !d.enabled || d.start || d.end),
     useMaxTotal: p.maxUsesTotal != null,
     maxTotal: p.maxUsesTotal != null ? String(p.maxUsesTotal) : "",
     useMaxPerClient: p.maxUsesPerClient != null,
@@ -647,7 +634,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
       startDate: "",
       endDate: "",
       days: defaultDays(),
-      daysCustom: false,
       useMaxTotal: false,
       maxTotal: "",
       useMaxPerClient: false,
@@ -670,6 +656,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
     setSaving(true);
     const ok = await persist((current) => {
       const prev = current.find((p) => p.id === draft.id) ?? null;
+      const daysCustom = WEEK.some((k) => !closed.has(k) && !draft.days[k]?.enabled);
       const promo: Promotion = {
         id: prev?.id ?? crypto.randomUUID(),
         name: draft.name.trim(),
@@ -683,10 +670,10 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         serviceIds: prev?.serviceIds ?? [serviceId],
         categoryNames: prev?.categoryNames ?? [],
         employeeIds: draft.employeeIds,
-        hasVigencia: draft.hasVigencia || draft.daysCustom,
+        hasVigencia: draft.hasVigencia || daysCustom,
         startDate: draft.hasVigencia ? draft.startDate : "",
         endDate: draft.hasVigencia ? draft.endDate : "",
-        days: draft.daysCustom ? draft.days : defaultDays(),
+        days: daysCustom ? draft.days : defaultDays(),
         maxUsesTotal: draft.useMaxTotal ? Math.max(0, Number(draft.maxTotal) || 0) : null,
         maxUsesPerClient: draft.useMaxPerClient ? Math.max(0, Number(draft.maxPerClient) || 0) : null,
         usageCount: prev?.usageCount ?? 0,
@@ -817,22 +804,8 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         </div>
 
         <div className={cardCls}>
-          <div className="text-lg font-semibold text-white">Días de la promo</div>
-          <div className="mt-3">
-            <SelectClippr
-              opciones={[
-                { id: "todos", label: "Todos los días" },
-                { id: "custom", label: "Días personalizados" },
-              ]}
-              valor={draft.daysCustom ? "custom" : "todos"}
-              onChange={(v) => set({ daysCustom: v === "custom" })}
-            />
-          </div>
-          {draft.daysCustom ? (
-            <div className="mt-3">
-              <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
-            </div>
-          ) : null}
+          <div className="mb-3 text-lg font-semibold text-white">Días de la promo</div>
+          <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
         </div>
 
         <div className={cardCls}>
