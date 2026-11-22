@@ -525,6 +525,7 @@ type PromoKind = "percent" | "fixed" | "final";
 type PromoDraft = {
   id: string | null;
   name: string;
+  description: string;
   active: boolean;
   kind: PromoKind;
   value: string;
@@ -552,6 +553,7 @@ function draftFromPromo(p: Promotion): PromoDraft {
   return {
     id: p.id,
     name: p.name,
+    description: p.description ?? "",
     active: p.active,
     kind: p.discountType === "percent" ? "percent" : "fixed",
     value: p.discountValue,
@@ -626,6 +628,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
     return {
       id: null,
       name: `Promo ${serviceName}`,
+      description: "",
       active: true,
       kind: "percent",
       value: "",
@@ -664,7 +667,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         id: prev?.id ?? crypto.randomUUID(),
         name: draft.name.trim(),
         imageUrl: prev?.imageUrl ?? null,
-        description: prev?.description ?? "",
+        description: draft.description.trim(),
         active: draft.active,
         discountType,
         discountValue,
@@ -729,6 +732,13 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
             <Toggle on={draft.active} onChange={(v) => set({ active: v })} />
           </div>
           <input value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="Nombre de la promo" className={cn(inputCls, "mt-3")} />
+          <textarea
+            value={draft.description}
+            onChange={(e) => set({ description: e.target.value })}
+            placeholder="Descripción (la ve el cliente al tocar la i)"
+            rows={4}
+            className={cn(inputCls, "mt-3 h-auto py-3")}
+          />
         </div>
 
         <div className={cardCls}>
