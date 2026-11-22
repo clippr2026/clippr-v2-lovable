@@ -2159,30 +2159,50 @@ function PublicBookingPage() {
                     if (!chosen || !isGroupPromotion(chosen)) return null;
                     const n = chosen.groupSize ?? 2;
                     const canDifferent = employeesOfferingSelectedServices.length >= n;
-                    const opt = (value: "same" | "different", title: string, hint: string) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setGroupMode(value)}
-                        className="flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-left transition hover:bg-white/[0.04]"
-                      >
-                        <span
-                          className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border", groupMode === value ? "border-transparent" : "border-white/25")}
-                          style={groupMode === value ? accentFill(accent, accentButtonText) : undefined}
+                    const opt = (value: "same" | "different", title: string, hint: string, Icon: React.ComponentType<{ className?: string }>) => {
+                      const on = groupMode === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setGroupMode(value)}
+                          className="flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition active:scale-[0.99]"
+                          style={{
+                            borderColor: on ? accent : "rgba(255,255,255,0.14)",
+                            background: on ? `color-mix(in oklch, ${accent} 22%, #17141f)` : "rgba(255,255,255,0.06)",
+                            boxShadow: on ? `0 0 18px -6px ${accent}` : undefined,
+                          }}
                         >
-                          {groupMode === value && <CheckCircle2 className="h-3.5 w-3.5" />}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-medium">{title}</span>
-                          <span className="block text-xs text-white/50">{hint}</span>
-                        </span>
-                      </button>
-                    );
+                          <span
+                            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+                            style={on ? accentFill(accent, accentButtonText) : { background: "rgba(255,255,255,0.1)" }}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold">{title}</span>
+                            <span className="block text-xs text-white/60">{hint}</span>
+                          </span>
+                          {on ? <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: accent }} /> : null}
+                        </button>
+                      );
+                    };
                     return (
-                      <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                        <p className="text-sm font-semibold">Vienen {n} personas. ¿Cómo se atienden?</p>
-                        {opt("same", "Con el mismo profesional", "Uno después del otro")}
-                        {canDifferent ? opt("different", "Con profesionales distintos", "Todos a la misma hora") : null}
+                      <div
+                        className="space-y-2.5 rounded-3xl border p-4"
+                        style={{
+                          borderColor: `color-mix(in oklch, ${accent} 45%, transparent)`,
+                          background: `linear-gradient(160deg, color-mix(in oklch, ${accent} 18%, #1a1624), #17141f 70%)`,
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={accentFill(accent, accentButtonText)}>
+                            <UsersRound className="h-5 w-5" />
+                          </span>
+                          <p className="text-base font-bold">Vienen {n} personas. ¿Cómo se atienden?</p>
+                        </div>
+                        {opt("same", "Con el mismo profesional", "Uno después del otro", UserRound)}
+                        {canDifferent ? opt("different", "Con profesionales distintos", "Todos a la misma hora", UsersRound) : null}
                       </div>
                     );
                   })()}
@@ -2738,15 +2758,35 @@ function PublicBookingPage() {
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {friends.length > 0 ? (
-                    <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-sm font-semibold">Datos de tus amigos</p>
+                    <div
+                      className="space-y-3 rounded-3xl border p-4"
+                      style={{
+                        borderColor: `color-mix(in oklch, ${accent} 45%, transparent)`,
+                        background: `linear-gradient(160deg, color-mix(in oklch, ${accent} 16%, #1a1624), #17141f 70%)`,
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={accentFill(accent, accentButtonText)}>
+                          <UsersRound className="h-5 w-5" />
+                        </span>
+                        <div className="leading-tight">
+                          <p className="text-base font-bold">Datos de tus amigos</p>
+                          <p className="text-xs text-white/60">Nombre, apellido y teléfono</p>
+                        </div>
+                      </div>
                       {friends.map((f, i) => {
                         const upd = (patch: Partial<typeof f>) => setFriends((cur) => cur.map((x, j) => (j === i ? { ...x, ...patch } : x)));
                         return (
-                          <div key={i} className="grid gap-3 sm:grid-cols-3">
-                            <Input maxLength={40} value={f.firstName} onChange={(e) => upd({ firstName: e.target.value })} className="border-white/10 bg-white/[0.04] text-white" placeholder={`Nombre (amigo ${i + 1})`} />
-                            <Input maxLength={40} value={f.lastName} onChange={(e) => upd({ lastName: e.target.value })} className="border-white/10 bg-white/[0.04] text-white" placeholder="Apellido" />
-                            <Input type="tel" inputMode="tel" value={f.phone} onChange={(e) => upd({ phone: limpiarTelefono(e.target.value) })} className="border-white/10 bg-white/[0.04] text-white" placeholder="Teléfono" />
+                          <div key={i} className="space-y-2.5 rounded-2xl border border-white/15 bg-white/[0.07] p-3.5">
+                            <p className="flex items-center gap-2 text-sm font-semibold">
+                              <span className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold" style={accentFill(accent, accentButtonText)}>{i + 1}</span>
+                              Amigo {i + 1}
+                            </p>
+                            <div className="grid gap-2.5 sm:grid-cols-3">
+                              <Input maxLength={40} value={f.firstName} onChange={(e) => upd({ firstName: e.target.value })} className="border-white/15 bg-black/30 text-white" placeholder="Nombre" />
+                              <Input maxLength={40} value={f.lastName} onChange={(e) => upd({ lastName: e.target.value })} className="border-white/15 bg-black/30 text-white" placeholder="Apellido" />
+                              <Input type="tel" inputMode="tel" value={f.phone} onChange={(e) => upd({ phone: limpiarTelefono(e.target.value) })} className="border-white/15 bg-black/30 text-white" placeholder="Teléfono" />
+                            </div>
                           </div>
                         );
                       })}
