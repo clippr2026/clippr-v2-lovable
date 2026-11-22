@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { ElegirImagen } from "@/components/ui/elegir-imagen";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { SERVICE_COMMISSION_KEY } from "@/lib/service-pricing";
-import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab } from "@/components/settings/service-config-tabs";
+import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab, type TabSaveApi } from "@/components/settings/service-config-tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -669,6 +669,7 @@ function PriceEditorModal({
   // Cambios sin guardar: se compara el formulario contra cómo estaba al abrir.
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [tabApi, setTabApi] = useState<TabSaveApi | null>(null);
   useEffect(() => {
     if (open) {
       setSnapshot(JSON.stringify(form));
@@ -680,8 +681,11 @@ function PriceEditorModal({
   }, [open]);
   if (!open) return null;
   const dirty = snapshot !== null && JSON.stringify(form) !== snapshot;
+  const onTab = isService && tab !== "datos";
+  const activeDirty = onTab ? !!tabApi?.dirty : dirty;
+  const activeSaving = onTab ? !!tabApi?.saving : saving;
   const handleClose = () => {
-    if (dirty && !saving) setConfirmExit(true);
+    if ((dirty || !!tabApi?.dirty) && !saving && !activeSaving) setConfirmExit(true);
     else onClose();
   };
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : "producto"}`;
@@ -790,8 +794,8 @@ function PriceEditorModal({
     // (z-40, sticky/fixed, hermanos de <main> a nivel raíz). Mismo fix que
     // "Agregar profesional" (commit a084001). padding-bottom reserva el
     // alto real del nav inferior (3.5rem + safe-area en mobile).
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
+      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
@@ -815,7 +819,10 @@ function PriceEditorModal({
               <button
                 key={id}
                 type="button"
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  if (tabApi?.dirty) return toast.error("Guardá o cancelá los cambios de esta pestaña antes de cambiar");
+                  setTab(id);
+                }}
                 className={cn(
                   "h-11 shrink-0 rounded-full px-4 text-base font-semibold transition",
                   tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65",
@@ -841,9 +848,9 @@ function PriceEditorModal({
           {isService && tab !== "datos" ? (
             serviceId ? (
               tab === "profesionales" ? (
-                <ServiceProfessionalsTab serviceId={serviceId} listPrice={Number(form.price) || 0} cashPrice={Number(form.cashPriceInput) || 0} />
+                <ServiceProfessionalsTab serviceId={serviceId} listPrice={Number(form.price) || 0} cashPrice={Number(form.cashPriceInput) || 0} onRegister={setTabApi} />
               ) : tab === "horarios" ? (
-                <ServiceScheduleTab serviceId={serviceId} />
+                <ServiceScheduleTab serviceId={serviceId} onRegister={setTabApi} />
               ) : (
                 <ServicePromoTab serviceId={serviceId} serviceName={form.name} listPrice={Number(form.price) || 0} />
               )
@@ -1149,32 +1156,34 @@ function PriceEditorModal({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 px-5 pb-2.5 pt-3 border-t border-white/5">
+        <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3">
           {mode === "edit" && onDelete && (
-          <button
-            onClick={onDelete}
-            disabled={saving}
-            className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2.5 text-sm">
-            Eliminar
-          </button>)}
+            <button
+              onClick={onDelete}
+              disabled={saving}
+              className="h-12 rounded-2xl border border-red-400/50 bg-red-500/25 px-4 text-base font-bold text-red-100 shadow-[0_4px_14px_-4px_rgba(239,68,68,0.5)] transition active:scale-95 disabled:opacity-50"
+            >
+              Eliminar
+            </button>
+          )}
           <button
             onClick={handleClose}
             disabled={saving}
-            className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm">
+            className="h-12 rounded-2xl border border-white/25 bg-white/15 px-4 text-base font-bold text-white shadow-[0_4px_14px_-4px_rgba(0,0,0,0.6)] transition active:scale-95 disabled:opacity-50"
+          >
             Cancelar
           </button>
           <button
-            onClick={onSave}
-            disabled={saving || !form.name.trim() || !dirty}
+            onClick={() => (onTab ? void tabApi?.save() : onSave())}
+            disabled={activeSaving || !activeDirty || (!onTab && !form.name.trim())}
             className={cn(
-              "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
-              dirty && !saving
-                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_24px_-6px_rgba(124,92,255,0.8)]"
-                : "bg-white/[0.06] text-white/35 ring-1 ring-white/10",
-              !form.name.trim() && "opacity-50",
+              "h-12 flex-1 rounded-2xl px-4 text-base font-bold transition active:scale-95",
+              activeDirty && !activeSaving
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_6px_22px_-4px_rgba(124,92,255,0.9)]"
+                : "border border-white/10 bg-white/[0.04] text-white/30",
             )}
           >
-            {saving ? "Guardando…" : "Guardar"}
+            {activeSaving ? "Guardando…" : "Guardar"}
           </button>
         </div>
       </div>
@@ -3193,7 +3202,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
+            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
             onClick={() => {
               setCategoryManagerOpen(false);
               setNewCategoryManagerInput("");
@@ -3201,7 +3210,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex w-full max-w-sm flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+              className="flex w-full max-w-sm flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
             >
               <div className="shrink-0 space-y-4 border-b border-white/5 p-4">
                 <div className="flex items-center justify-between">

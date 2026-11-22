@@ -46,6 +46,17 @@ const cardCls = "rounded-2xl border border-white/10 bg-white/[0.05] p-3.5";
 const saveBtnCls =
   "h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] disabled:opacity-60";
 
+// Estado de guardado de una pestaña, que el botón Guardar de la ventana del servicio usa.
+export type TabSaveApi = { dirty: boolean; saving: boolean; save: () => Promise<void> };
+function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined, dirty: boolean, saving: boolean, save: () => Promise<void>) {
+  const saveRef = React.useRef(save);
+  saveRef.current = save;
+  React.useEffect(() => {
+    register?.({ dirty, saving, save: () => saveRef.current() });
+  }, [register, dirty, saving]);
+  React.useEffect(() => () => register?.(null), [register]);
+}
+
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
 
 function useBranchEmployees() {
@@ -121,12 +132,13 @@ const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   effectivePrice: "",
 };
 
-export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { serviceId: string; listPrice: number; cashPrice: number }) {
+export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onRegister }: { serviceId: string; listPrice: number; cashPrice: number; onRegister?: (api: TabSaveApi | null) => void }) {
   const { employees, loading, businessId } = useBranchEmployees();
   const [draft, setDraft] = React.useState<Record<string, StaffDraft>>({});
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [serviceComm, setServiceComm] = React.useState("");
+  const [snap, setSnap] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!businessId || loading) return;
@@ -153,6 +165,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { s
         };
       }
       setDraft(next);
+      setSnap(JSON.stringify(next));
       setReady(true);
     });
     return () => {
@@ -204,8 +217,11 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { s
     }
     setSaving(false);
     if (error || errorGeneral) return toast.error("No se pudo guardar: " + (error ?? errorGeneral));
+    setSnap(JSON.stringify(draft));
     toast.success("Profesionales guardados");
   }
+
+  useRegisterTab(onRegister, snap !== null && JSON.stringify(draft) !== snap, saving, save);
 
   if (loading || !ready) return <Loading />;
   if (employees.length === 0) return <Empty>No hay profesionales activos en esta sucursal.</Empty>;
@@ -317,9 +333,6 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { s
           </div>
         );
       })}
-      <button type="button" onClick={() => void save()} disabled={saving} className={saveBtnCls}>
-        {saving ? "Guardando…" : "Guardar profesionales"}
-      </button>
     </div>
   );
 }
@@ -359,7 +372,7 @@ function DaysEditor({ value, onChange }: { value: ServiceWindowMap; onChange: (n
   );
 }
 
-export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
+export function ServiceScheduleTab({ serviceId, onRegister }: { serviceId: string; onRegister?: (api: TabSaveApi | null) => void }) {
   const { employees, loading, businessId } = useBranchEmployees();
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -368,6 +381,8 @@ export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
   const [offers, setOffers] = React.useState<Record<string, boolean>>({});
   const [empCustom, setEmpCustom] = React.useState<Record<string, boolean>>({});
   const [empDays, setEmpDays] = React.useState<Record<string, ServiceWindowMap>>({});
+  const [snap, setSnap] = React.useState<string | null>(null);
+  const curSnap = JSON.stringify({ svcCustom, svcDays, offers, empCustom, empDays });
 
   React.useEffect(() => {
     if (!businessId || loading) return;
@@ -390,6 +405,7 @@ export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
       setOffers(o);
       setEmpCustom(c);
       setEmpDays(d);
+      setSnap(JSON.stringify({ svcCustom: !!cfg.service[serviceId], svcDays: fullWeek(cfg.service[serviceId]), offers: o, empCustom: c, empDays: d }));
       setReady(true);
     });
     return () => {
@@ -416,8 +432,11 @@ export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
     });
     setSaving(false);
     if (error) return toast.error("No se pudo guardar: " + error);
+    setSnap(curSnap);
     toast.success("Horarios guardados");
   }
+
+  useRegisterTab(onRegister, snap !== null && curSnap !== snap, saving, save);
 
   if (loading || !ready) return <Loading />;
   const doers = employees.filter((e) => offers[e.id]);
@@ -458,9 +477,6 @@ export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
           ) : null}
         </div>
       ))}
-      <button type="button" onClick={() => void save()} disabled={saving} className={saveBtnCls}>
-        {saving ? "Guardando…" : "Guardar horarios"}
-      </button>
     </div>
   );
 }
