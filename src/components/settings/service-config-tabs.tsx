@@ -43,7 +43,7 @@ const timeCls =
 const inputCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
 const cardCls =
-  "rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)]";
+  "rounded-2xl border border-white/20 bg-white/[0.08] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)]";
 const saveBtnCls =
   "h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] disabled:opacity-60";
 

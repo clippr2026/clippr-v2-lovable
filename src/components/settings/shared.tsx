@@ -24,6 +24,7 @@ export function SectionCard({
   children,
   id,
   clippr = false,
+  className,
 }: {
   /** Estilo Clippr: tarjeta con luz y título en minúscula, blanco y semibold. */
   clippr?: boolean;
@@ -35,11 +36,12 @@ export function SectionCard({
   headerRight?: React.ReactNode;
   children: React.ReactNode;
   id?: string;
+  className?: string;
 }) {
   return (
     <div
       id={id}
-      className={clippr ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4" : "glass rounded-2xl p-4 ring-1 ring-white/5"}
+      className={cn(clippr ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4" : "glass rounded-2xl p-4 ring-1 ring-white/5", className)}
       style={
         clippr
           ? {
