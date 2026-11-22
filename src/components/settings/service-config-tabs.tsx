@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { CalendarDays, CalendarRange, Gauge, KeyRound, Loader2, Tag, Trash2, Users, Wallet } from "lucide-react";
+import { CalendarDays, CalendarRange, Gauge, KeyRound, Loader2, Percent, Tag, Trash2, UserRound, Users, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -300,7 +300,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
         return (
           <div key={e.id} className={cardCls}>
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 truncate text-lg font-semibold text-white">{e.name}</div>
+              <div className="min-w-0 truncate font-semibold text-white"><Titulo icon={UserRound} tono="sky">{e.name}</Titulo></div>
               <div className="flex items-center gap-2.5">
                 <span className={cn("text-base font-medium", d.offers ? "text-emerald-300" : "text-white/50")}>{d.offers ? "Lo hace" : "No lo hace"}</span>
                 <Toggle on={d.offers} onChange={(v) => update(e.id, { offers: v })} />
@@ -309,6 +309,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
             {d.offers ? (
               <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
                 <div>
+                  <div className="mb-3 font-semibold text-white"><Titulo icon={Wallet} tono="emerald">Precio</Titulo></div>
                   <div className="mb-2.5">
                     <SelectClippr
                       opciones={[
@@ -356,7 +357,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-4">
-                  <span className="text-base font-semibold text-white">Genera comisión</span>
+                  <span className="font-semibold text-white"><Titulo icon={Percent} tono="violet">Genera comisión</Titulo></span>
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg text-white/75">{d.generates ? "Sí" : "No"}</span>
                     <Toggle on={d.generates} onChange={(v) => update(e.id, { generates: v })} />
