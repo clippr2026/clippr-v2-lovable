@@ -355,7 +355,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                     </p>
                   )}
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-4">
                   <span className="text-base font-semibold text-white">Genera comisión</span>
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg text-white/75">{d.generates ? "Sí" : "No"}</span>
