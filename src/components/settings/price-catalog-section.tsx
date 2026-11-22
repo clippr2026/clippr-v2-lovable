@@ -1334,6 +1334,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   useUnsavedGuard(pendingItems.length > 0 || pendingDeletes.size > 0);
+  // Todo se guarda solo un instante después de cambiarlo. El botón "Guardar cambios"
+  // solo aparece si algo sigue sin guardarse pasados unos segundos (por ejemplo, sin conexión).
+  const hasPending = pendingItems.length > 0 || pendingDeletes.size > 0;
+  const [saveStalled, setSaveStalled] = useState(false);
+  useEffect(() => {
+    if (!hasPending) {
+      setSaveStalled(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSaveStalled(true), 5000);
+    return () => window.clearTimeout(t);
+  }, [hasPending, pendingItems, pendingDeletes]);
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
   const [customCatalogCategories, setCustomCatalogCategories] = useState<
     string[]
@@ -2504,6 +2516,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setModalOpen(false);
     toast.success(isService ? "Servicio eliminado" : "Producto eliminado");
     markSettingsDirty();
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("clippr:save-settings", {
+          detail: { section: isService ? "servicios" : "catalogo", silent: true },
+        }),
+      );
+    }, 150);
   }
 
   // Reordenar ítems dentro de la categoría activa (drag&drop con Pointer
@@ -3433,7 +3452,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         document.body,
       )}
       <FloatingSaveButton
-        visible={pendingItems.length > 0 || pendingDeletes.size > 0}
+        visible={hasPending && saveStalled}
         onClick={() =>
           window.dispatchEvent(
             new CustomEvent("clippr:save-settings", { detail: { section: isService ? "servicios" : "catalogo", silent: false } }),
