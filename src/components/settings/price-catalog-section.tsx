@@ -3339,7 +3339,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       {catModal &&
         typeof document !== "undefined" &&
         createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
               Renombrar categoría
@@ -3424,7 +3424,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       {moveItemsModal &&
         typeof document !== "undefined" &&
         createPortal(
-        <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[10060] grid place-items-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
             <div>
               <div className="font-display font-semibold text-base">

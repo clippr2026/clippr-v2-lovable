@@ -328,7 +328,7 @@ export function ConfirmDialog({
     // z-[10000]: por encima de los modales de edición (z-[9999], p.ej.
     // "Editar servicio"), que quedan abiertos de fondo cuando este diálogo
     // se dispara desde adentro de ellos.
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
         <div>
           <div className="font-display font-semibold text-base text-foreground">
