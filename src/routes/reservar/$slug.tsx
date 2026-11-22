@@ -1228,7 +1228,7 @@ function PublicBookingPage() {
                 .some(
                   (p) =>
                     isPromotionCurrentlyValid(p, new Date()) &&
-                    isPromotionApplicable(p, { serviceId: deepService.id, category: deepService.category ?? null }),
+                    isPromotionApplicable(p, { serviceId: deepService.id, category: deepService.category ?? null, allowGroup: true }),
                 );
             if (serviceValid && professionalValid) {
               setStep(hasPromoStepNow ? "promo" : "datetime");
@@ -2402,6 +2402,7 @@ function PublicBookingPage() {
                           serviceId: service.id,
                           employeeId: employee.id,
                           category: service.category ?? null,
+                          allowGroup: true,
                         }),
                       );
                     const promoPrice = promo && promoApplies ? applyPromotionDiscount(totals.listPrice, promo) : null;
