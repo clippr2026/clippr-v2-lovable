@@ -47,8 +47,8 @@ const saveBtnCls =
   "h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] disabled:opacity-60";
 
 // Estado de guardado de una pestaña, que el botón Guardar de la ventana del servicio usa.
-export type TabSaveApi = { dirty: boolean; saving: boolean; save: () => Promise<void> };
-function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined, dirty: boolean, saving: boolean, save: () => Promise<void>) {
+export type TabSaveApi = { dirty: boolean; saving: boolean; save: () => Promise<unknown> };
+function useRegisterTab(register: ((api: TabSaveApi | null) => void) | undefined, dirty: boolean, saving: boolean, save: () => Promise<unknown>) {
   const saveRef = React.useRef(save);
   saveRef.current = save;
   React.useEffect(() => {
