@@ -1939,7 +1939,7 @@ function PublicBookingPage() {
                 {professionalChosen && promoSavings <= 0 && appliedPromotion && (
                   <span className="text-white/40"> (la promo no aplica a tu selección)</span>
                 )}
-                {groupSize > 1 && groupMode === "different" && new Set(groupEmployeeIds.map((id) => durationFor(id))).size > 1 ? null : (
+                {groupSize > 1 ? null : (
                   <>
                     {" · "}
                     <span className="font-semibold text-white">Duración: {professionalChosen ? `${totalDuration} min` : "— min"}</span>
