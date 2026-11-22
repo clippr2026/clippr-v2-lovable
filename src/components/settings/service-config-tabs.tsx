@@ -809,13 +809,15 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice }: { service
         </div>
 
         <div className={cardCls}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-lg font-semibold text-white">Vigencia</div>
-              <div className="text-lg text-white/70">{draft.hasVigencia ? "Solo en estas fechas" : "Siempre vigente"}</div>
-            </div>
-            <Toggle on={draft.hasVigencia} onChange={(v) => set({ hasVigencia: v })} />
-          </div>
+          <div className="mb-2 text-lg font-semibold text-white">Vigencia</div>
+          <SelectClippr
+            opciones={[
+              { id: "siempre", label: "Siempre vigente" },
+              { id: "fechas", label: "Con fechas" },
+            ]}
+            valor={draft.hasVigencia ? "fechas" : "siempre"}
+            onChange={(v) => set({ hasVigencia: v === "fechas" })}
+          />
           {draft.hasVigencia ? (
             <div className="mt-3 space-y-3">
               <div className="grid grid-cols-2 gap-2.5">
