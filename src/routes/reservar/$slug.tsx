@@ -2296,6 +2296,9 @@ function PublicBookingPage() {
                   <p className="text-sm text-white/70">Elegí {groupSize} profesionales distintos, uno por persona.</p>
                   {employeesForSelectedServices.map((employee) => {
                     const on = groupEmployeeIds.includes(employee.id);
+                    const slotIdx = on ? groupEmployeeIds.indexOf(employee.id) : groupEmployeeIds.length;
+                    const forWho =
+                      slotIdx >= groupSize ? null : slotIdx === 0 ? "Para vos" : groupSize > 2 ? `Para tu amigo ${slotIdx}` : "Para tu amigo";
                     return (
                       <button
                         key={employee.id}
@@ -2313,7 +2316,10 @@ function PublicBookingPage() {
                         >
                           {on && <CheckCircle2 className="h-3.5 w-3.5" />}
                         </span>
-                        <span className="font-medium">{employee.full_name}</span>
+                        <span className="min-w-0">
+                          <span className="block font-medium">{employee.full_name}</span>
+                          {forWho ? <span className="block text-xs text-white/50">{forWho}</span> : null}
+                        </span>
                       </button>
                     );
                   })}
