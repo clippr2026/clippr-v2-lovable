@@ -790,8 +790,8 @@ function PriceEditorModal({
     // (z-40, sticky/fixed, hermanos de <main> a nivel raíz). Mismo fix que
     // "Agregar profesional" (commit a084001). padding-bottom reserva el
     // alto real del nav inferior (3.5rem + safe-area en mobile).
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
+      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
@@ -1149,14 +1149,7 @@ function PriceEditorModal({
           )}
         </div>
 
-        {isService && tab !== "datos" ? (
-          <div className="flex shrink-0 items-center gap-2 border-t border-white/5 px-5 py-4">
-            <button onClick={handleClose} className="h-12 w-full rounded-full bg-white/[0.06] text-base font-semibold text-white ring-1 ring-white/10">
-              Cerrar
-            </button>
-          </div>
-        ) : (
-        <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-t border-white/5">
+        <div className="flex shrink-0 items-center gap-2 px-5 pb-2.5 pt-3 border-t border-white/5">
           {mode === "edit" && onDelete && (
           <button
             onClick={onDelete}
@@ -1184,7 +1177,6 @@ function PriceEditorModal({
             {saving ? "Guardando…" : "Guardar"}
           </button>
         </div>
-        )}
       </div>
       {confirmExit && (
         <div className="fixed inset-0 z-[10050] grid place-items-center bg-black/70 p-4">
@@ -3201,7 +3193,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         typeof document !== "undefined" &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
+            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
             onClick={() => {
               setCategoryManagerOpen(false);
               setNewCategoryManagerInput("");
@@ -3209,7 +3201,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex w-full max-w-sm flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+              className="flex w-full max-w-sm flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_50%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)] max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
             >
               <div className="shrink-0 space-y-4 border-b border-white/5 p-4">
                 <div className="flex items-center justify-between">
