@@ -830,33 +830,6 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
         </div>
 
         <div className={cardCls}>
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-semibold text-white"><Titulo icon={KeyRound} tono="violet">Pide un código</Titulo></span>
-            <Toggle on={draft.requiresCode} onChange={(v) => set({ requiresCode: v })} />
-          </div>
-          {draft.requiresCode ? <input value={draft.code} onChange={(e) => set({ code: e.target.value.toUpperCase() })} placeholder="CÓDIGO" className={cn(inputCls, "mt-3 uppercase")} /> : null}
-        </div>
-
-        <div className={cardCls}>
-          <div className="mb-3 font-semibold text-white"><Titulo icon={Users} tono="sky">Profesionales que la usan</Titulo></div>
-          <div className="flex flex-wrap gap-2">
-            {employees.map((e) => {
-              const on = draft.employeeIds.includes(e.id);
-              return (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => set({ employeeIds: on ? draft.employeeIds.filter((x) => x !== e.id) : [...draft.employeeIds, e.id] })}
-                  className={cn("h-11 rounded-full px-4 text-base font-semibold ring-1 transition", on ? "bg-violet-500/25 text-white ring-violet-300/50" : "bg-white/[0.05] text-white/60 ring-white/10")}
-                >
-                  {e.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className={cardCls}>
           <div className="mb-3 font-semibold text-white"><Titulo icon={CalendarRange} tono="amber">Vigencia</Titulo></div>
           <SelectClippr
             opciones={[
@@ -897,6 +870,33 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
               <DaysPicker value={draft.days} closed={closed} onChange={(k, enabled) => setDay(k, { enabled })} />
             </div>
           ) : null}
+        </div>
+
+        <div className={cardCls}>
+          <div className="mb-3 font-semibold text-white"><Titulo icon={Users} tono="sky">Profesionales que la usan</Titulo></div>
+          <div className="flex flex-wrap gap-2">
+            {employees.map((e) => {
+              const on = draft.employeeIds.includes(e.id);
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => set({ employeeIds: on ? draft.employeeIds.filter((x) => x !== e.id) : [...draft.employeeIds, e.id] })}
+                  className={cn("h-11 rounded-full px-4 text-base font-semibold ring-1 transition", on ? "bg-violet-500/25 text-white ring-violet-300/50" : "bg-white/[0.05] text-white/60 ring-white/10")}
+                >
+                  {e.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={cardCls}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-semibold text-white"><Titulo icon={KeyRound} tono="violet">Pide un código</Titulo></span>
+            <Toggle on={draft.requiresCode} onChange={(v) => set({ requiresCode: v })} />
+          </div>
+          {draft.requiresCode ? <input value={draft.code} onChange={(e) => set({ code: e.target.value.toUpperCase() })} placeholder="CÓDIGO" className={cn(inputCls, "mt-3 uppercase")} /> : null}
         </div>
 
         <div className={cardCls}>
