@@ -317,27 +317,17 @@ export function computeCommissionAmount(
 ): CommissionBreakdown {
   let pctAmount = 0;
   let fixedAmount = 0;
-  let remainderBase = 0;
-  let remainderCount = 0;
   for (const item of items) {
     const qty = Number(item.qty ?? 1) || 1;
     const baseLine = commissionBaseForLine(item, qty);
     const cfg = resolveServiceCommission(item.serviceId, employeeId, commissionsMap);
+    // La comisión se define por servicio (y por profesional dentro del servicio). Sin comisión cargada
+    // para ese servicio no hay comisión: ya no se usa el % general de la ficha de Equipo.
     if (cfg) {
       const val = Number(cfg.value) || 0;
       if (cfg.mode === "fixed") fixedAmount += val;
       else pctAmount += baseLine * (val / 100);
-    } else if (!item.isCatalog) {
-      // Solo servicios sin override caen al % general — un producto sin
-      // override activo queda directamente en $0 para esa línea, nunca
-      // entra acá.
-      remainderBase += baseLine;
-      remainderCount += 1;
     }
-  }
-  if (remainderCount > 0) {
-    const pct = Number(fallback.commissionPct ?? 0);
-    if (pct > 0) pctAmount += remainderBase * (pct / 100);
   }
   return { pctAmount: Math.round(pctAmount), fixedAmount: Math.round(fixedAmount) };
 }

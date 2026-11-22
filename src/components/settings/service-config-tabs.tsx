@@ -168,7 +168,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
 
-type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; effPrice: string; commMode: "percent" | "fixed"; commValue: string; ownComm: boolean; generalPct: string };
+type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; effPrice: string; commMode: "percent" | "fixed"; commValue: string; ownComm: boolean };
 
 const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
@@ -211,7 +211,6 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
           commMode: cm?.mode === "fixed" && String(cm?.value ?? "").trim() !== "" ? "fixed" : "percent",
           commValue: cm?.value ?? "",
           ownComm: !(cm as { noCommission?: boolean } | undefined)?.noCommission && String(cm?.value ?? "").trim() !== "",
-          generalPct: e.commissionPct == null ? "" : String(e.commissionPct),
         };
       }
       setDraft(next);
@@ -278,10 +277,6 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
           const { error: enErr } = await supabase.from("employees").update({ commission_enabled: true }).eq("id", e.id);
           if (enErr) errorGeneral = enErr.message;
         }
-        const next = d.generalPct.trim() === "" ? null : Number(d.generalPct.replace(",", "."));
-        if (next === e.commissionPct || (next != null && !Number.isFinite(next))) continue;
-        const { error: upErr } = await supabase.from("employees").update({ commission_pct: next }).eq("id", e.id);
-        if (upErr) errorGeneral = upErr.message;
       }
     }
     setSaving(false);
@@ -398,7 +393,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                       </div>
                     ) : !serviceComm ? (
                       <p className="mt-2 text-lg text-amber-200">
-                        {d.generalPct.trim() ? `El servicio no tiene comisión: usa la general (${d.generalPct}%).` : "El servicio no tiene comisión: no gana nada acá."}
+                        El servicio no tiene comisión: este profesional no gana nada hasta que la cargues en Datos o elijas Propia.
                       </p>
                     ) : null}
                   </div>

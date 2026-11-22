@@ -13,10 +13,10 @@ describe("comisión del servicio", () => {
   it("sin comisión propia usa la del servicio", () => {
     expect(resolveServiceCommission("s1", "e2", map)?.value).toBe("40");
   });
-  it("servicio sin comisión propia ni del servicio cae al % general del profesional", () => {
+  it("servicio sin comisión propia ni del servicio no genera comisión (ya no se usa el % general)", () => {
     expect(resolveServiceCommission("s2", "e2", map)).toBeNull();
     const r = computeCommissionAmount([{ serviceId: "s2", amount: 1000 } as any], "e2", map, { commissionPct: 50 });
-    expect(r.pctAmount).toBe(500);
+    expect(r.pctAmount).toBe(0);
   });
   it("calcula con la del servicio", () => {
     const r = computeCommissionAmount([{ serviceId: "s1", amount: 1000 } as any], "e2", map, { commissionPct: 50 });
