@@ -718,17 +718,16 @@ function PublicBookingPage() {
     const empty = { days: null as typeof baseSlots | null, at: new Map<number, string[]>() };
     if (groupSize < 2 || groupMode !== "different") return empty;
     const at = new Map<number, string[]>();
-    // Los horarios salen de la duración más larga entre los elegidos: si uno
-    // tarda 60 y otro 40, se ofrece cada 60 y los dos entran seguro.
+    // Cada profesional con su propia duración y su propia grilla de horarios: solo
+    // quedan los horarios en que todos los elegidos tienen turno disponible.
     const chosen = employeesForSelectedServices.filter((e) => groupEmployeeIds.includes(e.id));
-    const groupDuration = Math.max(totalDuration, ...chosen.map((e) => durationFor(e.id)));
     const perEmployee = chosen.map((employee) =>
       buildSlots(
         schedule,
         appointments,
         [employee],
         employee.id,
-        groupDuration,
+        durationFor(employee.id),
         Math.max(1, reservationSettings.maxAdvance || 10),
         employeeSchedules,
         businessSpecial,
