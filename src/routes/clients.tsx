@@ -1603,7 +1603,13 @@ function ClientsPage() {
 
   // Search + sorting (nombre/recientes/gasto) all happen server-side now.
   // La ficha genérica ("Sin agendar") junta ventas de personas que no se agendaron: no es un cliente.
-  const filtered = useMemo(() => (genericos && genericos.size > 0 ? clients.filter((c) => !genericos.has(c.id)) : clients), [clients, genericos]);
+  const filtered = useMemo(() => {
+    const base = genericos && genericos.size > 0 ? clients.filter((c) => !genericos.has(c.id)) : clients;
+    if (sort !== "gasto" || !grupos) return base;
+    // El monto que se ve en cada tarjeta sale de los grupos (visita = servicio): se ordena por ese mismo monto.
+    const shown = (c: ClientListRow) => Number(grupos.porCliente.get(c.id)?.gasto ?? c.spent);
+    return [...base].sort((a, b) => shown(b) - shown(a));
+  }, [clients, genericos, sort, grupos]);
 
   const counts = useMemo(
     () => ({
