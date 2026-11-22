@@ -324,7 +324,6 @@ function PermissionToggleRow({
   icon: Icon,
   title,
   description,
-  tone = "violet",
   on,
   onChange,
 }: {
@@ -342,7 +341,7 @@ function PermissionToggleRow({
         on ? "bg-white/[0.07] ring-white/20" : "bg-white/[0.03] ring-white/10",
       )}
     >
-      <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl ring-1", TONE_CLS[tone])}>
+      <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", TONE_CLS.violet)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
@@ -3175,11 +3174,7 @@ export function EquipoSection() {
   function renderAccessFormCore(opts?: { emailAction?: React.ReactNode }) {
     return (
       <>
-        <div className="space-y-3 rounded-xl bg-sky-400/[0.06] p-3.5 ring-1 ring-sky-300/20">
-        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-sky-200">
-          <Mail className="h-3.5 w-3.5" />
-          Datos del acceso
-        </div>
+        <DlgSection title="Datos del acceso" icon={Mail} tone="sky">
         <Field label="Estado">
           <select
             value={accessForm.status}
@@ -3224,14 +3219,14 @@ export function EquipoSection() {
           )}
         </div>
 
-        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
+        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-sm text-muted-foreground flex items-start gap-2">
           <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
           <span>
             Recibe una invitación por mail para crear su contraseña.
           </span>
         </div>
 
-        </div>
+        </DlgSection>
 
         {/* Vista previa de lo que va a poder ver esta persona con el
             rol/permisos elegidos arriba. */}
@@ -4059,7 +4054,7 @@ export function EquipoSection() {
 
               {dlgTab === "horarios" && (
                 <div className="space-y-4">
-                  <div className="space-y-3 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10">
+                  <DlgSection title="Días" icon={CalendarPlus} tone="violet">
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     return (
@@ -4183,7 +4178,7 @@ export function EquipoSection() {
                       </div>
                     );
                   })}
-                  </div>
+                  </DlgSection>
                 </div>
               )}
 
@@ -4216,10 +4211,8 @@ export function EquipoSection() {
                     );
 
                     return (
-                      <div
-                        key={kind}
-                        className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden"
-                      >
+                      <DlgSection key={kind} title="Productos" icon={DollarSign} tone="emerald">
+                      <div className="overflow-hidden rounded-2xl bg-black/20 ring-1 ring-white/10">
                         {Object.keys(grouped).length === 0 ? (
                           <div className="p-4 text-sm text-muted-foreground">
                             No hay {isServiceKind ? "servicios" : "productos"}{" "}
@@ -4614,6 +4607,7 @@ export function EquipoSection() {
                           </div>
                         )}
                       </div>
+                      </DlgSection>
                     );
                   })}
                 </div>
@@ -4690,7 +4684,7 @@ export function EquipoSection() {
             </div>
 
             <div
-              className="flex shrink-0 items-center gap-2 px-4 pt-3 border-t border-white/5"
+              className="flex shrink-0 items-center gap-2 border-t border-white/10 px-4 pt-3"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
               {editingEmp ? (
@@ -4698,13 +4692,9 @@ export function EquipoSection() {
                   type="button"
                   onClick={() => void startRemoveEmp(editingEmp)}
                   disabled={saving || checkingRemove || deletingId === editingEmp.id}
-                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-red-500/15 px-5 text-base font-semibold text-red-100 ring-1 ring-red-400/40 transition disabled:opacity-50"
+                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/25 px-4 text-base font-bold text-red-100 shadow-[0_4px_14px_-4px_rgba(239,68,68,0.5)] transition active:scale-95 disabled:opacity-50"
                 >
-                  {deletingId === editingEmp.id || checkingRemove ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
+                  {deletingId === editingEmp.id || checkingRemove ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Eliminar
                 </button>
               ) : null}
@@ -4718,7 +4708,7 @@ export function EquipoSection() {
               <button
                 onClick={saveProfessional}
                 disabled={saving}
-                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-semibold text-white shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-bold text-white shadow-[0_6px_22px_-4px_rgba(124,92,255,0.9)] transition active:scale-95 disabled:opacity-50"
               >
                 {saving ? "Guardando…" : "Guardar"}
               </button>
