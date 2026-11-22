@@ -365,8 +365,8 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   <div>
                     <SelectClippr
                       opciones={[
-                        { id: "servicio", label: serviceComm ? `Del servicio (${serviceComm})` : "Del servicio" },
-                        { id: "propia", label: "Propia" },
+                        { id: "servicio", label: "Comisión del servicio" },
+                        { id: "propia", label: "Comisión propia" },
                       ]}
                       valor={d.ownComm ? "propia" : "servicio"}
                       onChange={(v) => update(e.id, { ownComm: v === "propia" })}
@@ -389,11 +389,13 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                           className={inputCls}
                         />
                       </div>
-                    ) : !serviceComm ? (
+                    ) : serviceComm ? (
+                      <p className="mt-2 text-lg text-white/70">{serviceComm}</p>
+                    ) : (
                       <p className="mt-2 text-lg text-amber-200">
                         El servicio no tiene comisión: este profesional no gana nada hasta que la cargues en Datos o elijas Propia.
                       </p>
-                    ) : null}
+                    )}
                   </div>
                 ) : null}
               </div>
