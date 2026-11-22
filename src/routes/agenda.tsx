@@ -2980,11 +2980,9 @@ const DayView = React.memo(function DayView({
       }),
     [data.appointments, date],
   );
-  // Día cerrado (Fase 5): los turnos de ese día NUNCA se borran ni se
-  // tocan en la base — acá solo se los saca de la vista operativa
-  // (grilla, ocupación). Siguen existiendo para historial/auditoría y
-  // quedan accesibles desde el detalle de "Días cerrados", no desde acá.
-  const visibleDayAppts = closure ? [] : dayAppts;
+  // Día cerrado: los turnos y bloqueos ya cargados se siguen viendo en la
+  // grilla (el cierre solo agrega el aviso y la capa rayada).
+  const visibleDayAppts = dayAppts;
   // Precompute each column's appointments + overlap layout once per data/day,
   // so dragging (which only updates dragPreview state) never recomputes this.
   const columnRender = React.useMemo(
