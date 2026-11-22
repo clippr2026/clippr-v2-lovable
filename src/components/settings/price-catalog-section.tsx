@@ -690,7 +690,24 @@ function PriceEditorModal({
   // precio, imagen...) sigue intacto, no se pierde nada.
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  // Cambios sin guardar: se compara el formulario contra cómo estaba al abrir.
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [confirmExit, setConfirmExit] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setSnapshot(JSON.stringify(form));
+      setConfirmExit(false);
+    } else {
+      setSnapshot(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   if (!open) return null;
+  const dirty = snapshot !== null && JSON.stringify(form) !== snapshot;
+  const handleClose = () => {
+    if (dirty && !saving) setConfirmExit(true);
+    else onClose();
+  };
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : "producto"}`;
   // Precio en efectivo: campo manual, sin %. Vacío = sin precio en efectivo
   // distinto (se usa el precio de lista tal cual en toda la app) — por eso
@@ -802,7 +819,7 @@ function PriceEditorModal({
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
           >
             ✕
@@ -1158,7 +1175,7 @@ function PriceEditorModal({
 
         {isService && tab !== "datos" ? (
           <div className="flex shrink-0 items-center gap-2 border-t border-white/5 px-5 py-4">
-            <button onClick={onClose} className="h-12 w-full rounded-full bg-white/[0.06] text-base font-semibold text-white ring-1 ring-white/10">
+            <button onClick={handleClose} className="h-12 w-full rounded-full bg-white/[0.06] text-base font-semibold text-white ring-1 ring-white/10">
               Cerrar
             </button>
           </div>
@@ -1172,23 +1189,52 @@ function PriceEditorModal({
             Eliminar
           </button>)}
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={saving}
             className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm">
             Cancelar
           </button>
           <button
             onClick={onSave}
-            disabled={saving || !form.name.trim()}
-            className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+            disabled={saving || !form.name.trim() || !dirty}
+            className={cn(
+              "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+              dirty && !saving
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_24px_-6px_rgba(124,92,255,0.8)]"
+                : "bg-white/[0.06] text-white/35 ring-1 ring-white/10",
+              !form.name.trim() && "opacity-50",
+            )}
           >
-            {saving
-              ? "Guardando…"
-              : `Guardar ${isService ? "servicio" : "producto"}`}
+            {saving ? "Guardando…" : "Guardar"}
           </button>
         </div>
         )}
       </div>
+      {confirmExit && (
+        <div className="fixed inset-0 z-[10050] grid place-items-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-[28px] border border-violet-400/45 bg-[#08070f] p-6 shadow-2xl">
+            <div className="text-lg font-semibold text-white">¿Salir sin guardar?</div>
+            <p className="mt-2 text-base text-white/70">Los cambios que hiciste se van a perder.</p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={() => setConfirmExit(false)}
+                className="h-12 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white"
+              >
+                Seguir editando
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmExit(false);
+                  onClose();
+                }}
+                className="h-12 rounded-full bg-white/[0.06] text-base font-semibold text-red-300 ring-1 ring-white/10"
+              >
+                Salir sin guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
