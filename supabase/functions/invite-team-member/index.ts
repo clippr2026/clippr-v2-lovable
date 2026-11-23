@@ -130,6 +130,13 @@ async function inviteOrCreate(
   return { data, error, withPassword: false };
 }
 
+// Una persona con perfil profesional (bolsa de trabajo) tiene una cuenta propia que no depende de ningún
+// negocio: al quitarle el acceso a una barbería NUNCA se borra su cuenta de Auth.
+async function hasProfessionalProfile(admin: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await admin.from("professional_profiles").select("user_id").eq("user_id", userId).maybeSingle();
+  return Boolean(data);
+}
+
 async function isAuthorized(
   admin: SupabaseClient,
   callerId: string,
@@ -315,7 +322,7 @@ Deno.serve(async (req) => {
           .limit(1);
 
         const belongsElsewhere = (otherMemberships?.length ?? 0) > 0;
-        if (!belongsElsewhere) {
+        if (!belongsElsewhere && !(await hasProfessionalProfile(admin, targetAuthId))) {
           await admin.from("profiles").delete().eq("id", targetAuthId).eq("business_id", businessId);
           const { error: authErr } = await admin.auth.admin.deleteUser(targetAuthId);
           if (!authErr) authDeleted = true;
@@ -482,7 +489,7 @@ Deno.serve(async (req) => {
             .neq("id", memberId)
             .limit(1);
           const belongsElsewhere = (otherMemberships?.length ?? 0) > 0;
-          if (!belongsElsewhere) {
+          if (!belongsElsewhere && !(await hasProfessionalProfile(admin, oldAuthId))) {
             await admin.from("profiles").delete().eq("id", oldAuthId).eq("business_id", businessId);
             const { error: delAuthErr } = await admin.auth.admin.deleteUser(oldAuthId);
             if (delAuthErr) console.log("[update email] no se pudo eliminar auth viejo:", delAuthErr.message);
