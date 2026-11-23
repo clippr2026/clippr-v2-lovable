@@ -541,7 +541,7 @@ function ApprovalModeCard({
               {([
                 ["auto", "Cobra directo en caja"],
                 ["manual", "Un admin aprueba cada cobro"],
-              ] as const).map(([id, label]) => (
+              ] as const).filter(([id]) => id !== (mode === "manual" ? "manual" : "auto")).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
@@ -549,15 +549,9 @@ function ApprovalModeCard({
                     onChangeMode(id);
                     setModeOpen(false);
                   }}
-                  className={cn(
-                    "flex h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left text-base font-semibold",
-                    (mode === "manual" ? "manual" : "auto") === id
-                      ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
-                      : "text-white/75",
-                  )}
+                  className="flex h-12 w-full items-center rounded-xl bg-white/[0.06] px-3 text-left text-base font-semibold text-white"
                 >
                   {label}
-                  {(mode === "manual" ? "manual" : "auto") === id && <CheckCircle2 className="h-5 w-5" />}
                 </button>
               ))}
             </div>
