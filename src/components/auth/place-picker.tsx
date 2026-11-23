@@ -65,7 +65,7 @@ export function PlacePicker({ place, onChange }: { place: Place | null; onChange
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="min-w-0 flex-1 text-center">
+      <button type="button" onClick={() => setOpen(true)} className="min-h-14 min-w-0 flex-1 touch-manipulation py-1 text-center">
         <span className="block text-sm text-white/55">Buscar cerca de</span>
         <span className="mx-auto flex max-w-full items-center justify-center gap-1 text-lg font-bold">
           <span className="truncate">{place?.label ?? "Elegí tu zona"}</span>
@@ -76,7 +76,7 @@ export function PlacePicker({ place, onChange }: { place: Place | null; onChange
       {open &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] bg-black/70" onClick={() => setOpen(false)}>
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70" onClick={() => setOpen(false)}>
             <div className="rounded-b-3xl bg-[#0d0b18] px-5 pb-6 pt-5 shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-xl font-bold">Buscar cerca de…</h2>
@@ -91,7 +91,6 @@ export function PlacePicker({ place, onChange }: { place: Place | null; onChange
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
                 <input
-                  autoFocus
                   value={q}
                   onChange={(e) => setQ(e.target.value.slice(0, 80))}
                   placeholder="Escribí una dirección o un lugar"
