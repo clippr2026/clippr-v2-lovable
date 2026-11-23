@@ -457,16 +457,6 @@ function BolsaPublicaPage() {
         </div>
       )}
 
-      {section === "bolsa" && !session && !authLoading && (
-        <div className={`${startCardCls} mt-5 p-4`} style={startCardStyle}>
-          <p className="text-base text-white/75">Para postularte o solicitar a un profesional, iniciá sesión o creá tu cuenta.</p>
-          <div className="mt-3 flex gap-2">
-            <Link to="/empezar" className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">Crear cuenta</Link>
-            <Link to="/login" className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-white/5 text-base font-semibold text-white/85 ring-1 ring-white/10">Iniciar sesión</Link>
-          </div>
-        </div>
-      )}
-
       {section === "bolsa" && (
       <>
 
