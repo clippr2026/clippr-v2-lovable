@@ -214,11 +214,15 @@ function LocalCard({ l }: { l: Local }) {
             <span>{h}</span>
           </div>
         ))}
-        {y != null && y >= 1 && <div className="text-base font-bold text-white/90">{y} {y === 1 ? "año" : "años"} de experiencia</div>}
+        {(y != null && y >= 1) || l.distKm != null ? (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-base font-bold text-white/90">{y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : ""}</span>
+            {l.distKm != null && <span className="shrink-0 text-base text-white/60">{formatKm(l.distKm)}</span>}
+          </div>
+        ) : null}
         <Link to="/negocio/$slug" params={{ slug: l.slug }} className="flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">
           Reservar
         </Link>
-        {l.distKm != null && <div className="text-center text-sm text-white/55">{formatKm(l.distKm)}</div>}
       </div>
     </div>
   );
