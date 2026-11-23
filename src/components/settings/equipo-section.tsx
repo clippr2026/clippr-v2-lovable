@@ -1741,7 +1741,7 @@ export function EquipoSection() {
         img.src = imageUrl;
       });
 
-      const size = 200;
+      const size = 400;
       const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
