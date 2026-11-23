@@ -1,10 +1,11 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Briefcase, ClipboardList, Home, Instagram, MapPin, MessageCircle, Star } from "lucide-react";
+import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell, startCardCls, startCardStyle } from "@/components/auth/start-shell";
+import { PostingDetails } from "@/components/auth/posting-details";
 
 export const Route = createFileRoute("/bolsa-de-trabajo")({
   head: () => ({
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/bolsa-de-trabajo")({
   component: BolsaPublicaPage,
 });
 
-type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null };
+type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null };
 type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
@@ -138,12 +139,8 @@ function BolsaPublicaPage() {
                     </div>
                     <Badge />
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-                    {p.job_type && <span className="inline-flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-violet-300" />{TYPES[p.job_type] ?? p.job_type}</span>}
-                    {p.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{p.zone}</span>}
-                  </div>
+                  <PostingDetails p={p} />
                   {p.description && <p className="text-base text-white/75">{p.description}</p>}
-                  {p.contact && (/^\d{8,15}$/.test(p.contact.replace(/\D/g, "")) ? <WhatsAppButton number={p.contact} /> : <div className="text-base text-white/70">{p.contact}</div>)}
                   {isPro && (
                     <button
                       type="button"
@@ -173,12 +170,8 @@ function BolsaPublicaPage() {
                   </div>
                   <Badge />
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-                  {p.price && <span className="font-semibold text-emerald-300">{p.price}</span>}
-                  {p.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{p.zone}</span>}
-                </div>
+                <PostingDetails p={p} />
                 {p.description && <p className="text-base text-white/75">{p.description}</p>}
-                {p.contact && (/^\d{8,15}$/.test(p.contact.replace(/\D/g, "")) ? <WhatsAppButton number={p.contact} /> : <div className="text-base text-white/70">{p.contact}</div>)}
               </div>
             ))}
           </>

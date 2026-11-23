@@ -3,10 +3,11 @@ import { Briefcase, Building2, MapPin, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
+import { PostingDetails } from "@/components/auth/posting-details";
 
 type Posting = {
   id: string; business_name: string; title: string; zone: string | null; job_type: string;
-  description: string | null; contact: string | null; request_status: string | null;
+  description: string | null; contact: string | null; request_status: string | null; schedule?: string | null; instagram?: string | null;
 };
 
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
@@ -51,11 +52,7 @@ export function ProfessionalOfertas() {
                 <div className="truncate text-base text-white/60">{p.business_name}</div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-              <span className="inline-flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-violet-300" />{TYPES[p.job_type] ?? p.job_type}</span>
-              {p.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{p.zone}</span>}
-              {p.contact && <span className="inline-flex items-center gap-1.5"><MessageCircle className="h-4 w-4 text-violet-300" />{p.contact}</span>}
-            </div>
+            <PostingDetails p={p} />
             {p.description && <p className="text-base text-white/75">{p.description}</p>}
             <button
               type="button"

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Briefcase, MapPin, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { Clock, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,20 +8,11 @@ import { Toggle } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
 import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
-type JobType = "tiempo_completo" | "medio_tiempo" | "por_turnos";
-const JOB_TYPES: Array<{ id: JobType; label: string }> = [
-  { id: "tiempo_completo", label: "Tiempo completo" },
-  { id: "medio_tiempo", label: "Medio tiempo" },
-  { id: "por_turnos", label: "Por turnos" },
-];
-
 type Posting = {
   id: string;
   title: string;
-  zone: string | null;
-  job_type: JobType;
   description: string | null;
-  contact: string | null;
+  schedule: string | null;
   is_active: boolean;
   kind: "empleo" | "alquiler";
   price: string | null;
@@ -34,9 +25,9 @@ const cardStyle: React.CSSProperties = {
     "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
 };
 
-const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", title: "", zone: "", job_type: "tiempo_completo" as JobType, description: "", contact: "" };
+const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", title: "", schedule: "", description: "" };
 
-// Botón "Buscar barbero" + ventana con los avisos del negocio (crear, pausar, editar, borrar).
+// Avisos del negocio (personal o alquiler de puestos): crear, pausar, editar, borrar.
 export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTab, inline = false }: { open?: boolean; onClose?: () => void; onSelectTab: (t: BolsaTab) => void; inline?: boolean }) {
   const { businessId } = useAuth();
   const setOpen = (v: boolean) => {
@@ -48,16 +39,19 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
   const [editing, setEditing] = React.useState<string | "new" | null>(null);
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
+  const [biz, setBiz] = React.useState<{ phone: string | null; instagram: string | null; address: string | null } | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
     const { data } = await (supabase as any)
       .from("job_postings")
-      .select("id,title,zone,job_type,description,contact,is_active,kind,price")
+      .select("id,title,description,schedule,is_active,kind,price")
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
     setRows((data as Posting[] | null) ?? []);
+    const { data: b } = await supabase.from("businesses").select("phone,instagram,address").eq("id", businessId).maybeSingle();
+    setBiz((b as { phone: string | null; instagram: string | null; address: string | null } | null) ?? null);
     setLoading(false);
   }, [businessId]);
 
@@ -69,7 +63,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
     setEditing(p ? p.id : "new");
     setForm(
       p
-        ? { kind: p.kind, price: p.price ?? "", title: p.title, zone: p.zone ?? "", job_type: p.job_type, description: p.description ?? "", contact: p.contact ?? "" }
+        ? { kind: p.kind, price: p.price ?? "", title: p.title, schedule: p.schedule ?? "", description: p.description ?? "" }
         : EMPTY,
     );
   }
@@ -82,10 +76,8 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
       kind: form.kind,
       price: form.kind === "alquiler" ? form.price.trim() || null : null,
       title: form.title.trim(),
-      zone: form.zone.trim() || null,
-      job_type: form.job_type,
+      schedule: form.schedule.trim() || null,
       description: form.description.trim() || null,
-      contact: form.contact.trim() || null,
     };
     let error: unknown = null;
     if (editing === "new") {
@@ -152,7 +144,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                 {editing ? (
                   <div className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4" style={cardStyle}>
                     <div className="flex gap-1.5">
-                      {([["empleo", "Busco barbero"], ["alquiler", "Alquilo un puesto"]] as const).map(([id, label]) => (
+                      {([["empleo", "Busco personal"], ["alquiler", "Alquilo un puesto"]] as const).map(([id, label]) => (
                         <button
                           key={id}
                           type="button"
@@ -165,7 +157,13 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                     </div>
                     <label className="block">
                       <span className="mb-1.5 block text-base font-semibold text-white/85">Título</span>
-                      <input value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.kind === "alquiler" ? "Ej: Puesto de barbero disponible" : "Ej: Busco barbero con experiencia"} className={inputCls} />
+                      <input value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.kind === "alquiler" ? "Ej: Puesto disponible" : "Ej: Busco personal para el turno tarde"} className={inputCls} />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
+                        <Clock className="h-5 w-5 text-violet-300" /> Horario
+                      </span>
+                      <input value={form.schedule} maxLength={80} onChange={(e) => setForm({ ...form, schedule: e.target.value })} placeholder="Ej: Lunes a sábado de 10 a 19" className={inputCls} />
                     </label>
                     {form.kind === "alquiler" && (
                       <label className="block">
@@ -174,49 +172,22 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                       </label>
                     )}
                     <label className="block">
-                      <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
-                        <MapPin className="h-5 w-5 text-violet-300" /> Zona
-                      </span>
-                      <input value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value })} placeholder="Ej: Palermo, CABA" className={inputCls} />
-                    </label>
-                    {form.kind === "empleo" && (
-                    <div>
-                      <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
-                        <Briefcase className="h-5 w-5 text-violet-300" /> Tipo de trabajo
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {JOB_TYPES.map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => setForm({ ...form, job_type: t.id })}
-                            className={cn(
-                              "h-11 rounded-full px-4 text-base font-semibold ring-1 transition",
-                              form.job_type === t.id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40" : "bg-white/[0.04] text-white/70 ring-white/10",
-                            )}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    )}
-                    <label className="block">
-                      <span className="mb-1.5 block text-base font-semibold text-white/85">Qué ofrecés</span>
+                      <span className="mb-1.5 block text-base font-semibold text-white/85">Detalles (opcional)</span>
                       <textarea
                         value={form.description}
-                        onChange={(e) => setForm({ ...form, description: e.target.value.slice(0, 600) })}
-                        rows={4}
-                        placeholder="Horarios, pago, beneficios, lo que buscás"
+                        onChange={(e) => setForm({ ...form, description: e.target.value.slice(0, 300) })}
+                        rows={3}
+                        placeholder="Pago, beneficios, lo que buscás"
                         className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
                       />
+                      <div className="mt-1 text-right text-sm text-white/50">{form.description.length}/300</div>
                     </label>
-                    <label className="block">
-                      <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
-                        <MessageCircle className="h-5 w-5 text-violet-300" /> Contacto
+                    <div className="flex items-start gap-2 rounded-2xl bg-black/25 px-4 py-3 text-sm text-white/65">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                      <span>
+                        Se muestran tu {biz?.phone ? "WhatsApp" : "WhatsApp (falta cargarlo)"}, {biz?.instagram ? "Instagram" : "Instagram (falta cargarlo)"} y {biz?.address ? "dirección" : "dirección (falta cargarla)"}, que tomamos de los datos de tu negocio en Página de reservas.
                       </span>
-                      <input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="WhatsApp o Instagram" className={inputCls} />
-                    </label>
+                    </div>
                   </div>
                 ) : loading ? (
                   <div className="py-10 text-center text-white/60">Cargando…</div>
@@ -230,8 +201,8 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                           <div className="min-w-0">
                             <div className="truncate text-xl font-semibold">{p.title}</div>
                             <div className="text-base text-white/60">
-                              {p.kind === "alquiler" ? `Alquiler${p.price ? ` · ${p.price}` : ""}` : JOB_TYPES.find((t) => t.id === p.job_type)?.label}
-                              {p.zone ? ` · ${p.zone}` : ""}
+                              {p.kind === "alquiler" ? `Alquiler${p.price ? ` · ${p.price}` : ""}` : "Personal"}
+                              {p.schedule ? ` · ${p.schedule}` : ""}
                             </div>
                           </div>
                           <Toggle on={p.is_active} onChange={(v) => void toggleActive(p, v)} />
