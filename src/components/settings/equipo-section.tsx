@@ -4084,7 +4084,7 @@ export function EquipoSection() {
 
               {dlgTab === "horarios" && (
                 <div className="space-y-4">
-                  <DlgSection title="Días y horarios" icon={CalendarPlus} tone="violet">
+                  <DlgSection title="Días y horarios" icon={CalendarPlus} tone="sky">
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     const hasBreak = Boolean(d.breakStart && d.breakEnd);
@@ -4092,14 +4092,14 @@ export function EquipoSection() {
                       <div
                         key={key}
                         className={cn(
-                          "rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]",
+                          "rounded-2xl border border-white/10 bg-black/30 p-3.5",
                           !d.enabled && "opacity-55",
                         )}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/20 ring-1 ring-sky-300/25">
-                              <CalendarDays className="h-4.5 w-4.5 text-sky-200" />
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25">
+                              <CalendarDays className="h-4.5 w-4.5 text-violet-200" />
                             </span>
                             {label}
                           </div>
@@ -4125,8 +4125,8 @@ export function EquipoSection() {
                           <div className="mt-3.5 border-t border-white/10 pt-3.5">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2.5 text-base text-white/75">
-                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15 ring-1 ring-amber-300/25">
-                                  <Coffee className="h-4.5 w-4.5 text-amber-200" />
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25">
+                                  <Coffee className="h-4.5 w-4.5 text-violet-200" />
                                 </span>
                                 Descanso
                               </div>
