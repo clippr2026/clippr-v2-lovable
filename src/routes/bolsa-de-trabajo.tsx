@@ -311,7 +311,7 @@ function BolsaPublicaPage() {
                     logged={Boolean(session)}
                     showAction={isPro || !session}
                     disabled={sent || busy === p.id}
-                    label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Enviar solicitud"}
+                    label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Postularme"}
                     onSend={() => void apply(p)}
                   />
                   </div>
@@ -330,7 +330,7 @@ function BolsaPublicaPage() {
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={{ ...p, years: yearsOf(p.business_start_date) }} />
-                <PostingFooter text={p.description} logged={Boolean(session)} label="Contactar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingFooter text={p.description} logged={Boolean(session)} label="Consultar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
             ))}
@@ -378,16 +378,13 @@ function BolsaPublicaPage() {
                     </div>
                   )}
                   <WhatsAppButton number={r.whatsapp} />
-                  {isOwner && r.user_id && (
-                    <button
-                      type="button"
-                      disabled={busy === r.user_id}
-                      onClick={() => void invite(r)}
-                      className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white disabled:opacity-50"
-                    >
-                      {busy === r.user_id ? "Enviando…" : "Solicitar"}
-                    </button>
-                  )}
+                  <PostingFooter
+                    logged={Boolean(session)}
+                    showAction={isOwner || !session}
+                    disabled={busy === r.user_id}
+                    label={busy === r.user_id ? "Enviando…" : "Invitar"}
+                    onSend={() => void invite(r)}
+                  />
                 </div>
               );
             })}
