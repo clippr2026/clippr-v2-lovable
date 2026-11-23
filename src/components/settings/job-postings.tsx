@@ -39,6 +39,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
   const [editing, setEditing] = React.useState<string | "new" | null>(null);
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
+  const [askKind, setAskKind] = React.useState(false);
   const [biz, setBiz] = React.useState<{ phone: string | null; instagram: string | null; address: string | null } | null>(null);
 
   const load = React.useCallback(async () => {
@@ -61,6 +62,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
 
   function startEdit(p: Posting | null) {
     setEditing(p ? p.id : "new");
+    setAskKind(!p);
     setForm(
       p
         ? { kind: p.kind, price: p.price ?? "", title: p.title, schedule: p.schedule ?? "", description: p.description ?? "" }
@@ -143,17 +145,29 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
               <div className={inline ? "px-3.5 py-3" : "min-h-0 flex-1 overflow-y-auto px-3.5 py-3"}>
                 {editing ? (
                   <div className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4" style={cardStyle}>
-                    <div className="flex gap-1.5">
-                      {([["empleo", "Busco personal"], ["alquiler", "Alquilo un puesto"]] as const).map(([id, label]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setForm({ ...form, kind: id })}
-                          className={cn("h-11 flex-1 rounded-full text-base font-semibold ring-1 transition", form.kind === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40" : "bg-white/[0.04] text-white/70 ring-white/10")}
-                        >
-                          {label}
-                        </button>
-                      ))}
+                    {askKind && (
+                      <div className="space-y-3">
+                        <div className="text-lg font-semibold">¿Qué querés publicar?</div>
+                        {([["empleo", "Busco personal", "Para sumar a alguien a tu equipo"], ["alquiler", "Alquilo un puesto", "Un lugar de trabajo en tu local"]] as const).map(([id, label, hint]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => {
+                              setForm({ ...form, kind: id });
+                              setAskKind(false);
+                            }}
+                            className="block w-full rounded-2xl border border-white/15 bg-black/25 px-4 py-4 text-left transition active:scale-[0.99]"
+                          >
+                            <span className="block text-xl font-semibold">{label}</span>
+                            <span className="block text-base text-white/60">{hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!askKind && (
+                    <>
+                    <div className="inline-flex rounded-full bg-violet-500/20 px-4 py-1.5 text-base font-semibold text-violet-100 ring-1 ring-violet-400/30">
+                      {form.kind === "alquiler" ? "Alquilo un puesto" : "Busco personal"}
                     </div>
                     <label className="block">
                       <span className="mb-1.5 block text-base font-semibold text-white/85">Título</span>
@@ -188,6 +202,8 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                         Se muestran tu {biz?.phone ? "WhatsApp" : "WhatsApp (falta cargarlo)"}, {biz?.instagram ? "Instagram" : "Instagram (falta cargarlo)"} y {biz?.address ? "dirección" : "dirección (falta cargarla)"}, que tomamos de los datos de tu negocio en Página de reservas.
                       </span>
                     </div>
+                    </>
+                    )}
                   </div>
                 ) : loading ? (
                   <div className="py-10 text-center text-white/60">Cargando…</div>
@@ -221,7 +237,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                 )}
               </div>
 
-              <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3">
+              <div className={cn("shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3", editing && askKind ? "hidden" : "flex")}>
                 {editing ? (
                   <button
                     type="button"
