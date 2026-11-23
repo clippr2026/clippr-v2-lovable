@@ -33,6 +33,26 @@ function CrearCuentaPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [sentTo, setSentTo] = React.useState<string | null>(null);
+  const [cooldown, setCooldown] = React.useState(0);
+  const [resendMsg, setResendMsg] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function resend() {
+    if (!sentTo || cooldown > 0) return;
+    setResendMsg(null);
+    const { error: err } = await supabase.auth.resend({
+      type: "signup",
+      email: sentTo,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
+    setCooldown(60);
+    setResendMsg(err ? "No se pudo reenviar. Probá en un minuto." : "Listo, te lo enviamos de nuevo.");
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +97,7 @@ function CrearCuentaPage() {
       return;
     }
     setSentTo(cleanEmail);
+    setCooldown(60);
   }
 
   if (sentTo) {
@@ -89,12 +110,22 @@ function CrearCuentaPage() {
         <p className="mt-3 text-center text-lg text-white/65">
           Te enviamos un mail a <b className="text-white">{sentTo}</b>. Tocá el botón del mail para activar tu cuenta.
         </p>
-        <Link
-          to="/login"
-          className="mt-8 inline-flex h-14 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]"
+        <p className="mt-3 text-center text-base text-white/50">Si no lo ves, revisá spam y promociones.</p>
+        <button
+          type="button"
+          onClick={() => void resend()}
+          disabled={cooldown > 0}
+          className="mt-8 h-14 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)] transition active:scale-[0.99] disabled:opacity-50"
         >
-          Ir a iniciar sesión
-        </Link>
+          {cooldown > 0 ? `Reenviar correo (${cooldown})` : "Reenviar correo"}
+        </button>
+        {resendMsg && <p className="mt-3 text-center text-base text-white/70">{resendMsg}</p>}
+        <p className="mt-auto pt-8 text-center text-base text-white/60">
+          ¿Ya activaste tu cuenta?{" "}
+          <Link to="/login" className="font-semibold text-white underline underline-offset-4">
+            Iniciar sesión
+          </Link>
+        </p>
       </StartShell>
     );
   }
