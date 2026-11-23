@@ -344,7 +344,7 @@ function PermissionToggleRow({
   return (
     <div
       className={cn(
-        "flex min-h-[72px] items-center gap-3 rounded-2xl bg-white/[0.07] px-3.5 py-2 ring-1 ring-white/20",
+        "flex min-h-[72px] items-center gap-3 rounded-2xl bg-black/30 px-3.5 py-2 ring-1 ring-white/10",
       )}
     >
       <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", TONE_CLS.violet)}>
