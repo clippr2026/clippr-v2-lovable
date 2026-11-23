@@ -8,6 +8,7 @@ import { StartShell, startCardCls, startCardStyle } from "@/components/auth/star
 import { PostingDetails } from "@/components/auth/posting-details";
 import { PlacePicker, loadPlace } from "@/components/auth/place-picker";
 import { FilterBar, type SortKey } from "@/components/auth/filter-bar";
+import { AccountButton } from "@/components/auth/account-button";
 import { distanceKm, formatKm, geocodeCached, type Place } from "@/lib/geo";
 
 export const Route = createFileRoute("/bolsa-de-trabajo")({
@@ -376,11 +377,16 @@ function BolsaPublicaPage() {
   return (
     <StartShell
       header={
-        <div className="flex items-center gap-3">
-          <Link to="/" aria-label="Inicio" className="shrink-0">
-            <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
-          </Link>
-          <PlacePicker place={place} onChange={(p) => { setPlace(p); if (p) setSort("cercanos"); else { setSort("relevantes"); setMaxKm(null); } }} openSignal={pickSignal} />
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <Link to="/" aria-label="Inicio" className="shrink-0">
+              <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
+            </Link>
+            <AccountButton />
+          </div>
+          <div className="mt-3 flex">
+            <PlacePicker place={place} onChange={(p) => { setPlace(p); if (p) setSort("cercanos"); else { setSort("relevantes"); setMaxKm(null); } }} openSignal={pickSignal} />
+          </div>
         </div>
       }
     >
