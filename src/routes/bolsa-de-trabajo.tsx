@@ -82,6 +82,13 @@ function PostingHeader({ p }: { p: Posting }) {
   );
 }
 
+// Foto de la pestaña: si todavía no está cargada, muestra un icono grande.
+function TabPhoto({ src, Icon }: { src: string; Icon: React.ComponentType<{ className?: string }> }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) return <Icon className="h-10 w-10 text-violet-300" />;
+  return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
+}
+
 function years(date: string | null): number | null {
   if (!date) return null;
   const y = (Date.now() - new Date(date).getTime()) / (365.25 * 24 * 3600 * 1000);
