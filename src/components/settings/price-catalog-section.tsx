@@ -32,6 +32,7 @@ import {
   Package,
   Users,
   Boxes,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
@@ -839,12 +840,12 @@ function PriceEditorModal({
           <div className="flex shrink-0 gap-1.5 overflow-x-auto px-4 pb-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {(
               [
-                ["datos", "Datos"],
-                ["profesionales", "Profesionales"],
-                ["horarios", "Días"],
-                ["promo", "Promo"],
+                ["datos", "Datos", Scissors],
+                ["profesionales", "Profesionales", Users],
+                ["horarios", "Días", CalendarDays],
+                ["promo", "Promo", Tag],
               ] as const
-            ).map(([id, label]) => (
+            ).map(([id, label, TabIcon]) => (
               <button
                 key={id}
                 type="button"
@@ -852,12 +853,14 @@ function PriceEditorModal({
                   if (tabApi?.dirty) return toast.error("Guardá o cancelá los cambios de esta pestaña antes de cambiar");
                   setTab(id);
                 }}
+                aria-label={label}
                 className={cn(
-                  "h-11 shrink-0 rounded-full px-4 text-base font-semibold transition",
-                  tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65",
+                  "inline-flex h-11 items-center justify-center gap-2 rounded-full text-base font-semibold transition",
+                  tab === id ? "shrink-0 bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-white" : "flex-1 bg-white/[0.06] px-3 text-white/65",
                 )}
               >
-                {label}
+                <TabIcon className="h-5 w-5 shrink-0" />
+                {tab === id && label}
               </button>
             ))}
           </div>
