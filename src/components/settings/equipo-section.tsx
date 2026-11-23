@@ -3028,13 +3028,7 @@ export function EquipoSection() {
     const user = askAtiendeFor;
     setAskAtiendeFor(null);
     if (!user || !yes) return;
-    const libres = rows.filter((emp) => !accessByEmployeeId.has(emp.id));
-    if (libres.length > 0) {
-      setLinkChoice(libres[0].id);
-      setLinkBarberFor(user);
-    } else {
-      startNewBarberFor(user);
-    }
+    startNewBarberFor(user);
   }
 
   async function confirmLinkBarber() {
