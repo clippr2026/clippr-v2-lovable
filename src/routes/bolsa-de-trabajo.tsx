@@ -31,7 +31,7 @@ const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medi
 
 function Badge() {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet-500/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#1b1245] px-3 py-1 text-sm font-semibold text-white shadow-lg ring-1 ring-violet-300/60">
       <img src="/clippr-logo-login.webp" alt="" className="h-4 w-4 object-contain" />
       Usa Clippr
     </span>
@@ -67,7 +67,7 @@ function PostingHeader({ p }: { p: Posting }) {
         )}
       </div>
       <div className={`flex items-start gap-3 px-4 ${p.cover_url ? "-mt-7" : "pt-4"}`}>
-        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/20 text-xl font-semibold ring-2 ring-[#08070f]">
+        <span className="relative z-10 grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#0d0b18] text-xl font-semibold ring-2 ring-[#08070f]">
           {p.logo_url ? <img src={p.logo_url} alt={p.business_name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : (p.business_name[0] || "?").toUpperCase()}
         </span>
         <div className={`min-w-0 flex-1 ${p.cover_url ? "pt-8" : ""}`}>
