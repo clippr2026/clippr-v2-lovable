@@ -206,7 +206,6 @@ function LocalCard({ l }: { l: Local }) {
           <div className="flex items-center gap-2 text-base text-white/75">
             <MapPin className="h-4 w-4 shrink-0 text-violet-300" />
             <span className="truncate">{l.address}</span>
-            {l.distKm != null && <span className="shrink-0 text-white/50">· {formatKm(l.distKm)}</span>}
           </div>
         )}
         {formatHours(l.hours).map((h) => (
@@ -221,6 +220,7 @@ function LocalCard({ l }: { l: Local }) {
             Reservar
           </Link>
         </div>
+        {l.distKm != null && <div className="text-right text-sm text-white/55">{formatKm(l.distKm)}</div>}
       </div>
     </div>
   );
