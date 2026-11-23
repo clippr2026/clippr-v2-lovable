@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Star } from "lucide-react";
+import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -172,6 +172,12 @@ function LocalCard({ l }: { l: Local }) {
     <div className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
       <div className="relative">
         {l.cover_url ? <img src={l.cover_url} alt="" loading="lazy" decoding="async" className="h-32 w-full object-cover" /> : <div className="h-20 bg-gradient-to-r from-sky-500/20 to-violet-500/30" />}
+        <div className="absolute left-3 top-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#1b1245] px-3 py-1 text-sm font-semibold text-white shadow-lg ring-1 ring-violet-300/60">
+            <Scissors className="h-4 w-4 text-violet-200" />
+            Barbería
+          </span>
+        </div>
         <div className="absolute right-3 top-3">
           <Badge />
         </div>
@@ -203,7 +209,7 @@ function LocalCard({ l }: { l: Local }) {
         )}
         <div className="flex items-center justify-between gap-3">
           <span className="text-base text-white/60">{y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : ""}</span>
-          <Link to="/reservar/$slug" params={{ slug: l.slug }} className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-base font-semibold text-white">
+          <Link to="/negocio/$slug" params={{ slug: l.slug }} className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-base font-semibold text-white">
             Reservar
           </Link>
         </div>
@@ -323,7 +329,7 @@ function BolsaPublicaPage() {
       }
     >
       <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/[0.06] p-1">
-        {([["locales", "Locales"], ["bolsa", "Bolsa de trabajo"]] as const).map(([id, label]) => (
+        {([["locales", "Servicios"], ["bolsa", "Bolsa de trabajo"]] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
