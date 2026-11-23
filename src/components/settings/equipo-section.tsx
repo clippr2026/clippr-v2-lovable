@@ -24,6 +24,7 @@ import {
   Cake,
   Flag,
   Briefcase,
+  Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -981,12 +982,12 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br text-xl font-semibold text-white ring-1 ring-white/15",
+            "grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br text-xl font-semibold text-white ring-2 ring-violet-400/40",
             tintClass,
           )}
         >
           {emp.avatar_url ? (
-            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
+            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover object-top" loading="lazy" />
           ) : (
             displayName[0]?.toUpperCase()
           )}
@@ -1044,8 +1045,8 @@ function AccessPersonCard({
       }}
     >
       <div className="flex items-center gap-3">
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-xl font-semibold text-violet-100 ring-1 ring-white/15">
-          {(title[0] || "A").toUpperCase()}
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-xl font-semibold text-violet-100 ring-2 ring-violet-400/40">
+          {access.roleLabel === "Recepcionista" ? <Monitor className="h-8 w-8" /> : (title[0] || "A").toUpperCase()}
         </div>
         <div className="min-w-0 flex-1 truncate text-xl font-semibold text-white">{title}</div>
       </div>
@@ -3441,7 +3442,7 @@ export function EquipoSection() {
       {/* Equipo unificado: una sola lista de personas. Cada tarjeta junta a quien atiende
           clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
-      <div className="mt-4 space-y-3">
+      <div className="-mt-3 space-y-3">
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}
