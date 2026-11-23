@@ -23,6 +23,8 @@ type Posting = {
   description: string | null;
   contact: string | null;
   is_active: boolean;
+  kind: "empleo" | "alquiler";
+  price: string | null;
 };
 
 const inputCls =
@@ -32,7 +34,7 @@ const cardStyle: React.CSSProperties = {
     "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
 };
 
-const EMPTY = { title: "", zone: "", job_type: "tiempo_completo" as JobType, description: "", contact: "" };
+const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", title: "", zone: "", job_type: "tiempo_completo" as JobType, description: "", contact: "" };
 
 // Botón "Buscar barbero" + ventana con los avisos del negocio (crear, pausar, editar, borrar).
 export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolean; onClose: () => void; onSelectTab: (t: BolsaTab) => void }) {
@@ -51,7 +53,7 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
     setLoading(true);
     const { data } = await (supabase as any)
       .from("job_postings")
-      .select("id,title,zone,job_type,description,contact,is_active")
+      .select("id,title,zone,job_type,description,contact,is_active,kind,price")
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
     setRows((data as Posting[] | null) ?? []);
@@ -66,7 +68,7 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
     setEditing(p ? p.id : "new");
     setForm(
       p
-        ? { title: p.title, zone: p.zone ?? "", job_type: p.job_type, description: p.description ?? "", contact: p.contact ?? "" }
+        ? { kind: p.kind, price: p.price ?? "", title: p.title, zone: p.zone ?? "", job_type: p.job_type, description: p.description ?? "", contact: p.contact ?? "" }
         : EMPTY,
     );
   }
@@ -76,6 +78,8 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
     if (!form.title.trim()) return toast.error("Ingresá un título");
     setSaving(true);
     const payload = {
+      kind: form.kind,
+      price: form.kind === "alquiler" ? form.price.trim() || null : null,
       title: form.title.trim(),
       zone: form.zone.trim() || null,
       job_type: form.job_type,
@@ -146,16 +150,35 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
               <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
                 {editing ? (
                   <div className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4" style={cardStyle}>
+                    <div className="flex gap-1.5">
+                      {([["empleo", "Busco barbero"], ["alquiler", "Alquilo un puesto"]] as const).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setForm({ ...form, kind: id })}
+                          className={cn("h-11 flex-1 rounded-full text-base font-semibold ring-1 transition", form.kind === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40" : "bg-white/[0.04] text-white/70 ring-white/10")}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                     <label className="block">
                       <span className="mb-1.5 block text-base font-semibold text-white/85">Título</span>
-                      <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej: Busco barbero con experiencia" className={inputCls} />
+                      <input value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.kind === "alquiler" ? "Ej: Puesto de barbero disponible" : "Ej: Busco barbero con experiencia"} className={inputCls} />
                     </label>
+                    {form.kind === "alquiler" && (
+                      <label className="block">
+                        <span className="mb-1.5 block text-base font-semibold text-white/85">Precio</span>
+                        <input value={form.price} maxLength={40} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Ej: $150.000 por mes" className={inputCls} />
+                      </label>
+                    )}
                     <label className="block">
                       <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
                         <MapPin className="h-5 w-5 text-violet-300" /> Zona
                       </span>
                       <input value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value })} placeholder="Ej: Palermo, CABA" className={inputCls} />
                     </label>
+                    {form.kind === "empleo" && (
                     <div>
                       <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
                         <Briefcase className="h-5 w-5 text-violet-300" /> Tipo de trabajo
@@ -176,6 +199,7 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
                         ))}
                       </div>
                     </div>
+                    )}
                     <label className="block">
                       <span className="mb-1.5 block text-base font-semibold text-white/85">Qué ofrecés</span>
                       <textarea
@@ -205,7 +229,7 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
                           <div className="min-w-0">
                             <div className="truncate text-xl font-semibold">{p.title}</div>
                             <div className="text-base text-white/60">
-                              {JOB_TYPES.find((t) => t.id === p.job_type)?.label}
+                              {p.kind === "alquiler" ? `Alquiler${p.price ? ` · ${p.price}` : ""}` : JOB_TYPES.find((t) => t.id === p.job_type)?.label}
                               {p.zone ? ` · ${p.zone}` : ""}
                             </div>
                           </div>
