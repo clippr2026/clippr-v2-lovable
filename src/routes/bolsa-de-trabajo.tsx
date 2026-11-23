@@ -79,6 +79,13 @@ function PostingHeader({ p }: { p: Posting }) {
   );
 }
 
+// Foto de la pestaña: si todavía no está cargada, muestra un icono grande.
+function TabPhoto({ src, Icon }: { src: string; Icon: React.ComponentType<{ className?: string }> }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) return <Icon className="h-10 w-10 text-violet-300" />;
+  return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-20 w-full object-contain" />;
+}
+
 function years(date: string | null): number | null {
   if (!date) return null;
   const y = (Date.now() - new Date(date).getTime()) / (365.25 * 24 * 3600 * 1000);
@@ -192,16 +199,18 @@ function BolsaPublicaPage() {
         </div>
       )}
 
-      <div className="mt-5 flex gap-1.5">
-        {([["ofertas", "Ofertas", ClipboardList], ["alquileres", "Alquileres", Home], ["profesionales", "Profesionales", Briefcase]] as const).map(([id, label, Icon]) => (
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        {([["ofertas", "Ofertas", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`inline-flex h-11 items-center justify-center gap-2 rounded-full text-base font-semibold transition ${tab === id ? "flex-[2]" : "flex-1"} ${tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65"}`}
+            className={`flex flex-col items-center rounded-3xl border bg-white/[0.04] px-2 pb-3 pt-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
           >
-            <Icon className="h-5 w-5 shrink-0" />
-            {tab === id && label}
+            <span className="grid h-20 w-full place-items-center">
+              <TabPhoto src={img} Icon={Icon} />
+            </span>
+            <span className={`mt-2 text-base font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
           </button>
         ))}
       </div>
