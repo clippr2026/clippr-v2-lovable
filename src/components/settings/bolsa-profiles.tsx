@@ -54,8 +54,8 @@ export function BolsaProfilesButton({ open = false, onClose = () => {}, onSelect
   }, [businessId]);
 
   React.useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (open || inline) void load();
+  }, [open, inline, load]);
 
   async function invite(p: BolsaProfile) {
     if (!businessId) return;

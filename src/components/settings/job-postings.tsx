@@ -57,8 +57,8 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
   }, [businessId]);
 
   React.useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (open || inline) void load();
+  }, [open, inline, load]);
 
   function startEdit(p: Posting | null) {
     setEditing(p ? p.id : "new");
