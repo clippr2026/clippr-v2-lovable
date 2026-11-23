@@ -4084,7 +4084,7 @@ export function EquipoSection() {
 
               {dlgTab === "horarios" && (
                 <div className="space-y-4">
-                  <DlgSection title="Días y horarios" icon={CalendarPlus} tone="sky">
+                  <DlgSection title="Días y horarios" icon={CalendarPlus} tone="emerald">
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     const hasBreak = Boolean(d.breakStart && d.breakEnd);
