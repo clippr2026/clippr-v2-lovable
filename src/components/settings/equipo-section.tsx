@@ -3466,11 +3466,11 @@ export function EquipoSection() {
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="-mt-3 space-y-3">
         <JoinCodeAndRequests onAccept={(r) => void acceptJoinRequest(r)} refreshKey={joinRefresh} />
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}
-          className="flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
         >
           <Plus className="h-4 w-4" /> Agregar persona
         </button>

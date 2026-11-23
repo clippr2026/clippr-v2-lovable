@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Cake, Copy, Instagram, KeyRound, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
+import { Cake, Copy, Info, Instagram, KeyRound, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -259,6 +259,7 @@ export function JoinCodeAndRequests({ onAccept, refreshKey }: { onAccept: (req: 
   const [code, setCode] = React.useState<string>("");
   const [rows, setRows] = React.useState<JoinRequest[]>([]);
   const [busy, setBusy] = React.useState(false);
+  const [infoOpen, setInfoOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
@@ -300,8 +301,22 @@ export function JoinCodeAndRequests({ onAccept, refreshKey }: { onAccept: (req: 
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/25 text-violet-300">
           <KeyRound className="h-5 w-5" />
         </span>
-        Código del negocio
+        <span className="flex-1">Código del negocio</span>
+        <button
+          type="button"
+          aria-label="Información sobre el código"
+          aria-expanded={infoOpen}
+          onClick={() => setInfoOpen((v) => !v)}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-violet-200 ring-1 ring-white/10"
+        >
+          <Info className="h-5 w-5" />
+        </button>
       </div>
+      {infoOpen && (
+        <p className="mt-3 rounded-2xl bg-black/25 px-4 py-3 text-base text-white/75">
+          Pasale este código al profesional. Lo escribe en "Unirme" y su solicitud te llega acá para aceptarla o rechazarla.
+        </p>
+      )}
       <div className="mt-3 flex items-center gap-2">
         <div className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-center text-3xl font-bold tracking-[0.3em]">
           {code || "······"}
