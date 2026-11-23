@@ -187,7 +187,7 @@ function BolsaPublicaPage() {
       }
     >
       <h1 className="font-display text-3xl font-bold">Bolsa de trabajo</h1>
-      <p className="mt-2 text-lg text-white/65">Ofertas, alquileres y profesionales disponibles.</p>
+      <p className="mt-2 text-lg text-white/65">Empleos, alquileres y profesionales disponibles.</p>
 
       {!session && !authLoading && (
         <div className={`${startCardCls} mt-5 p-4`} style={startCardStyle}>
@@ -200,7 +200,7 @@ function BolsaPublicaPage() {
       )}
 
       <div className="mt-5 grid grid-cols-3 gap-3">
-        {([["ofertas", "Ofertas", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
+        {([["ofertas", "Empleos", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
           <button
             key={id}
             type="button"
@@ -219,7 +219,7 @@ function BolsaPublicaPage() {
         {tab === "ofertas" && (
           <>
             {postings === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
-            {postingsView?.filter((p) => p.kind !== "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay ofertas publicadas.</div>}
+            {postingsView?.filter((p) => p.kind !== "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay empleos publicados.</div>}
             {postingsView?.filter((p) => p.kind !== "alquiler").map((p) => {
               const sent = p.request_status === "pending" || p.request_status === "accepted";
               return (
