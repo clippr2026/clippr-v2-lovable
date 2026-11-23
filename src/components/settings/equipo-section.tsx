@@ -30,6 +30,9 @@ import {
   Users,
   Settings,
   Brain,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -673,6 +676,8 @@ type AccessFormState = {
   status: "active" | "inactive";
   employee_id: string | null;
   branch_id: string | null;
+  // Contraseña que define quien administra (vacía = no se cambia / se envía invitación).
+  password: string;
 };
 
 export const ROLE_LABEL_BY_ID: Record<RolePermissionId, string> = {
@@ -690,6 +695,7 @@ const EMPTY_ACCESS_FORM: AccessFormState = {
   status: "active",
   employee_id: null,
   branch_id: null,
+  password: "",
 };
 
 const MAIN_PERMISSION_ITEMS: {
@@ -1120,6 +1126,7 @@ export function EquipoSection() {
     return map;
   }, [accessUsers]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  const [showAccessPassword, setShowAccessPassword] = useState(false);
   // Recepcionista: "Registrar su jornada (inicio y cierre)" — opcional, apagado
   // por defecto (ver lib/jornada-recepcion). Se guarda por mail del acceso.
   const [jornadaRecepcion, setJornadaRecepcionForm] = useState(false);
@@ -2688,12 +2695,12 @@ export function EquipoSection() {
   // acá: un solo lugar que sabe invitar, nada de lógica duplicada.
   async function inviteTeamMember(
     payload: Record<string, unknown>,
-  ): Promise<{ ok: true } | { ok: false; error: string }> {
-    const { error } = await supabase.functions.invoke(
+  ): Promise<{ ok: true; passwordApplied?: boolean } | { ok: false; error: string }> {
+    const { data, error } = await supabase.functions.invoke(
       "invite-team-member",
       { body: payload },
     );
-    if (!error) return { ok: true };
+    if (!error) return { ok: true, passwordApplied: (data as { password_applied?: boolean } | null)?.password_applied === true };
 
     // El SDK de Supabase tira FunctionsHttpError con error.message SIEMPRE
     // genérico ("Edge Function returned a non-2xx status code") para
@@ -2762,10 +2769,20 @@ export function EquipoSection() {
       toast.error("No se pudo determinar el negocio");
       return false;
     }
+    const password = accessForm.password;
+    if (!editingAccessUserId && password.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres");
+      return false;
+    }
+    if (password && password.length < 8) {
+      toast.error("La contraseña debe tener al menos 8 caracteres");
+      return false;
+    }
 
     setSaving(true);
     const result = await inviteTeamMember({
       action: editingAccessUserId ? "update" : "create",
+      ...(password ? { password } : {}),
       member_id: editingAccessUserId ?? undefined,
       business_id: businessId,
       email,
@@ -2791,6 +2808,9 @@ export function EquipoSection() {
     if (!result.ok) {
       toast.error(result.error);
       return false;
+    }
+    if (password && !result.passwordApplied) {
+      toast.info("Ese mail ya tenía cuenta en Clippr: sigue usando su contraseña de siempre.");
     }
     // Jornada de la recepcionista: se enciende o apaga junto con el acceso.
     // Si cambió el mail, se baja la marca del anterior.
@@ -2864,7 +2884,8 @@ export function EquipoSection() {
     setEditingAccessUserId(user.id);
     setJornadaRecepcionForm(jornadaMap[jornadaEmailKey(user.email)] === true);
     setAccessForm({
-      name: user.name === ROLE_LABEL_BY_ID[user.role] ? "" : user.name,
+      name: user.name,
+      password: "",
       email: user.email,
       role: user.role,
       status: user.status === "suspended" ? "inactive" : "active",
@@ -3146,7 +3167,7 @@ export function EquipoSection() {
     }
     // No atiende clientes: solo se completa el acceso.
     openNewAccessModal();
-    setAccessForm((f) => ({ ...f, role: chooserRole, branch_id: activeBranchId ?? null }));
+    setAccessForm((f) => ({ ...f, role: chooserRole, name: ROLE_LABEL_BY_ID[chooserRole], branch_id: activeBranchId ?? null }));
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
     setSelectedPermRole(chooserRole);
   }
@@ -3335,6 +3356,40 @@ export function EquipoSection() {
               {opts?.emailAction}
             </div>
             {accessTouched && !accessForm.email.trim() && <div className="mt-1 text-sm text-red-400">Campo requerido</div>}
+          </Field>
+          <Field label={editingAccessUserId ? "Nueva contraseña" : "Contraseña"} icon={KeyRound}>
+            <div className="flex items-center gap-2">
+              <input
+                type={showAccessPassword ? "text" : "password"}
+                autoComplete="new-password"
+                name="clippr-access-password"
+                value={accessForm.password}
+                onChange={(e) => setAccessForm((f) => ({ ...f, password: e.target.value }))}
+                className={cn(inputCls, "min-w-0 flex-1", accessTouched && !editingAccessUserId && accessForm.password.length < 8 && "!border-red-500/70")}
+                placeholder={editingAccessUserId ? "Dejala vacía para no cambiarla" : "Mínimo 8 caracteres"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowAccessPassword((v) => !v)}
+                aria-label={showAccessPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/30 text-violet-300"
+              >
+                {showAccessPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+                const bytes = crypto.getRandomValues(new Uint32Array(10));
+                const pwd = Array.from(bytes, (n) => chars[n % chars.length]).join("");
+                setAccessForm((f) => ({ ...f, password: pwd }));
+                setShowAccessPassword(true);
+              }}
+              className="mt-2 h-10 rounded-full bg-violet-500/15 px-4 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40"
+            >
+              Generar contraseña
+            </button>
           </Field>
           {accessForm.role !== "admin_general" && (
             <PermissionToggleRow
@@ -3713,7 +3768,7 @@ export function EquipoSection() {
                 disabled={saving}
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-bold text-white shadow-[0_6px_22px_-4px_rgba(124,92,255,0.9)] transition active:scale-95 disabled:opacity-50"
               >
-                {saving ? "Guardando…" : editingAccessUserId ? "Guardar" : "Invitar y guardar"}
+                {saving ? "Guardando…" : "Guardar"}
               </button>
             </div>
           </div>

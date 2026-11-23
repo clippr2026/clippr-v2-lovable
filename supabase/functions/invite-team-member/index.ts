@@ -105,6 +105,31 @@ async function updateTeamMember(
   return { error };
 }
 
+// Alta de la cuenta de Auth: con contraseña (la define quien administra, sin mail) o con
+// invitación por mail (la persona crea la suya). Nunca se pisa la contraseña de una cuenta de
+// Auth que ya existe: solo se usa cuando el usuario de Auth todavía no existía.
+async function inviteOrCreate(
+  admin: SupabaseClient,
+  email: string,
+  meta: Record<string, unknown>,
+  password: string | null,
+) {
+  if (password) {
+    const { data, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: meta,
+    });
+    return { data, error, withPassword: true };
+  }
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: meta,
+    redirectTo: `${SITE_URL}/set-password`,
+  });
+  return { data, error, withPassword: false };
+}
+
 async function isAuthorized(
   admin: SupabaseClient,
   callerId: string,
@@ -388,6 +413,11 @@ Deno.serve(async (req) => {
     const professionalId = body.professional_id ?? null;
     const branchId = body.branch_id ?? null;
     const reqStatus = body.status ?? null;
+    const password = typeof body.password === "string" && body.password.length > 0 ? body.password : null;
+    if (password && password.length < 8) {
+      return json({ error: "La contraseña debe tener al menos 8 caracteres." }, 400);
+    }
+    let passwordApplied = false;
 
     if (action === "update") {
       const memberId = String(body.member_id ?? "");
@@ -398,7 +428,7 @@ Deno.serve(async (req) => {
       // si cambia, saber qué identidad de Auth hay que desvincular.
       const { data: currentRow, error: currentErr } = await admin
         .from("team_members")
-        .select("email, auth_user_id")
+        .select("email, auth_user_id, status")
         .eq("id", memberId)
         .eq("business_id", businessId)
         .maybeSingle();
@@ -470,19 +500,22 @@ Deno.serve(async (req) => {
           newAuthUserId = existingAuthUser.id;
           isConfirmed = existingAuthUser.confirmed;
         } else {
-          const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-            data: { full_name: fullName, business_id: businessId, role },
-            redirectTo: `${SITE_URL}/set-password`,
-          });
+          const { data: invited, error: inviteErr, withPassword } = await inviteOrCreate(
+            admin,
+            email,
+            { full_name: fullName, business_id: businessId, role },
+            password,
+          );
           if (inviteErr) {
             const fallbackUser = await findAuthUserByEmail(admin, email);
-            if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
+            if (!fallbackUser) return json({ error: "No se pudo crear el acceso: " + inviteErr.message }, 400);
             newAuthUserId = fallbackUser.id;
             isConfirmed = fallbackUser.confirmed;
           } else {
             newAuthUserId = invited?.user?.id ?? null;
-            isConfirmed = false;
-            justSentInvite = true;
+            isConfirmed = withPassword;
+            justSentInvite = !withPassword;
+            passwordApplied = withPassword;
           }
         }
 
@@ -495,10 +528,30 @@ Deno.serve(async (req) => {
         update.auth_user_id = newAuthUserId;
         update.status = isConfirmed ? "active" : "invited";
         if (justSentInvite) update.last_invited_at = new Date().toISOString();
-      } else if (reqStatus === "active" || reqStatus === "suspended") {
-        // Sin cambio de email: el selector de Estado sigue activando/
-        // suspendiendo manualmente, sin tocar nada de lo de arriba.
-        update.status = reqStatus;
+      } else {
+        if (reqStatus === "active" || reqStatus === "suspended") {
+          // Sin cambio de email: el selector de Estado sigue activando/
+          // suspendiendo manualmente, sin tocar nada de lo de arriba.
+          update.status = reqStatus;
+        }
+        // Contraseña nueva para una cuenta existente de este acceso. Solo si esa cuenta de Auth no
+        // pertenece a otro acceso (si es de otra persona/negocio no se toca).
+        const authId = currentRow.auth_user_id as string | null;
+        if (password && authId) {
+          const { data: otherMemberships } = await admin
+            .from("team_members")
+            .select("id")
+            .eq("auth_user_id", authId)
+            .neq("id", memberId)
+            .limit(1);
+          if ((otherMemberships?.length ?? 0) > 0) {
+            return json({ error: "Esta cuenta se usa en otro acceso: no se puede cambiar su contraseña desde acá." }, 409);
+          }
+          const { error: pwErr } = await admin.auth.admin.updateUserById(authId, { password, email_confirm: true });
+          if (pwErr) return json({ error: "No se pudo cambiar la contraseña: " + pwErr.message }, 400);
+          passwordApplied = true;
+          if (String(currentRow.status ?? "") === "invited") update.status = "active";
+        }
       }
 
       const { error } = await admin
@@ -519,7 +572,7 @@ Deno.serve(async (req) => {
         }
         return json({ error: error.message }, 400);
       }
-      return json({ ok: true });
+      return json({ ok: true, password_applied: passwordApplied });
     }
 
     if (!email) return json({ error: "Email requerido" }, 400);
@@ -549,20 +602,23 @@ Deno.serve(async (req) => {
             authUserId = existingAuthUser.id;
             isConfirmed = existingAuthUser.confirmed;
           } else {
-            const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-              data: { full_name: fullName, business_id: businessId, role },
-              redirectTo: `${SITE_URL}/set-password`,
-            });
+            const { data: invited, error: inviteErr, withPassword } = await inviteOrCreate(
+              admin,
+              email,
+              { full_name: fullName, business_id: businessId, role },
+              password,
+            );
 
             if (inviteErr) {
               const fallbackUser = await findAuthUserByEmail(admin, email);
-              if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
+              if (!fallbackUser) return json({ error: "No se pudo crear el acceso: " + inviteErr.message }, 400);
               authUserId = fallbackUser.id;
               isConfirmed = fallbackUser.confirmed;
             } else {
               authUserId = invited?.user?.id ?? null;
-              isConfirmed = false;
-              justSentInvite = true;
+              isConfirmed = withPassword;
+              justSentInvite = !withPassword;
+              passwordApplied = withPassword;
             }
           }
         }
@@ -580,7 +636,7 @@ Deno.serve(async (req) => {
         });
 
         if (reactivateErr) return json({ error: reactivateErr.message }, 400);
-        return json({ ok: true, reactivated: true, auth_user_id: authUserId });
+        return json({ ok: true, reactivated: true, auth_user_id: authUserId, password_applied: passwordApplied });
       }
 
       return json({ error: "Ya existe un acceso activo o invitado con ese email en este negocio" }, 409);
@@ -595,20 +651,23 @@ Deno.serve(async (req) => {
       authUserId = existingAuthUser.id;
       isConfirmed = existingAuthUser.confirmed;
     } else {
-      const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-        data: { full_name: fullName, business_id: businessId, role },
-        redirectTo: `${SITE_URL}/set-password`,
-      });
+      const { data: invited, error: inviteErr, withPassword } = await inviteOrCreate(
+        admin,
+        email,
+        { full_name: fullName, business_id: businessId, role },
+        password,
+      );
 
       if (inviteErr) {
         const fallbackUser = await findAuthUserByEmail(admin, email);
-        if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
+        if (!fallbackUser) return json({ error: "No se pudo crear el acceso: " + inviteErr.message }, 400);
         authUserId = fallbackUser.id;
         isConfirmed = fallbackUser.confirmed;
       } else {
         authUserId = invited?.user?.id ?? null;
-        isConfirmed = false;
-        justSentInvite = true;
+        isConfirmed = withPassword;
+        justSentInvite = !withPassword;
+        passwordApplied = withPassword;
       }
     }
 
@@ -626,7 +685,7 @@ Deno.serve(async (req) => {
     });
 
     if (insErr) return json({ error: insErr.message }, 400);
-    return json({ ok: true, auth_user_id: authUserId });
+    return json({ ok: true, auth_user_id: authUserId, password_applied: passwordApplied });
   } catch (e) {
     console.error("[invite] fatal error:", e);
     return json({ error: (e as Error).message }, 500);
