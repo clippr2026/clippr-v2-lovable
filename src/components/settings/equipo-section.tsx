@@ -490,6 +490,11 @@ function ApprovalModeCard({
   onToggleShowWhatsapp: (v: boolean) => void;
 }) {
   const [modeOpen, setModeOpen] = useState(false);
+  const modeListRef = useRef<HTMLDivElement>(null);
+  // Al abrir, baja el scroll para que se vea la opción de abajo.
+  useEffect(() => {
+    if (modeOpen) modeListRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [modeOpen]);
   return (
     <div className="space-y-2">
       <PermissionToggleRow
@@ -536,7 +541,7 @@ function ApprovalModeCard({
             </svg>
           </button>
           {modeOpen && (
-            <div className="mt-2 space-y-1.5 rounded-2xl border border-white/10 bg-[#08070f] p-1.5">
+            <div ref={modeListRef} className="mt-2 space-y-1.5 rounded-2xl border border-white/10 bg-[#08070f] p-1.5">
               {([
                 ["auto", "Cobra directo en caja"],
                 ["manual", "Un admin aprueba cada cobro"],
