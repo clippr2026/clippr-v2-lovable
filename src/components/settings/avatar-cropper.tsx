@@ -9,10 +9,16 @@ export function AvatarCropper({
   src,
   onCancel,
   onDone,
+  size = 512,
+  quality = 0.9,
 }: {
   src: string;
   onCancel: () => void;
   onDone: (file: File) => void;
+  /** Lado en píxeles de la imagen final (cuadrada). */
+  size?: number;
+  /** Calidad de compresión (0 a 1). */
+  quality?: number;
 }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -36,7 +42,6 @@ export function AvatarCropper({
 
   function save() {
     if (!img) return;
-    const size = 512;
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -54,11 +59,11 @@ export function AvatarCropper({
             if (jpg) onDone(new File([jpg], "foto.jpg", { type: "image/jpeg" }));
           },
           "image/jpeg",
-          0.85,
+          quality,
         );
       },
       "image/webp",
-      0.9,
+      quality,
     );
   }
 

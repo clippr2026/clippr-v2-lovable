@@ -197,6 +197,8 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
 
       {cropSrc && (
         <AvatarCropper
+          size={256}
+          quality={0.6}
           src={cropSrc}
           onCancel={() => setCropSrc(null)}
           onDone={(file) => {
