@@ -252,7 +252,11 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   // Crear negocio SOLO para un dueño nuevo genuino: nunca fue invitado (no hay
   // fila en team_members, ni siquiera tombstone) y no posee negocio. Así un
   // acceso eliminado no genera un "negocio fantasma" al volver a entrar.
-  if (!bizId && !teamMember && !ownedBizId) {
+  // Las cuentas de profesional/embajador (alta desde /empezar) no son dueñas: el profesional recibe su negocio
+  // cuando la barbería lo suma al equipo, y el embajador no tiene negocio.
+  const accountType = (user.user_metadata as Record<string, unknown> | undefined)?.account_type;
+  const sinNegocioPropio = accountType === "profesional" || accountType === "embajador";
+  if (!bizId && !teamMember && !ownedBizId && !sinNegocioPropio) {
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const bizName =
       (meta.business_name as string | undefined) || email?.split("@")[0] || "Mi Negocio";

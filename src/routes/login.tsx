@@ -38,7 +38,7 @@ function colorWithAlpha(color: string, alpha: number) {
 }
 
 function LoginPage() {
-  const { signIn, session, loading } = useAuth();
+  const { signIn, session, loading, businessId, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -90,8 +90,12 @@ function LoginPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!loading && session) navigate({ to: "/dashboard", replace: true });
-  }, [loading, session, navigate]);
+    if (loading || !session) return;
+    const tipo = (user?.user_metadata as { account_type?: string } | undefined)?.account_type;
+    // Profesional/embajador sin negocio todavía: pantalla de bienvenida en vez del panel.
+    if (!businessId && (tipo === "profesional" || tipo === "embajador")) navigate({ to: "/bienvenida", replace: true });
+    else navigate({ to: "/dashboard", replace: true });
+  }, [loading, session, businessId, user, navigate]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

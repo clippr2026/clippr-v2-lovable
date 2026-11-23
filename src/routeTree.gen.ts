@@ -15,10 +15,13 @@ import { Route as AdvisorlRouteImport } from './routes/advisorl'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AuroStyloRouteImport } from './routes/auro-stylo'
+import { Route as BienvenidaRouteImport } from './routes/bienvenida'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as CrearCuentaRouteImport } from './routes/crear-cuenta'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as EmpezarRouteImport } from './routes/empezar'
 import { Route as GestionRouteImport } from './routes/gestion'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LandingDemoRouteImport } from './routes/landing-demo'
@@ -73,6 +76,11 @@ const AuroStyloRoute = AuroStyloRouteImport.update({
   path: '/auro-stylo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BienvenidaRoute = BienvenidaRouteImport.update({
+  id: '/bienvenida',
+  path: '/bienvenida',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CashRegisterRoute = CashRegisterRouteImport.update({
   id: '/cash-register',
   path: '/cash-register',
@@ -89,9 +97,19 @@ const ClientsRoute = ClientsRouteImport.update({
   path: '/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CrearCuentaRoute = CrearCuentaRouteImport.update({
+  id: '/crear-cuenta',
+  path: '/crear-cuenta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmpezarRoute = EmpezarRouteImport.update({
+  id: '/empezar',
+  path: '/empezar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestionRoute = GestionRouteImport.update({
@@ -218,10 +236,13 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
+  '/bienvenida': typeof BienvenidaRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
+  '/empezar': typeof EmpezarRoute
   '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/landing-demo': typeof LandingDemoRoute
@@ -253,10 +274,13 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
+  '/bienvenida': typeof BienvenidaRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
+  '/empezar': typeof EmpezarRoute
   '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/landing-demo': typeof LandingDemoRoute
@@ -289,10 +313,13 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
+  '/bienvenida': typeof BienvenidaRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
+  '/empezar': typeof EmpezarRoute
   '/gestion': typeof GestionRoute
   '/inventory': typeof InventoryRoute
   '/landing-demo': typeof LandingDemoRoute
@@ -326,10 +353,13 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/appointments'
     | '/auro-stylo'
+    | '/bienvenida'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/crear-cuenta'
     | '/dashboard'
+    | '/empezar'
     | '/gestion'
     | '/inventory'
     | '/landing-demo'
@@ -361,10 +391,13 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/appointments'
     | '/auro-stylo'
+    | '/bienvenida'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/crear-cuenta'
     | '/dashboard'
+    | '/empezar'
     | '/gestion'
     | '/inventory'
     | '/landing-demo'
@@ -396,10 +429,13 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/appointments'
     | '/auro-stylo'
+    | '/bienvenida'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/crear-cuenta'
     | '/dashboard'
+    | '/empezar'
     | '/gestion'
     | '/inventory'
     | '/landing-demo'
@@ -432,10 +468,13 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   AppointmentsRoute: typeof AppointmentsRoute
   AuroStyloRoute: typeof AuroStyloRoute
+  BienvenidaRoute: typeof BienvenidaRoute
   CashRegisterRoute: typeof CashRegisterRoute
   CashRegisterLiquidacionesCompactoRoute: typeof CashRegisterLiquidacionesCompactoRoute
   ClientsRoute: typeof ClientsRoute
+  CrearCuentaRoute: typeof CrearCuentaRoute
   DashboardRoute: typeof DashboardRoute
+  EmpezarRoute: typeof EmpezarRoute
   GestionRoute: typeof GestionRoute
   InventoryRoute: typeof InventoryRoute
   LandingDemoRoute: typeof LandingDemoRoute
@@ -505,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuroStyloRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bienvenida': {
+      id: '/bienvenida'
+      path: '/bienvenida'
+      fullPath: '/bienvenida'
+      preLoaderRoute: typeof BienvenidaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cash-register': {
       id: '/cash-register'
       path: '/cash-register'
@@ -526,11 +572,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/crear-cuenta': {
+      id: '/crear-cuenta'
+      path: '/crear-cuenta'
+      fullPath: '/crear-cuenta'
+      preLoaderRoute: typeof CrearCuentaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/empezar': {
+      id: '/empezar'
+      path: '/empezar'
+      fullPath: '/empezar'
+      preLoaderRoute: typeof EmpezarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestion': {
@@ -704,11 +764,14 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   AppointmentsRoute: AppointmentsRoute,
   AuroStyloRoute: AuroStyloRoute,
+  BienvenidaRoute: BienvenidaRoute,
   CashRegisterRoute: CashRegisterRoute,
   CashRegisterLiquidacionesCompactoRoute:
     CashRegisterLiquidacionesCompactoRoute,
   ClientsRoute: ClientsRoute,
+  CrearCuentaRoute: CrearCuentaRoute,
   DashboardRoute: DashboardRoute,
+  EmpezarRoute: EmpezarRoute,
   GestionRoute: GestionRoute,
   InventoryRoute: InventoryRoute,
   LandingDemoRoute: LandingDemoRoute,

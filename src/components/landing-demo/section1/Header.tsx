@@ -94,7 +94,7 @@ export const Header = React.forwardRef<HTMLDivElement>(function Header(_props, r
           Iniciar sesión
         </Link>
         <Link
-          to="/login"
+          to="/empezar"
           className="group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
           style={{
             background: "linear-gradient(135deg, oklch(0.62 0.24 292), oklch(0.46 0.24 296))",
