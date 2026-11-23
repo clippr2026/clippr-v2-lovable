@@ -20,6 +20,10 @@ import {
   MessageCircle,
   CalendarDays,
   Coffee,
+  Phone,
+  Cake,
+  Flag,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -574,10 +578,23 @@ const timeCls =
 const inputCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <div className="mb-1.5 text-base font-semibold text-white/85">{label}</div>
+      <div className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
+        {Icon && <Icon className="h-5 w-5 shrink-0 text-violet-300" />}
+        {label}
+      </div>
       {children}
       {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
     </div>
@@ -3951,7 +3968,7 @@ export function EquipoSection() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
-                    <Field label="Nombre completo *">
+                    <Field label="Nombre completo *" icon={UserPlus}>
                       <input
                         value={form.fullName}
                         onChange={(e) =>
@@ -3961,7 +3978,7 @@ export function EquipoSection() {
                         placeholder="Ej: Alejandro"
                       />
                     </Field>
-                    <Field label="Teléfono">
+                    <Field label="Teléfono" icon={Phone}>
                       <input
                         value={form.phone}
                         onChange={(e) =>
@@ -3971,7 +3988,7 @@ export function EquipoSection() {
                         placeholder="11..."
                       />
                     </Field>
-                    <Field label="Rol">
+                    <Field label="Rol" icon={ShieldCheck}>
                       <input
                         value={form.role}
                         onChange={(e) =>
@@ -3985,7 +4002,7 @@ export function EquipoSection() {
 
                   {/* Perfil público: lo ve el cliente al elegir profesional en la página de reservas. */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <Field label="Fecha de nacimiento (se muestra la edad)">
+                    <Field label="Fecha de nacimiento" icon={Cake}>
                       <input
                         type="date"
                         value={form.birthDate}
@@ -3994,7 +4011,7 @@ export function EquipoSection() {
                         className={inputCls + " w-full min-w-0 appearance-none"}
                       />
                     </Field>
-                    <Field label="Nacionalidad">
+                    <Field label="Nacionalidad" icon={Flag}>
                       <select
                         value={form.nationality}
                         onChange={(e) => setForm({ ...form, nationality: e.target.value })}
@@ -4011,7 +4028,7 @@ export function EquipoSection() {
                         ))}
                       </select>
                     </Field>
-                    <Field label="Trabaja en el rubro desde (se muestran los años)">
+                    <Field label="Trabaja en el rubro desde" icon={Briefcase}>
                       <input
                         type="date"
                         value={form.experienceSince}
