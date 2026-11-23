@@ -37,6 +37,7 @@ import {
   type EmployeeServiceOverrideMap,
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { AvatarCropper } from "@/components/settings/avatar-cropper";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -982,12 +983,12 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br text-xl font-semibold text-white ring-2 ring-violet-400/40",
+            "grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br text-xl font-semibold text-white ring-2 ring-violet-400/40",
             tintClass,
           )}
         >
           {emp.avatar_url ? (
-            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover object-top" loading="lazy" />
+            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
           ) : (
             displayName[0]?.toUpperCase()
           )}
@@ -1045,7 +1046,7 @@ function AccessPersonCard({
       }}
     >
       <div className="flex items-center gap-3">
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-xl font-semibold text-violet-100 ring-2 ring-violet-400/40">
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-violet-500/20 text-xl font-semibold text-violet-100 ring-2 ring-violet-400/40">
           {access.roleLabel === "Recepcionista" ? <Monitor className="h-8 w-8" /> : (title[0] || "A").toUpperCase()}
         </div>
         <div className="min-w-0 flex-1 truncate text-xl font-semibold text-white">{title}</div>
@@ -1794,6 +1795,17 @@ export function EquipoSection() {
       return blob;
     } finally {
       URL.revokeObjectURL(imageUrl);
+    }
+  }
+
+  // Foto que se está centrando (URL local); null = cerrado.
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  async function openCropper(url: string) {
+    try {
+      const blob = await (await fetch(url)).blob();
+      setCropSrc(URL.createObjectURL(blob));
+    } catch {
+      toast.error("No se pudo abrir la foto");
     }
   }
 
@@ -3481,6 +3493,17 @@ export function EquipoSection() {
         )}
       </div>
 
+      {cropSrc && (
+        <AvatarCropper
+          src={cropSrc}
+          onCancel={() => setCropSrc(null)}
+          onDone={(file) => {
+            setCropSrc(null);
+            void uploadProfessionalAvatar(file);
+          }}
+        />
+      )}
+
       {addChooserOpen &&
         typeof document !== "undefined" &&
         createPortal(
@@ -3953,7 +3976,7 @@ export function EquipoSection() {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) void uploadProfessionalAvatar(file);
+                          if (file) setCropSrc(URL.createObjectURL(file));
                           e.currentTarget.value = "";
                         }}
                       />
@@ -3961,13 +3984,22 @@ export function EquipoSection() {
                     <div className="flex-1 min-w-0">
                       {!form.avatarUrl && <div className="text-sm font-semibold">Agregar foto</div>}
                       {form.avatarUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, avatarUrl: "" })}
-                          className="mt-1 text-xs font-medium text-red-300 hover:text-red-200"
-                        >
-                          Quitar foto
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void openCropper(form.avatarUrl)}
+                            className="h-10 rounded-full bg-violet-500/15 px-4 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40"
+                          >
+                            Mover foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, avatarUrl: "" })}
+                            className="h-10 rounded-full px-3 text-sm font-semibold text-red-300"
+                          >
+                            Quitar
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
