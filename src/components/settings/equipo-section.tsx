@@ -901,7 +901,7 @@ type PersonAccessInfo = {
 function AccessChips({ access, hideRole }: { access: PersonAccessInfo; hideRole?: boolean }) {
   // El estado "Acceso activo" es lo normal: solo se muestra lo que merece atención.
   const badge = access.badge && access.badge.label !== "Acceso activo" ? access.badge : null;
-  const showRole = !hideRole && access.roleLabel !== "Profesional";
+  const showRole = !hideRole && access.roleLabel !== "Profesional" && access.roleLabel !== badge?.label;
   return (
     <div className="mt-2 space-y-2">
       {(showRole || badge || access.expired) && (
@@ -1079,6 +1079,8 @@ export function EquipoSection() {
   const [newPersonAccess, setNewPersonAccess] = useState<RolePermissionId | null>(null);
   // Administrador/recepcionista que quiere atender clientes: elige su perfil de barbero.
   const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
+  // Admin. General que toca "Editar" sin perfil de barbero: se le pregunta si atiende clientes.
+  const [askAtiendeFor, setAskAtiendeFor] = useState<AccessUser | null>(null);
   const [linkChoice, setLinkChoice] = useState<string>("new");
   const [linkSaving, setLinkSaving] = useState(false);
   // El interruptor "Atiendo clientes" se mueve en el acto; el guardado y la recarga tardan.
@@ -3014,6 +3016,27 @@ export function EquipoSection() {
     return true;
   }
 
+  function startNewBarberFor(user: AccessUser) {
+    // Perfil nuevo: se abre el alta del barbero y, al guardarlo, se vincula solo.
+    linkAfterCreateRef.current = user.id;
+    openNew();
+    const own = user.name && user.name !== ROLE_LABEL_BY_ID[user.role] ? user.name : "";
+    if (own) setForm((f) => ({ ...f, fullName: own }));
+  }
+
+  function answerAtiende(yes: boolean) {
+    const user = askAtiendeFor;
+    setAskAtiendeFor(null);
+    if (!user || !yes) return;
+    const libres = rows.filter((emp) => !accessByEmployeeId.has(emp.id));
+    if (libres.length > 0) {
+      setLinkChoice(libres[0].id);
+      setLinkBarberFor(user);
+    } else {
+      startNewBarberFor(user);
+    }
+  }
+
   async function confirmLinkBarber() {
     const user = linkBarberFor;
     if (!user) return;
@@ -3056,7 +3079,7 @@ export function EquipoSection() {
     const isPrincipal = user.id === principalAdminId;
     const expired = isInviteExpired(user);
     const badge = isPrincipal
-      ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
+      ? { label: "Admin. General", cls: "bg-violet-500/15 text-violet-200 ring-violet-400/30" }
       : user.status === "active"
         ? { label: "Acceso activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
         : user.status === "invited"
@@ -3066,9 +3089,6 @@ export function EquipoSection() {
           : user.status === "suspended"
             ? { label: "Acceso suspendido", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
             : null;
-    // Solo el Admin. General puede activar "Atiendo clientes" desde acá; los demás roles lo
-    // definen al crearlos.
-    const canAtender = user.role === "admin_general";
     return {
       roleLabel: ROLE_LABEL_BY_ID[user.role],
       badge,
@@ -3076,20 +3096,6 @@ export function EquipoSection() {
       expired,
       resending: resendingAccessId === user.id,
       onResend: () => resendAccessInvite(user.id),
-      atiende: canAtender
-        ? {
-            on: atiendeOverride[user.id] ?? linkedEmployee,
-            onToggle: () => {
-              if (linkSaving) return;
-              if (linkedEmployee) void linkAccessToBarber(user, null);
-              else {
-                const libres = rows.filter((emp) => !accessByEmployeeId.has(emp.id));
-                setLinkChoice(libres.length > 0 ? libres[0].id : "new");
-                setLinkBarberFor(user);
-              }
-            },
-          }
-        : undefined,
     };
   }
 
@@ -3483,9 +3489,9 @@ export function EquipoSection() {
                   key={user.id}
                   title={user.name && user.name !== ROLE_LABEL_BY_ID[user.role] ? user.name : ROLE_LABEL_BY_ID[user.role]}
                   access={accessInfoFor(user, false)}
-                  // El Admin. General no se edita desde acá: si atiende clientes se edita como
-                  // barbero (su tarjeta de barbero); si no, no hay nada que editar.
-                  onEdit={user.role === "admin_general" ? undefined : () => editAccessUser(user)}
+                  // Admin. General sin perfil de barbero: "Editar" pregunta si atiende clientes.
+                  // Si dice que sí se crea/vincula su perfil de barbero; si no, no pasa nada.
+                  onEdit={user.role === "admin_general" ? () => setAskAtiendeFor(user) : () => editAccessUser(user)}
                 />
               ))}
             {rows.filter((emp) => emp.id !== principalBarberRow?.id).map(renderBarberCard)}
@@ -3517,7 +3523,7 @@ export function EquipoSection() {
             >
               <div className="text-xl font-bold">Agregar persona</div>
               <div className="mt-4 flex flex-wrap gap-2">
-                {(["profesional", "admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
+                {(["profesional", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
                   <button
                     key={role}
                     type="button"
@@ -3574,6 +3580,39 @@ export function EquipoSection() {
                   className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]"
                 >
                   Continuar
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {askAtiendeFor &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => setAskAtiendeFor(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-3xl bg-[#08070f] p-5 shadow-2xl ring-1 ring-violet-400/30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-xl font-bold">¿Atendés clientes?</div>
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => answerAtiende(false)}
+                  className="h-12 flex-1 rounded-full bg-white/5 px-4 text-base text-white/70 ring-1 ring-white/10"
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => answerAtiende(true)}
+                  className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]"
+                >
+                  Sí
                 </button>
               </div>
             </div>
