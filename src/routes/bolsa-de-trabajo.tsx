@@ -135,7 +135,11 @@ function PostingFooter({
           {distText && <span className="shrink-0 text-base text-white/60">{distText}</span>}
         </div>
       )}
-      {open && text && <p className="mb-2 whitespace-pre-line text-base font-semibold text-white/90">{text}</p>}
+      {open && text && (
+        <div className="mb-3 rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
+          <p className="whitespace-pre-line text-base font-semibold text-white/90">{text}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         {text ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="text-base font-semibold text-violet-300">
