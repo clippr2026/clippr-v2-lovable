@@ -87,6 +87,8 @@ type PriceForm = {
   // Comisión de este servicio (vacío = cada profesional usa su comisión general).
   commissionMode: "percent" | "fixed";
   commissionValue: string;
+  // Productos: "Genera comisión" (rige para todos los profesionales).
+  commissionOn: boolean;
 };
 
 const emptyPriceForm = (
@@ -112,6 +114,7 @@ const emptyPriceForm = (
   imagePosition: "50% 50%",
   commissionMode: "percent",
   commissionValue: "",
+  commissionOn: false,
 });
 
 const defaultServiceCategories: string[] = [];
@@ -203,6 +206,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     image: "",
     commissionMode: "percent",
     commissionValue: "",
+    commissionOn: false,
     imagePosition: "50% 50%",
   };
 }
@@ -1011,6 +1015,38 @@ function PriceEditorModal({
                   </Campo>
                   <Campo label="Categoría">{categoryField}</Campo>
                 </div>
+              </SectionCard>
+
+              <SectionCard
+                clippr
+                className="!border-white/20 !bg-white/[0.08]"
+                label={<Titulo icon={Percent} tono="violet">Genera comisión</Titulo>}
+                headerRight={
+                  <Toggle
+                    on={form.commissionOn}
+                    onChange={(v) => setForm({ ...form, commissionOn: v, commissionValue: v ? form.commissionValue : "" })}
+                  />
+                }
+              >
+                {form.commissionOn && (
+                  <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                    <SelectClippr
+                      opciones={[
+                        { id: "percent", label: "%" },
+                        { id: "fixed", label: "$ fijo" },
+                      ]}
+                      valor={form.commissionMode}
+                      onChange={(v) => setForm({ ...form, commissionMode: v === "fixed" ? "fixed" : "percent" })}
+                    />
+                    <input
+                      inputMode="decimal"
+                      value={form.commissionValue}
+                      onChange={(e) => setForm({ ...form, commissionValue: e.target.value.replace(/[^\d.,]/g, "") })}
+                      placeholder="Ej: 10"
+                      className={campoCls}
+                    />
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard clippr className="!border-white/20 !bg-white/[0.08]" label={<Titulo icon={Wallet} tono="emerald">Precios</Titulo>}>
@@ -1936,6 +1972,23 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             else delete star[id];
           }
           all[SERVICE_COMMISSION_KEY] = star;
+          // Productos: la comisión del Catálogo rige para todos, así que se borran las propias de cada
+          // profesional para ese producto (si no, una vieja taparía el valor nuevo).
+          if (!isService) {
+            const ids = ownImageIds();
+            for (const emp of Object.keys(all)) {
+              if (emp === SERVICE_COMMISSION_KEY) continue;
+              const mine = { ...(all[emp] ?? {}) };
+              let changed = false;
+              for (const id of ids) {
+                if (id in mine) {
+                  delete mine[id];
+                  changed = true;
+                }
+              }
+              if (changed) all[emp] = mine;
+            }
+          }
           return all;
         };
 
@@ -2265,6 +2318,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       description: isService ? descriptionMap[row.id] ?? "" : "",
       commissionMode: serviceCommissionMap[row.id]?.mode ?? "percent",
       commissionValue: serviceCommissionMap[row.id]?.value ?? "",
+      commissionOn: Boolean(serviceCommissionMap[row.id]),
     });
     setModalOpen(true);
   }
@@ -2359,6 +2413,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           else delete next[editing.id];
           return next;
         });
+      } else {
+        setServiceCommissionMap((current) => {
+          const next = { ...current };
+          if (form.commissionOn && form.commissionValue.trim()) next[editing.id] = { mode: form.commissionMode, value: form.commissionValue.trim() };
+          else delete next[editing.id];
+          return next;
+        });
       }
       // Update existing row locally
       setRows((prev) =>
@@ -2393,7 +2454,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       if (isService && form.description.trim()) {
         setDescriptionMap((current) => ({ ...current, [tempId]: form.description.trim() }));
       }
-      if (isService && form.commissionValue.trim()) {
+      if ((isService || form.commissionOn) && form.commissionValue.trim()) {
         setServiceCommissionMap((current) => ({ ...current, [tempId]: { mode: form.commissionMode, value: form.commissionValue.trim() } }));
       }
       if (form.image) {
