@@ -65,6 +65,12 @@ function CrearCuentaPage() {
       );
       return;
     }
+    // Si el correo ya tiene una cuenta, Supabase responde "ok" sin mandar ningún mail (para no revelar qué
+    // correos existen) pero devuelve el usuario sin identidades: así se distingue y se avisa.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setError("Ese correo ya tiene cuenta. Iniciá sesión.");
+      return;
+    }
     // Con la confirmación por correo apagada Supabase devuelve la sesión directo: se sigue al panel.
     if (data.session) {
       navigate({ to: "/login", replace: true });
