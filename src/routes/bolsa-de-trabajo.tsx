@@ -375,11 +375,37 @@ function BolsaPublicaPage() {
         ))}
       </div>
 
+      {section === "bolsa" && (
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        {([["ofertas", "Empleos", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`flex min-w-0 flex-col items-center overflow-hidden rounded-3xl border bg-[#0a0d1f] pb-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
+          >
+            <span className="grid aspect-square w-full place-items-center">
+              <TabPhoto src={img} Icon={Icon} />
+            </span>
+            <span className={`mt-1 max-w-full whitespace-nowrap px-1 text-[13px] font-semibold leading-tight tracking-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
+          </button>
+        ))}
+      </div>
+      )}
+
       <FilterBar sort={sort} onSort={setSort} maxKm={maxKm} onMaxKm={setMaxKm} hasPlace={Boolean(place)} onNeedPlace={() => { toast.info("Elegí tu zona para ordenar y filtrar por distancia."); setPickSignal((n) => n + 1); }} />
 
-      <h1 className="mt-5 font-display text-3xl font-bold">{section === "locales" ? "Reservá tu turno" : "Bolsa de trabajo"}</h1>
+      <h1 className="mt-5 font-display text-3xl font-bold">
+        {section === "locales" ? "Reservá tu turno" : tab === "ofertas" ? "Bolsa de trabajo" : tab === "alquileres" ? "Alquiler de puestos" : "Profesionales"}
+      </h1>
       <p className="mt-2 text-lg text-white/65">
-        {section === "locales" ? "Locales que usan Clippr, cerca tuyo." : "Empleos, alquileres y profesionales disponibles."}
+        {section === "locales"
+          ? "Locales que usan Clippr, cerca tuyo."
+          : tab === "ofertas"
+            ? "Empleos que publican los locales."
+            : tab === "alquileres"
+              ? "Puestos de trabajo para alquilar en cada local."
+              : "Profesionales que buscan trabajo."}
       </p>
 
       {section === "locales" && (
@@ -404,21 +430,6 @@ function BolsaPublicaPage() {
 
       {section === "bolsa" && (
       <>
-      <div className="mt-5 grid grid-cols-3 gap-3">
-        {([["ofertas", "Empleos", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`flex min-w-0 flex-col items-center overflow-hidden rounded-3xl border bg-[#0a0d1f] pb-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
-          >
-            <span className="grid aspect-square w-full place-items-center">
-              <TabPhoto src={img} Icon={Icon} />
-            </span>
-            <span className={`mt-1 max-w-full whitespace-nowrap px-1 text-[13px] font-semibold leading-tight tracking-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
-          </button>
-        ))}
-      </div>
 
       <div className="mt-5 space-y-3 pb-10">
         {tab === "ofertas" && (
