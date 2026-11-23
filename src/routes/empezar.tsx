@@ -24,7 +24,7 @@ const OPTIONS = [
     tipo: "profesional",
     icon: UserRound,
     title: "Crear perfil de profesional",
-    desc: "Trabajás en una barbería que ya usa Clippr.",
+    desc: "Armá tu perfil, mostrá tu trabajo y mirá ofertas laborales.",
   },
   {
     tipo: "embajador",

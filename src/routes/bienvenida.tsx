@@ -37,7 +37,7 @@ function BienvenidaPage() {
         <p className="mt-3 text-center text-lg text-white/65">Muy pronto vas a poder recomendar Clippr y ganar recompensas.</p>
       ) : (
         <>
-          <p className="mt-3 text-center text-lg text-white/65">Pedile a tu barbería que te sume al equipo con este correo:</p>
+          <p className="mt-3 text-center text-lg text-white/65">Muy pronto vas a armar tu perfil y ver ofertas laborales. Si ya trabajás en una barbería con Clippr, pedile que te sume con este correo:</p>
           <div className={`${startCardCls} mt-6 flex items-center gap-3 p-4`} style={startCardStyle}>
             <span className="min-w-0 flex-1 truncate text-lg font-semibold">{email}</span>
             <button

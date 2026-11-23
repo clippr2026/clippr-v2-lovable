@@ -100,7 +100,7 @@ function CrearCuentaPage() {
         {tipo === "negocio"
           ? "Empezá a armar tu barbería."
           : tipo === "profesional"
-            ? "Después tu barbería te suma al equipo."
+            ? "Armá tu perfil y mirá ofertas laborales."
             : "Recomendá Clippr y ganá recompensas."}
       </p>
 
