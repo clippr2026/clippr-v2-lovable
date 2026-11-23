@@ -405,7 +405,7 @@ export const TITULO_TONOS = {
   amber: "bg-amber-400/20 text-amber-300",
   rose: "bg-rose-400/20 text-rose-300",
   cyan: "bg-cyan-400/20 text-cyan-300",
-  emeraldOscuro: "bg-black/30 text-emerald-300 ring-1 ring-white/10",
+  emeraldOscuro: "bg-black/30 text-violet-300 ring-1 ring-white/10",
   violetOscuro: "bg-black/30 text-violet-300 ring-1 ring-white/10",
 } as const;
 export function Titulo({ icon: Icon, tono, children }: { icon: React.ComponentType<{ className?: string }>; tono: keyof typeof TITULO_TONOS; children: React.ReactNode }) {
