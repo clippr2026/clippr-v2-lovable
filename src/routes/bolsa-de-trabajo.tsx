@@ -30,7 +30,12 @@ type Pro = {
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
 
 function Badge() {
-  return <span className="shrink-0 rounded-full bg-violet-500/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40">Con Clippr</span>;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet-500/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40">
+      <img src="/clippr-logo-login.webp" alt="" className="h-4 w-4 object-contain" />
+      Usa Clippr
+    </span>
+  );
 }
 
 function WhatsAppButton({ number }: { number?: string | null }) {
@@ -59,25 +64,25 @@ function PostingHeader({ p }: { p: Posting }) {
           <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-violet-500/20 text-xl font-semibold ring-2 ring-[#08070f]">
             {p.logo_url ? <img src={p.logo_url} alt={p.business_name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : (p.business_name[0] || "?").toUpperCase()}
           </span>
-          {!!p.reviews_count && (
-            <span className="mt-1 inline-flex items-center gap-0.5 whitespace-nowrap text-sm">
-              <Star className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
-              <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
-              <span className="text-white/50">({p.reviews_count})</span>
-            </span>
-          )}
         </div>
         <div className={`min-w-0 flex-1 ${p.cover_url ? "pt-8" : ""}`}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-xl font-semibold leading-tight">{p.business_name}</div>
-              <div className="truncate text-base text-white/75">{p.title}</div>
+              <div className="truncate text-lg font-normal leading-tight text-white/70">{p.business_name}</div>
+              {!!p.reviews_count && (
+                <div className="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap text-base">
+                  <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
+                  <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
+                  <span className="text-white/50">({p.reviews_count})</span>
+                </div>
+              )}
               {p.distKm != null && <div className="text-sm text-white/50">{formatKm(p.distKm)}</div>}
             </div>
             <Badge />
           </div>
         </div>
       </div>
+      <div className="truncate px-4 pt-2 text-xl font-semibold leading-tight">{p.title}</div>
     </div>
   );
 }
