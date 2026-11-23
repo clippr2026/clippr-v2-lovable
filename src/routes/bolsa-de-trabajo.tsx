@@ -310,10 +310,10 @@ function BolsaPublicaPage() {
                   <PostingFooter
                     text={p.description}
                     logged={Boolean(session)}
-                    showAction={isPro || !session}
+                    showAction
                     disabled={sent || busy === p.id}
                     label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Postularme"}
-                    onSend={() => void apply(p)}
+                    onSend={() => (isPro ? void apply(p) : toast.info("Para postularte necesitás una cuenta de profesional."))}
                   />
                   </div>
                 </div>
@@ -381,10 +381,10 @@ function BolsaPublicaPage() {
                   <WhatsAppButton number={r.whatsapp} />
                   <PostingFooter
                     logged={Boolean(session)}
-                    showAction={isOwner || !session}
+                    showAction
                     disabled={busy === r.user_id}
                     label={busy === r.user_id ? "Enviando…" : "Invitar"}
-                    onSend={() => void invite(r)}
+                    onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
                   />
                 </div>
               );
