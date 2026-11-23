@@ -45,9 +45,17 @@ export function AvatarCropper({
     const left = VIEW / 2 + pos.x - (img.width * scale) / 2;
     const top = VIEW / 2 + pos.y - (img.height * scale) / 2;
     ctx.drawImage(img, -left / scale, -top / scale, VIEW / scale, VIEW / scale, 0, 0, size, size);
+    // Safari/iPhone no guarda WebP desde un canvas (devuelve PNG pesado): en ese caso pasa a JPEG.
     canvas.toBlob(
-      (blob) => {
-        if (blob) onDone(new File([blob], "foto.webp", { type: "image/webp" }));
+      (webp) => {
+        if (webp && webp.type === "image/webp") return onDone(new File([webp], "foto.webp", { type: "image/webp" }));
+        canvas.toBlob(
+          (jpg) => {
+            if (jpg) onDone(new File([jpg], "foto.jpg", { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.85,
+        );
       },
       "image/webp",
       0.9,

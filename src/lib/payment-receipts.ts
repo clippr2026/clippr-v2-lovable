@@ -61,6 +61,9 @@ export async function compressReceiptImage(file: File): Promise<Blob> {
     if (!ctx) throw new Error("No se pudo preparar la imagen del comprobante");
     ctx.drawImage(image, 0, 0, targetW, targetH);
 
+    // Safari/iPhone NO sabe guardar WebP desde un canvas: devuelve PNG sin comprimir (3 MB por captura,
+    // 92% del espacio de archivos). Si el primer intento no sale WebP, se pasa a JPEG, que sí comprime en todos.
+    let mime = "image/webp";
     const toBlob = (quality: number) =>
       new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
@@ -68,7 +71,7 @@ export async function compressReceiptImage(file: File): Promise<Blob> {
             if (!blob) reject(new Error("No se pudo comprimir el comprobante"));
             else resolve(blob);
           },
-          "image/webp",
+          mime,
           quality,
         );
       });
@@ -78,6 +81,10 @@ export async function compressReceiptImage(file: File): Promise<Blob> {
     // al peso mínimo.
     let quality = 0.88;
     let blob = await toBlob(quality);
+    if (blob.type !== "image/webp") {
+      mime = "image/jpeg";
+      blob = await toBlob(quality);
+    }
 
     while (blob.size > TARGET_MAX_BYTES && quality > MIN_QUALITY) {
       quality -= 0.07;
@@ -113,7 +120,7 @@ async function uploadReceiptBlob(businessId: string, paymentId: string, blob: Bl
   const path = paymentReceiptPath(businessId, paymentId);
   const { error } = await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).upload(path, blob, {
     upsert: true,
-    contentType: "image/webp",
+    contentType: blob.type || "image/webp",
     cacheControl: "0",
   });
   if (error) throw new Error(error.message);
@@ -191,7 +198,7 @@ export async function attachReceiptToPaymentSplit(
   const path = paymentSplitReceiptPath(businessId, paymentId, idx);
   const { error: uploadError } = await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).upload(path, blob, {
     upsert: true,
-    contentType: "image/webp",
+    contentType: blob.type || "image/webp",
     cacheControl: "0",
   });
   if (uploadError) throw new Error(uploadError.message);

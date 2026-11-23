@@ -62,10 +62,10 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
 
   async function uploadAvatar(file: File) {
     setUploading(true);
-    const path = `${userId}/${Date.now()}.webp`;
+    const path = `${userId}/${Date.now()}.${file.type === "image/jpeg" ? "jpg" : "webp"}`;
     const { error } = await supabase.storage
       .from("perfiles-profesionales")
-      .upload(path, file, { cacheControl: "3600", upsert: true, contentType: "image/webp" });
+      .upload(path, file, { cacheControl: "3600", upsert: true, contentType: file.type || "image/webp" });
     setUploading(false);
     if (error) return toast.error("No se pudo subir la foto");
     setAvatar(supabase.storage.from("perfiles-profesionales").getPublicUrl(path).data.publicUrl);

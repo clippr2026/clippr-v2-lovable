@@ -1774,6 +1774,8 @@ export function EquipoSection() {
         size,
       );
 
+      // Safari/iPhone no guarda WebP desde un canvas (devuelve PNG pesado): en ese caso pasa a JPEG.
+      let mime = "image/webp";
       const toBlob = (quality: number) =>
         new Promise<Blob>((resolve, reject) => {
           canvas.toBlob(
@@ -1781,13 +1783,17 @@ export function EquipoSection() {
               if (!blob) reject(new Error("No se pudo comprimir la imagen"));
               else resolve(blob);
             },
-            "image/webp",
+            mime,
             quality,
           );
         });
 
       let quality = 0.75;
       let blob = await toBlob(quality);
+      if (blob.type !== "image/webp") {
+        mime = "image/jpeg";
+        blob = await toBlob(quality);
+      }
 
       while (blob.size > 80 * 1024 && quality > 0.45) {
         quality -= 0.08;
@@ -1827,14 +1833,15 @@ export function EquipoSection() {
 
     const compressed = await compressProfessionalAvatar(file);
     const safeId = editingEmp?.id ?? `new-${crypto.randomUUID()}`;
-    const path = `${businessId}/${safeId}-${Date.now()}.webp`;
+    const ext = compressed.type === "image/jpeg" ? "jpg" : "webp";
+    const path = `${businessId}/${safeId}-${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from("professionals")
       .upload(path, compressed, {
         cacheControl: "3600",
         upsert: true,
-        contentType: "image/webp",
+        contentType: compressed.type || "image/webp",
       });
 
     if (error) {
