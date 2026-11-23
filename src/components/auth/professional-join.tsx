@@ -7,6 +7,7 @@ import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
 type MyRequest = { id: string; business_name: string; initiated_by: string; status: string; created_at: string };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
+  invited: { label: "Te solicitó", cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
   pending: { label: "Pendiente", cls: "bg-amber-400/15 text-amber-200 ring-amber-300/30" },
   accepted: { label: "Sumado", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
   rejected: { label: "Rechazada", cls: "bg-white/10 text-white/60 ring-white/15" },

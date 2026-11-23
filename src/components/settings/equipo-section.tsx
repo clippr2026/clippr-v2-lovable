@@ -45,6 +45,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
 import { JobPostingsButton } from "@/components/settings/job-postings";
 import { JoinCodeAndRequests, type JoinRequest } from "@/components/settings/join-requests";
+import { BolsaProfilesButton } from "@/components/settings/bolsa-profiles";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -3384,6 +3385,7 @@ export function EquipoSection() {
       <div className="-mt-3 space-y-3">
         <JoinCodeAndRequests onAccept={(r) => void acceptJoinRequest(r)} refreshKey={joinRefresh} />
         <div className="flex items-center justify-end gap-2">
+          <BolsaProfilesButton onInvited={() => setJoinRefresh((n) => n + 1)} />
           <JobPostingsButton />
         <button
           type="button"

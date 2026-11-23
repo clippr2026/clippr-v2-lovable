@@ -87,6 +87,7 @@ export function JoinCodeAndRequests({
 
   const pending = rows.filter((r) => r.status === "pending");
   const blocked = rows.filter((r) => r.status === "blocked");
+  const invited = rows.filter((r) => r.status === "invited");
 
   return (
     <>
@@ -258,6 +259,18 @@ export function JoinCodeAndRequests({
                     </div>
                   );
                 })}
+
+                {invited.length > 0 && (
+                  <div className="pt-2">
+                    <div className="mb-2 text-base font-semibold text-white/60">Esperando respuesta</div>
+                    {invited.map((r) => (
+                      <div key={r.id} className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                        <span className="min-w-0 truncate text-base font-semibold">{r.full_name}</span>
+                        <span className="shrink-0 rounded-full bg-amber-400/15 px-3 py-1 text-sm font-semibold text-amber-200 ring-1 ring-amber-300/30">Enviada</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {blocked.length > 0 && (
                   <div className="pt-2">
