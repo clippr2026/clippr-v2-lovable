@@ -4015,26 +4015,6 @@ export function EquipoSection() {
                     </Field>
                   </div>
 
-                  {/* Un profesional nuevo arranca en la sucursal activa (ya se sabe cuál es);
-                      el selector solo aparece al editar uno existente, por si hay que moverlo. */}
-                  {branches.length > 1 && editingEmp && (
-                    <Field label="Sucursal">
-                      <select
-                        value={form.branchId ?? ""}
-                        onChange={(e) =>
-                          setForm({ ...form, branchId: e.target.value || null })
-                        }
-                        className={inputCls}
-                      >
-                        <option value="">Sin asignar</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  )}
 
                   </DlgSection>
 
