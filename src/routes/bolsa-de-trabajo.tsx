@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { StartShell, startCardCls, startCardStyle } from "@/components/auth/start-shell";
 import { PostingDetails } from "@/components/auth/posting-details";
 import { PlacePicker, loadPlace } from "@/components/auth/place-picker";
+import { FilterBar, type SortKey } from "@/components/auth/filter-bar";
 import { distanceKm, formatKm, geocodeCached, type Place } from "@/lib/geo";
 
 export const Route = createFileRoute("/bolsa-de-trabajo")({
@@ -163,6 +164,7 @@ function PostingFooter({
 type Local = {
   slug: string; name: string; logo_url: string | null; cover_url: string | null; address: string | null;
   instagram: string | null; business_start_date: string | null; reviews_avg: number | null; reviews_count: number; distKm?: number | null;
+  hours?: Record<string, { s: string; e: string }> | null;
 };
 
 // Tarjeta de un local: portada, logo, nombre con estrellas, dirección y botón para reservar.
@@ -207,6 +209,12 @@ function LocalCard({ l }: { l: Local }) {
             {l.distKm != null && <span className="shrink-0 text-white/50">· {formatKm(l.distKm)}</span>}
           </div>
         )}
+        {formatHours(l.hours).map((h) => (
+          <div key={h} className="flex items-center gap-2 text-base text-white/75">
+            <Clock className="h-4 w-4 shrink-0 text-violet-300" />
+            <span>{h}</span>
+          </div>
+        ))}
         <div className="flex items-center justify-between gap-3">
           <span className="text-base text-white/60">{y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : ""}</span>
           <Link to="/negocio/$slug" params={{ slug: l.slug }} className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-base font-semibold text-white">
@@ -216,6 +224,28 @@ function LocalCard({ l }: { l: Local }) {
       </div>
     </div>
   );
+}
+
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+// "Lun a Sáb · 11:00 a 20:00": agrupa los días seguidos con el mismo horario.
+function formatHours(hours?: Record<string, { s: string; e: string }> | null): string[] {
+  if (!hours) return [];
+  const out: string[] = [];
+  let i = 0;
+  while (i < 7) {
+    const h = hours[DAY_KEYS[i]];
+    if (!h) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < 7 && hours[DAY_KEYS[j + 1]]?.s === h.s && hours[DAY_KEYS[j + 1]]?.e === h.e) j++;
+    out.push(`${j === i ? DAY_NAMES[i] : j === i + 1 ? `${DAY_NAMES[i]} y ${DAY_NAMES[j]}` : `${DAY_NAMES[i]} a ${DAY_NAMES[j]}`} · ${h.s} a ${h.e}`);
+    i = j + 1;
+  }
+  return out;
 }
 
 function yearsOf(date?: string | null): number | null {
@@ -235,6 +265,9 @@ function BolsaPublicaPage() {
   const { session, businessId, user, loading: authLoading } = useAuth();
   const [tab, setTab] = React.useState<"ofertas" | "alquileres" | "profesionales">("ofertas");
   const [section, setSection] = React.useState<"locales" | "bolsa">("locales");
+  const [sort, setSort] = React.useState<SortKey>("relevantes");
+  const [maxKm, setMaxKm] = React.useState<number | null>(null);
+  const [pickSignal, setPickSignal] = React.useState(0);
   const [locales, setLocales] = React.useState<Local[] | null>(null);
   const [postings, setPostings] = React.useState<Posting[] | null>(null);
   const [pros, setPros] = React.useState<Pro[] | null>(null);
@@ -284,14 +317,18 @@ function BolsaPublicaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place, postings, pros, locales]);
 
-  const withDist = <T extends { distKm?: number | null }>(rows: T[] | null, textOf: (r: T) => string): T[] | null => {
+  // Agrega la distancia, filtra por el máximo elegido y ordena según el criterio.
+  const withDist = <T extends { distKm?: number | null; reviews_avg?: number | null; reviews_count?: number }>(rows: T[] | null, textOf: (r: T) => string): T[] | null => {
     if (!rows) return rows;
-    if (!place) return rows;
-    const out = rows.map((r) => {
-      const c = coords[textOf(r).trim()];
-      return { ...r, distKm: c ? distanceKm(place, c) : null };
+    let out = rows.map((r) => {
+      const c = place ? coords[textOf(r).trim()] : null;
+      return { ...r, distKm: place && c ? distanceKm(place, c) : null };
     });
-    return out.sort((a, b) => (a.distKm ?? 1e9) - (b.distKm ?? 1e9));
+    if (place && maxKm) out = out.filter((r) => r.distKm == null || r.distKm <= maxKm);
+    if (sort === "cercanos") out.sort((x, y) => (x.distKm ?? 1e9) - (y.distKm ?? 1e9));
+    else if (sort === "puntuados") out.sort((x, y) => (y.reviews_avg ?? 0) - (x.reviews_avg ?? 0) || (y.reviews_count ?? 0) - (x.reviews_count ?? 0));
+    else if ((rows as unknown) === locales) out.sort((x, y) => (y.reviews_count ?? 0) - (x.reviews_count ?? 0));
+    return out;
   };
   const localesView = withDist(locales, (r) => (r as Local).address ?? "");
   const postingsView = withDist(postings, (r) => (r as Posting).address ?? (r as Posting).zone ?? "");
@@ -321,7 +358,7 @@ function BolsaPublicaPage() {
       header={
         <div className="flex items-center gap-3">
           <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
-          <PlacePicker place={place} onChange={setPlace} />
+          <PlacePicker place={place} onChange={(p) => { setPlace(p); if (p) setSort("cercanos"); else { setSort("relevantes"); setMaxKm(null); } }} openSignal={pickSignal} />
           <Link to="/" aria-label="Inicio" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/80 ring-1 ring-white/10">
             ✕
           </Link>
@@ -340,6 +377,8 @@ function BolsaPublicaPage() {
           </button>
         ))}
       </div>
+
+      <FilterBar sort={sort} onSort={setSort} maxKm={maxKm} onMaxKm={setMaxKm} hasPlace={Boolean(place)} onNeedPlace={() => { toast.info("Elegí tu zona para ordenar y filtrar por distancia."); setPickSignal((n) => n + 1); }} />
 
       <h1 className="mt-5 font-display text-3xl font-bold">{section === "locales" ? "Reservá tu turno" : "Bolsa de trabajo"}</h1>
       <p className="mt-2 text-lg text-white/65">

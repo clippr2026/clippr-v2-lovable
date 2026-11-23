@@ -16,8 +16,11 @@ export function loadPlace(): Place | null {
 }
 
 // Encabezado "Buscar cerca de ..." con el lugar elegido; al tocarlo se elige otra dirección o la ubicación actual.
-export function PlacePicker({ place, onChange }: { place: Place | null; onChange: (p: Place | null) => void }) {
+export function PlacePicker({ place, onChange, openSignal = 0 }: { place: Place | null; onChange: (p: Place | null) => void; openSignal?: number }) {
   const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (openSignal > 0) setOpen(true);
+  }, [openSignal]);
   const [q, setQ] = React.useState("");
   const [results, setResults] = React.useState<Place[]>([]);
   const [locating, setLocating] = React.useState(false);
