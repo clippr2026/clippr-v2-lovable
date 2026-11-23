@@ -140,7 +140,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         <span className="mb-1.5 block text-base font-semibold text-white/85">Trabajo en el rubro desde</span>
         <span className="relative block">
           <Briefcase className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={`${inputCls} [color-scheme:dark]`} />
+          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={`${inputCls} block max-w-full appearance-none [color-scheme:dark]`} />
         </span>
       </label>
 
