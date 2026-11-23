@@ -337,8 +337,7 @@ function PermissionToggleRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-2xl px-3.5 py-3.5 ring-1 transition-colors",
-        on ? "bg-white/[0.07] ring-white/20" : "bg-white/[0.03] ring-white/10",
+        "flex min-h-[72px] items-center gap-3 rounded-2xl bg-white/[0.07] px-3.5 py-2 ring-1 ring-white/20",
       )}
     >
       <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", TONE_CLS.violet)}>
@@ -510,7 +509,7 @@ function ApprovalModeCard({
       <PermissionToggleRow
         icon={MessageCircle}
         tone="emerald"
-        title="Ver WhatsApp del cliente"
+        title="Ver WhatsApp"
         on={showWhatsapp}
         onChange={onToggleShowWhatsapp}
       />
@@ -4040,6 +4039,7 @@ export function EquipoSection() {
                   </DlgSection>
 
                   <DlgSection title="Permisos" icon={ShieldCheck} tone="emerald">
+                  <div className="space-y-2">
                   <PermissionToggleRow
                     icon={Globe}
                     tone="sky"
@@ -4068,6 +4068,7 @@ export function EquipoSection() {
                       setForm({ ...form, showWhatsapp: v })
                     }
                   />
+                  </div>
                   </DlgSection>
                 </div>
               )}
