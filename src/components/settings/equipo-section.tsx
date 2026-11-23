@@ -44,6 +44,7 @@ import {
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
 import { JobPostingsButton } from "@/components/settings/job-postings";
+import { JoinCodeAndRequests, type JoinRequest } from "@/components/settings/join-requests";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -160,6 +161,7 @@ type EmployeeRow = {
   birth_date?: string | null;
   nationality?: string | null;
   experience_since?: string | null;
+  user_id?: string | null;
 };
 
 type PendingProfessional = {
@@ -1092,6 +1094,9 @@ export function EquipoSection() {
   // El interruptor "Atiendo clientes" se mueve en el acto; el guardado y la recarga tardan.
   const [atiendeOverride, setAtiendeOverride] = useState<Record<string, boolean>>({});
   const linkAfterCreateRef = useRef<string | null>(null);
+  // Solicitud de unirse que se está aceptando: al guardar el barbero nuevo se ata a la cuenta de la persona.
+  const joinAfterCreateRef = useRef<string | null>(null);
+  const [joinRefresh, setJoinRefresh] = useState(0);
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
@@ -1231,7 +1236,7 @@ export function EquipoSection() {
     // ...) de siempre. Con activeBranchId en null el filtro no se aplica.
     let employeesQuery = supabase
       .from("employees")
-      .select("id,full_name,avatar_url,is_active,commission_pct,commission_enabled,branch_id,birth_date,nationality,experience_since")
+      .select("id,full_name,avatar_url,is_active,commission_pct,commission_enabled,branch_id,birth_date,nationality,experience_since,user_id")
       .eq("business_id", businessId);
     if (activeBranchId) employeesQuery = employeesQuery.eq("branch_id", activeBranchId);
     employeesQuery = employeesQuery.order("full_name", { ascending: true });
@@ -2340,6 +2345,14 @@ export function EquipoSection() {
         [newId]: form.specialDates,
       }));
 
+      const joinRequestId = joinAfterCreateRef.current;
+      joinAfterCreateRef.current = null;
+      if (joinRequestId) {
+        const { error: joinErr } = await (supabase as any).rpc("link_join_request", { p_id: joinRequestId, p_employee: newId });
+        if (joinErr) toast.error("El profesional se creó, pero no se pudo cerrar la solicitud.");
+        setJoinRefresh((n) => n + 1);
+      }
+
       const linkMemberId = linkAfterCreateRef.current;
       linkAfterCreateRef.current = null;
       if (linkMemberId) {
@@ -3060,6 +3073,60 @@ export function EquipoSection() {
     if (ok) setLinkBarberFor(null);
   }
 
+  // Aceptar una solicitud de unirse: abre el alta de barbero con los datos del perfil y su correo ya cargados.
+  async function acceptJoinRequest(req: JoinRequest) {
+    const { data: email, error } = await (supabase as any).rpc("join_request_email", { p_id: req.id });
+    if (error || !email) return toast.error("No se pudo abrir la solicitud");
+    joinAfterCreateRef.current = req.id;
+    openNew();
+    setForm((f) => ({
+      ...f,
+      fullName: req.full_name,
+      avatarUrl: req.avatar_url ?? "",
+      birthDate: req.birth_date ?? "",
+      nationality: req.nationality ?? "",
+      experienceSince: req.experience_since ?? "",
+      description: req.bio ?? "",
+      phone: req.whatsapp ?? "",
+      email: email as string,
+    }));
+    setNewPersonAccess("profesional");
+    setEditingAccessUserId(null);
+    setAccessForm({ ...EMPTY_ACCESS_FORM, role: "profesional", email: email as string, name: req.full_name, branch_id: activeBranchId ?? null });
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+    setSelectedPermRole("profesional");
+    setAccessTouched(false);
+  }
+
+  // Desvincular a un barbero que vino por la bolsa de trabajo: se corta su acceso y se oculta de la agenda y de
+  // las reservas. Su historial queda intacto y su perfil y reseñas siguen siendo suyos. Nunca borra su cuenta.
+  async function unlinkProfessional(emp: EmployeeRow) {
+    if (!businessId) return;
+    if (!window.confirm(`¿Desvincular a ${emp.full_name || "esta persona"}? Deja de ver el negocio. Su historial queda guardado y su perfil sigue siendo suyo.`)) return;
+    const { error } = await (supabase as any).rpc("unlink_join_request", { p_employee: emp.id });
+    if (error) return toast.error("No se pudo desvincular");
+    const member = accessByEmployeeId.get(emp.id);
+    if (member) {
+      await inviteTeamMember({
+        action: "update",
+        member_id: member.id,
+        business_id: businessId,
+        email: member.email,
+        full_name: member.name,
+        role: member.role,
+        status: "suspended",
+        professional_id: emp.id,
+        branch_id: member.branch_id ?? null,
+        permissions: userPermissions[member.id] ?? DEFAULT_ROLE_PERMISSIONS[member.role],
+      });
+    }
+    await supabase.from("employees").update({ is_active: false }).eq("id", emp.id);
+    setOpen(false);
+    toast.success("Profesional desvinculado.");
+    await load();
+    await loadTeamMembers();
+  }
+
   function continueAddPerson() {
     setAddChooserOpen(false);
     if (chooserRole === "profesional" || chooserAtiende) {
@@ -3315,6 +3382,7 @@ export function EquipoSection() {
           clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="-mt-3 space-y-3">
+        <JoinCodeAndRequests onAccept={(r) => void acceptJoinRequest(r)} refreshKey={joinRefresh} />
         <div className="flex items-center justify-end gap-2">
           <JobPostingsButton />
         <button
@@ -4091,7 +4159,16 @@ export function EquipoSection() {
               className="flex shrink-0 items-center gap-2 border-t border-white/10 px-4 pt-3"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
-              {editingEmp ? (
+              {editingEmp?.user_id ? (
+                <button
+                  type="button"
+                  onClick={() => void unlinkProfessional(editingEmp)}
+                  className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/5 px-4 text-base font-bold text-white/85 transition active:scale-95"
+                >
+                  Desvincular
+                </button>
+              ) : null}
+              {editingEmp && !editingEmp.user_id ? (
                 <button
                   type="button"
                   onClick={() => void startRemoveEmp(editingEmp)}

@@ -1,10 +1,9 @@
 import * as React from "react";
-import { Briefcase, Cake, Camera, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Scissors, UserRound, X } from "lucide-react";
+import { Briefcase, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Scissors, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
-import { compressImage } from "@/lib/image-compress";
 
 const SUGGESTED = ["Corte", "Degradé", "Barba", "Color", "Alisado", "Diseños", "Niños"];
 const MAX_SPECIALTIES = 8;
@@ -59,11 +58,18 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
   const [instagram, setInstagram] = React.useState("");
   const [photos, setPhotos] = React.useState<string[]>([]);
   const [cropSrc, setCropSrc] = React.useState<string | null>(null);
+  const [workCropSrc, setWorkCropSrc] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [reviews, setReviews] = React.useState<{ count: number; avg: number | null }>({ count: 0, avg: null });
 
   React.useEffect(() => {
     let alive = true;
     void (async () => {
+      void (async () => {
+        const { data } = await (supabase as any).rpc("my_review_stats");
+        const r = (data as Array<{ reviews_count: number; reviews_avg: number | null }> | null)?.[0];
+        if (alive && r) setReviews({ count: r.reviews_count, avg: r.reviews_avg });
+      })();
       const [pub, priv] = await Promise.all([
         (supabase as any)
           .from("professional_profiles")
@@ -120,14 +126,9 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
   async function addWorkPhoto(file: File) {
     if (photos.length >= MAX_PHOTOS) return;
     setUploading(true);
-    try {
-      const blob = await compressImage(file, 800, 0.6);
-      const url = await uploadBlob(blob, "trabajos/");
-      if (url) setPhotos((cur) => [...cur, url].slice(0, MAX_PHOTOS));
-    } catch {
-      toast.error("No se pudo procesar la imagen");
-    }
+    const url = await uploadBlob(file, "trabajos/");
     setUploading(false);
+    if (url) setPhotos((cur) => [...cur, url].slice(0, MAX_PHOTOS));
   }
 
   function addSpecialty(raw: string) {
@@ -191,7 +192,15 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
               }}
             />
           </label>
-          <div className="min-w-0 flex-1 text-lg font-semibold">{uploading ? "Subiendo…" : avatar ? "Tu foto" : "Agregá tu foto"}</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-semibold">{uploading ? "Subiendo…" : avatar ? "Tu foto" : "Agregá tu foto"}</div>
+            {reviews.count > 0 && (
+              <div className="mt-1 flex items-center gap-1 text-base text-white/65">
+                <Star className="h-4 w-4 text-amber-300" />
+                {reviews.avg} ({reviews.count} reseñas)
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -373,7 +382,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) void addWorkPhoto(f);
+                  if (f) setWorkCropSrc(URL.createObjectURL(f));
                   e.currentTarget.value = "";
                 }}
               />
@@ -390,6 +399,20 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       >
         {saving ? "Guardando…" : "Guardar perfil"}
       </button>
+
+      {workCropSrc && (
+        <AvatarCropper
+          shape="square"
+          size={640}
+          quality={0.6}
+          src={workCropSrc}
+          onCancel={() => setWorkCropSrc(null)}
+          onDone={(file) => {
+            setWorkCropSrc(null);
+            void addWorkPhoto(file);
+          }}
+        />
+      )}
 
       {cropSrc && (
         <AvatarCropper

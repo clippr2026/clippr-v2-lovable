@@ -1,9 +1,11 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Gift } from "lucide-react";
+import { Briefcase, Gift, KeyRound, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell } from "@/components/auth/start-shell";
 import { ProfessionalProfileForm } from "@/components/auth/professional-profile-form";
+import { ProfessionalJoin } from "@/components/auth/professional-join";
+import { ProfessionalBolsa } from "@/components/auth/professional-bolsa";
 
 export const Route = createFileRoute("/bienvenida")({
   head: () => ({ meta: [{ title: "Bienvenido — Clippr" }] }),
@@ -24,6 +26,7 @@ function BienvenidaPage() {
   }, [loading, session, businessId, navigate]);
 
   const esEmbajador = tipo === "embajador";
+  const [tab, setTab] = React.useState<"perfil" | "unirme" | "bolsa">("perfil");
 
   return (
     <StartShell>
@@ -37,10 +40,33 @@ function BienvenidaPage() {
         </>
       ) : (
         <>
-          <h1 className="font-display text-3xl font-bold">Tu perfil</h1>
-          <p className="mt-2 text-lg text-white/65">Queda guardado aunque cambies de barbería.</p>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {(
+              [
+                ["perfil", "Mi perfil", UserRound],
+                ["unirme", "Unirme", KeyRound],
+                ["bolsa", "Bolsa de trabajo", Briefcase],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-base font-semibold transition ${
+                  tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="mt-6">
-            {user && <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />}
+            {user && tab === "perfil" && (
+              <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
+            )}
+            {tab === "unirme" && <ProfessionalJoin />}
+            {user && tab === "bolsa" && <ProfessionalBolsa userId={user.id} />}
           </div>
         </>
       )}

@@ -11,6 +11,7 @@ export function AvatarCropper({
   onDone,
   size = 512,
   quality = 0.9,
+  shape = "circle",
 }: {
   src: string;
   onCancel: () => void;
@@ -19,6 +20,8 @@ export function AvatarCropper({
   size?: number;
   /** Calidad de compresión (0 a 1). */
   quality?: number;
+  /** Forma de la vista previa: círculo (perfil) o cuadrado (fotos de trabajos). */
+  shape?: "circle" | "square";
 }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -73,7 +76,7 @@ export function AvatarCropper({
       <div className="w-full max-w-sm rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-2xl">
         <div className="text-lg font-semibold text-white">Centrá la foto</div>
         <div
-          className="relative mx-auto mt-4 touch-none overflow-hidden rounded-full bg-black ring-2 ring-violet-400/50"
+          className={`relative mx-auto mt-4 touch-none overflow-hidden bg-black ring-2 ring-violet-400/50 ${shape === "circle" ? "rounded-full" : "rounded-2xl"}`}
           style={{ width: VIEW, height: VIEW }}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
