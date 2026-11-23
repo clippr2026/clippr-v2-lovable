@@ -210,7 +210,7 @@ function BolsaPublicaPage() {
             <span className="grid aspect-square w-full place-items-center">
               <TabPhoto src={img} Icon={Icon} />
             </span>
-            <span className={`mt-1 max-w-full truncate px-1 text-[15px] font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
+            <span className={`mt-1 max-w-full whitespace-nowrap px-1 text-[13px] font-semibold leading-tight tracking-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
           </button>
         ))}
       </div>
