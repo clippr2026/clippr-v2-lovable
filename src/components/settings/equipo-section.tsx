@@ -18,6 +18,8 @@ import {
   Pencil,
   DollarSign,
   MessageCircle,
+  CalendarDays,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -567,7 +569,7 @@ function ApprovalModeCard({
 }
 
 const timeCls =
-  "h-12 w-full min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white focus:border-violet-400/50 focus:outline-none disabled:opacity-40 [color-scheme:dark]";
+  "flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl bg-white/5 px-3 py-0 text-lg font-semibold leading-none text-white ring-1 ring-white/10 focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40 [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left [color-scheme:dark]";
 
 const inputCls =
   "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
@@ -4063,118 +4065,68 @@ export function EquipoSection() {
                   <DlgSection title="Días" icon={CalendarPlus} tone="violet">
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
+                    const hasBreak = Boolean(d.breakStart && d.breakEnd);
                     return (
                       <div
                         key={key}
                         className={cn(
-                          "space-y-3 rounded-2xl p-4 ring-1 transition-colors",
-                          d.enabled
-                            ? "bg-white/[0.08] ring-white/[0.14] shadow-[0_0_24px_-10px_rgba(139,92,246,0.45)]"
-                            : "bg-white/[0.02] opacity-70 ring-white/5",
+                          "rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]",
+                          !d.enabled && "opacity-55",
                         )}
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-lg font-semibold">{label}</div>
-                            {!d.enabled && <div className="text-xs text-muted-foreground">No atiende este día</div>}
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={d.enabled}
-                            onClick={() => setDay(key, { enabled: !d.enabled })}
-                            className={cn(
-                              "h-5 w-9 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                              d.enabled ? "bg-primary" : "bg-white/15",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-                                d.enabled ? "left-[18px]" : "left-0.5",
-                              )}
-                            />
-                          </button>
-                        </div>
-                        <div className={cn("space-y-2 rounded-xl bg-sky-400/[0.06] p-3 ring-1 ring-sky-300/20", !d.enabled && "opacity-40")}>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="time"
-                              value={d.start}
-                              disabled={!d.enabled}
-                              onChange={(e) =>
-                                setDay(key, { start: e.target.value })
-                              }
-                              className={timeCls}
-                            />
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              a
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25">
+                              <CalendarDays className="h-4.5 w-4.5 text-violet-200" />
                             </span>
-                            <input
-                              type="time"
-                              value={d.end}
-                              disabled={!d.enabled}
-                              onChange={(e) =>
-                                setDay(key, { end: e.target.value })
-                              }
-                              className={timeCls}
-                            />
+                            {label}
                           </div>
+                          <Toggle on={d.enabled} onChange={(v) => setDay(key, { enabled: v })} />
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          <input
+                            type="time"
+                            value={d.start}
+                            disabled={!d.enabled}
+                            onChange={(e) => setDay(key, { start: e.target.value })}
+                            className={timeCls}
+                          />
+                          <input
+                            type="time"
+                            value={d.end}
+                            disabled={!d.enabled}
+                            onChange={(e) => setDay(key, { end: e.target.value })}
+                            className={timeCls}
+                          />
                         </div>
                         {d.enabled && (
-                          <div className="space-y-2 rounded-xl bg-amber-400/[0.06] p-3 ring-1 ring-amber-300/20">
-                            <div className="flex items-center justify-between">
-                              <div className="text-base font-semibold text-amber-200">
+                          <div className="mt-3.5 border-t border-white/10 pt-3.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 text-base text-white/75">
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15 ring-1 ring-amber-300/25">
+                                  <Coffee className="h-4.5 w-4.5 text-amber-200" />
+                                </span>
                                 Descanso
                               </div>
-                              <button
-                                type="button"
-                                role="switch"
-                                aria-checked={Boolean(d.breakStart && d.breakEnd)}
-                                onClick={() =>
-                                  setDay(
-                                    key,
-                                    d.breakStart && d.breakEnd
-                                      ? { breakStart: undefined, breakEnd: undefined }
-                                      : { breakStart: "13:00", breakEnd: "14:00" },
-                                  )
+                              <Toggle
+                                on={hasBreak}
+                                onChange={(v) =>
+                                  setDay(key, v ? { breakStart: "13:00", breakEnd: "14:00" } : { breakStart: undefined, breakEnd: undefined })
                                 }
-                                className={cn(
-                                  "h-5 w-9 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                                  d.breakStart && d.breakEnd ? "bg-primary" : "bg-white/15",
-                                )}
-                              >
-                                <span
-                                  className={cn(
-                                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-                                    d.breakStart && d.breakEnd ? "left-[18px]" : "left-0.5",
-                                  )}
-                                />
-                              </button>
+                              />
                             </div>
-                            {/* Con Descanso apagado no hay ningún rango elegido —
-                                se oculta toda la sección en vez de mostrar
-                                campos deshabilitados, igual que en Horario
-                                especial. */}
-                            {d.breakStart && d.breakEnd && (
-                              <div className="flex items-center gap-2">
+                            {hasBreak && (
+                              <div className="mt-3 grid grid-cols-2 gap-3">
                                 <input
                                   type="time"
                                   value={d.breakStart}
-                                  onChange={(e) =>
-                                    setDay(key, { breakStart: e.target.value })
-                                  }
+                                  onChange={(e) => setDay(key, { breakStart: e.target.value })}
                                   className={timeCls}
                                 />
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  a
-                                </span>
                                 <input
                                   type="time"
                                   value={d.breakEnd}
-                                  onChange={(e) =>
-                                    setDay(key, { breakEnd: e.target.value })
-                                  }
+                                  onChange={(e) => setDay(key, { breakEnd: e.target.value })}
                                   className={timeCls}
                                 />
                               </div>
