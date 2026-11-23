@@ -83,7 +83,7 @@ function PostingHeader({ p }: { p: Posting }) {
 function TabPhoto({ src, Icon }: { src: string; Icon: React.ComponentType<{ className?: string }> }) {
   const [failed, setFailed] = React.useState(false);
   if (failed) return <Icon className="h-10 w-10 text-violet-300" />;
-  return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-20 w-full object-contain" />;
+  return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
 }
 
 function years(date: string | null): number | null {
@@ -205,12 +205,12 @@ function BolsaPublicaPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`flex min-w-0 flex-col items-center rounded-3xl border bg-white/[0.04] px-1 pb-3 pt-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
+            className={`flex min-w-0 flex-col items-center overflow-hidden rounded-3xl border bg-[#0a0d1f] pb-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
           >
-            <span className="grid h-20 w-full place-items-center">
+            <span className="grid aspect-square w-full place-items-center">
               <TabPhoto src={img} Icon={Icon} />
             </span>
-            <span className={`mt-2 max-w-full truncate text-[15px] font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
+            <span className={`mt-1 max-w-full truncate px-1 text-[15px] font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
           </button>
         ))}
       </div>
