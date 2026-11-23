@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell, startCardCls, startCardStyle } from "@/components/auth/start-shell";
 import { PostingDetails } from "@/components/auth/posting-details";
-import { PostingMore } from "@/components/auth/posting-more";
 import { PlacePicker, loadPlace } from "@/components/auth/place-picker";
 import { distanceKm, formatKm, geocodeCached, type Place } from "@/lib/geo";
 
@@ -99,25 +98,56 @@ function TabPhoto({ src, Icon }: { src: string; Icon: React.ComponentType<{ clas
   return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
 }
 
-// "Contactar": con sesión envía la solicitud (o abre WhatsApp en los alquileres); sin sesión pide crear cuenta o iniciar sesión.
-function ContactButton({ logged, label, disabled, onSend, whatsapp }: { logged: boolean; label: string; disabled?: boolean; onSend: () => void; whatsapp?: string | null }) {
+// Pie del aviso: "Ver más" a la izquierda y el botón de acción a la derecha. Con sesión envía la solicitud (o abre
+// WhatsApp en los alquileres); sin sesión pide crear cuenta o iniciar sesión.
+function PostingFooter({
+  text,
+  logged,
+  label,
+  disabled,
+  onSend,
+  whatsapp,
+  showAction = true,
+}: {
+  text?: string | null;
+  logged: boolean;
+  label: string;
+  disabled?: boolean;
+  onSend: () => void;
+  whatsapp?: string | null;
+  showAction?: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
   const [ask, setAsk] = React.useState(false);
   const wa = (whatsapp ?? "").replace(/\D/g, "");
-  const cls = "flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white disabled:bg-white/[0.04] disabled:bg-none disabled:text-white/40";
-  if (logged && whatsapp !== undefined) {
-    return wa.length >= 8 ? (
-      <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className={cls}>
-        {label}
-      </a>
-    ) : null;
-  }
+  const cls = "inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white disabled:bg-white/[0.04] disabled:bg-none disabled:text-white/40";
+  const isLink = whatsapp !== undefined;
   return (
-    <div className="space-y-2">
-      <button type="button" disabled={disabled} onClick={() => (logged ? onSend() : setAsk((v) => !v))} className={cls}>
-        {label}
-      </button>
+    <div>
+      {open && text && <p className="mb-2 whitespace-pre-line text-base text-white/75">{text}</p>}
+      <div className="flex items-center justify-between gap-3">
+        {text ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="text-base font-semibold text-violet-300">
+            {open ? "Ver menos" : "Ver más"}
+          </button>
+        ) : (
+          <span />
+        )}
+        {showAction &&
+          (logged && isLink ? (
+            wa.length >= 8 ? (
+              <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className={cls}>
+                {label}
+              </a>
+            ) : null
+          ) : (
+            <button type="button" disabled={disabled} onClick={() => (logged ? onSend() : setAsk((v) => !v))} className={cls}>
+              {label}
+            </button>
+          ))}
+      </div>
       {!logged && ask && (
-        <div className="rounded-2xl bg-black/25 p-3">
+        <div className="mt-3 rounded-2xl bg-black/25 p-3">
           <p className="text-base text-white/80">Creá tu cuenta o iniciá sesión para mandar solicitudes.</p>
           <div className="mt-3 flex gap-2">
             <Link to="/empezar" className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">Crear cuenta</Link>
@@ -276,15 +306,14 @@ function BolsaPublicaPage() {
                   <PostingHeader p={p} />
                   <div className="space-y-2 p-4 pt-3">
                   <PostingDetails p={{ ...p, years: yearsOf(p.business_start_date) }} />
-                  {p.description && <PostingMore text={p.description} />}
-                  {(isPro || !session) && (
-                    <ContactButton
-                      logged={Boolean(session)}
-                      disabled={sent || busy === p.id}
-                      label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Contactar"}
-                      onSend={() => void apply(p)}
-                    />
-                  )}
+                  <PostingFooter
+                    text={p.description}
+                    logged={Boolean(session)}
+                    showAction={isPro || !session}
+                    disabled={sent || busy === p.id}
+                    label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Enviar solicitud"}
+                    onSend={() => void apply(p)}
+                  />
                   </div>
                 </div>
               );
@@ -301,8 +330,7 @@ function BolsaPublicaPage() {
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={{ ...p, years: yearsOf(p.business_start_date) }} />
-                {p.description && <PostingMore text={p.description} />}
-                <ContactButton logged={Boolean(session)} label="Contactar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingFooter text={p.description} logged={Boolean(session)} label="Contactar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
             ))}

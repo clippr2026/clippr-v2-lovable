@@ -21,13 +21,13 @@ export function PostingDetails({ p }: { p: Details }) {
       {(wa.length >= 8 || ig || p.years != null) && (
         <div className="flex flex-wrap items-center gap-2">
           {wa.length >= 8 && (
-            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-11 w-11 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_0_14px_-4px_rgba(37,211,102,0.8)]">
-              <FaWhatsapp className="h-6 w-6" />
+            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-9 w-9 place-items-center rounded-full bg-[#25D366] text-white shadow-[0_0_14px_-4px_rgba(37,211,102,0.8)]">
+              <FaWhatsapp className="h-5 w-5" />
             </a>
           )}
           {ig && (
-            <a href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer" aria-label="Instagram" className="grid h-11 w-11 place-items-center rounded-full bg-[linear-gradient(45deg,#feda75,#fa7e1e_25%,#d62976_50%,#962fbf_75%,#4f5bd5)] text-white shadow-[0_0_14px_-4px_rgba(214,41,118,0.8)]">
-              <FaInstagram className="h-6 w-6" />
+            <a href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer" aria-label="Instagram" className="grid h-9 w-9 place-items-center rounded-full bg-[linear-gradient(45deg,#feda75,#fa7e1e_25%,#d62976_50%,#962fbf_75%,#4f5bd5)] text-white shadow-[0_0_14px_-4px_rgba(214,41,118,0.8)]">
+              <FaInstagram className="h-5 w-5" />
             </a>
           )}
           {p.years != null && p.years >= 1 && (
