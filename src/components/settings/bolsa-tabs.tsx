@@ -1,13 +1,12 @@
-import { Briefcase, ClipboardList, UserCheck } from "lucide-react";
+import { ClipboardList, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type BolsaTab = "avisos" | "profesionales" | "postulaciones";
+export type BolsaTab = "avisos" | "postulaciones";
 
 // Pestañas comunes de la Bolsa de trabajo del negocio; solo la activa muestra el nombre.
 export function BolsaTabs({ active, onSelect, pending }: { active: BolsaTab; onSelect: (t: BolsaTab) => void; pending?: number }) {
   const tabs = [
     ["avisos", "Avisos", ClipboardList],
-    ["profesionales", "Profesionales", Briefcase],
     ["postulaciones", "Postulaciones", UserCheck],
   ] as const;
   return (
