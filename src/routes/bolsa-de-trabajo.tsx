@@ -414,16 +414,16 @@ function BolsaPublicaPage() {
       <FilterBar sort={sort} onSort={setSort} maxKm={maxKm} onMaxKm={setMaxKm} hasPlace={Boolean(place)} onNeedPlace={() => { toast.info("Elegí tu zona para ordenar y filtrar por distancia."); setPickSignal((n) => n + 1); }} />
 
       <h1 className="mt-5 font-display text-3xl font-bold">
-        {section === "locales" ? "Reservá tu turno" : tab === "ofertas" ? "Bolsa de trabajo" : tab === "alquileres" ? "Alquiler de puestos" : "Profesionales"}
+        {section === "locales" ? "Reservá tu turno" : tab === "ofertas" ? "Ofertas laborales" : tab === "alquileres" ? "Alquiler de puestos" : "Perfiles profesionales"}
       </h1>
       <p className="mt-2 text-lg text-white/65">
         {section === "locales"
           ? "Locales que usan Clippr, cerca tuyo."
           : tab === "ofertas"
-            ? "Empleos que publican los locales."
+            ? "Encontrá locales que buscan profesionales como vos."
             : tab === "alquileres"
-              ? "Puestos de trabajo para alquilar en cada local."
-              : "Profesionales que buscan trabajo."}
+              ? "Encontrá un espacio para trabajar cerca tuyo."
+              : "Encontrá profesionales que buscan sumarse a tu equipo."}
       </p>
 
       {section === "locales" && (
