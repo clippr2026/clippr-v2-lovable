@@ -16,6 +16,7 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AuroStyloRouteImport } from './routes/auro-stylo'
 import { Route as BienvenidaRouteImport } from './routes/bienvenida'
+import { Route as BolsaDeTrabajoRouteImport } from './routes/bolsa-de-trabajo'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
 import { Route as ClientsRouteImport } from './routes/clients'
@@ -79,6 +80,11 @@ const AuroStyloRoute = AuroStyloRouteImport.update({
 const BienvenidaRoute = BienvenidaRouteImport.update({
   id: '/bienvenida',
   path: '/bienvenida',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BolsaDeTrabajoRoute = BolsaDeTrabajoRouteImport.update({
+  id: '/bolsa-de-trabajo',
+  path: '/bolsa-de-trabajo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CashRegisterRoute = CashRegisterRouteImport.update({
@@ -237,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
   '/bienvenida': typeof BienvenidaRoute
+  '/bolsa-de-trabajo': typeof BolsaDeTrabajoRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
   '/bienvenida': typeof BienvenidaRoute
+  '/bolsa-de-trabajo': typeof BolsaDeTrabajoRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -314,6 +322,7 @@ export interface FileRoutesById {
   '/appointments': typeof AppointmentsRoute
   '/auro-stylo': typeof AuroStyloRoute
   '/bienvenida': typeof BienvenidaRoute
+  '/bolsa-de-trabajo': typeof BolsaDeTrabajoRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -354,6 +363,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/auro-stylo'
     | '/bienvenida'
+    | '/bolsa-de-trabajo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -392,6 +402,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/auro-stylo'
     | '/bienvenida'
+    | '/bolsa-de-trabajo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -430,6 +441,7 @@ export interface FileRouteTypes {
     | '/appointments'
     | '/auro-stylo'
     | '/bienvenida'
+    | '/bolsa-de-trabajo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -469,6 +481,7 @@ export interface RootRouteChildren {
   AppointmentsRoute: typeof AppointmentsRoute
   AuroStyloRoute: typeof AuroStyloRoute
   BienvenidaRoute: typeof BienvenidaRoute
+  BolsaDeTrabajoRoute: typeof BolsaDeTrabajoRoute
   CashRegisterRoute: typeof CashRegisterRoute
   CashRegisterLiquidacionesCompactoRoute: typeof CashRegisterLiquidacionesCompactoRoute
   ClientsRoute: typeof ClientsRoute
@@ -549,6 +562,13 @@ declare module '@tanstack/react-router' {
       path: '/bienvenida'
       fullPath: '/bienvenida'
       preLoaderRoute: typeof BienvenidaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bolsa-de-trabajo': {
+      id: '/bolsa-de-trabajo'
+      path: '/bolsa-de-trabajo'
+      fullPath: '/bolsa-de-trabajo'
+      preLoaderRoute: typeof BolsaDeTrabajoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cash-register': {
@@ -765,6 +785,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppointmentsRoute: AppointmentsRoute,
   AuroStyloRoute: AuroStyloRoute,
   BienvenidaRoute: BienvenidaRoute,
+  BolsaDeTrabajoRoute: BolsaDeTrabajoRoute,
   CashRegisterRoute: CashRegisterRoute,
   CashRegisterLiquidacionesCompactoRoute:
     CashRegisterLiquidacionesCompactoRoute,

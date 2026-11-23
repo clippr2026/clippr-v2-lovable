@@ -61,6 +61,10 @@ function EmpezarPage() {
         ))}
       </div>
 
+      <Link to="/bolsa-de-trabajo" className="mt-6 text-center text-base font-semibold text-violet-200 underline underline-offset-4">
+        Ver la bolsa de trabajo
+      </Link>
+
       <p className="mt-auto pt-10 text-center text-base text-white/60">
         ¿Ya tenés cuenta?{" "}
         <Link to="/login" className="font-semibold text-white underline underline-offset-4">
