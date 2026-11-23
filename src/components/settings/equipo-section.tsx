@@ -1933,6 +1933,12 @@ export function EquipoSection() {
       setDlgTab("acceso");
       return toast.error("Cargá el correo de la persona en la pestaña Acceso");
     }
+    // Quien entra por la bolsa de trabajo ya tiene su propia cuenta: no se le define contraseña.
+    if (!editingEmp && newPersonAccess && !joinAfterCreateRef.current && accessForm.password.length < 8) {
+      setAccessTouched(true);
+      setDlgTab("acceso");
+      return toast.error("La contraseña debe tener al menos 8 caracteres");
+    }
 
     // Un solo "Guardar": si en la pestaña Acceso se cambió algo (correo, estado o permisos), se
     // guarda junto con el perfil. Un acceso existente no puede quedar sin correo.
@@ -2373,6 +2379,7 @@ export function EquipoSection() {
         // Un solo "Guardar": ya se creó el barbero, ahora se crea su acceso y se envía la invitación.
         const invite = await inviteTeamMember({
           action: "create",
+          ...(!joinRequestId && accessForm.password ? { password: accessForm.password } : {}),
           business_id: businessId,
           email: accessForm.email.trim(),
           full_name: name,
@@ -3357,6 +3364,7 @@ export function EquipoSection() {
             </div>
             {accessTouched && !accessForm.email.trim() && <div className="mt-1 text-sm text-red-400">Campo requerido</div>}
           </Field>
+          {!(joinAfterCreateRef.current && !editingAccessUserId) && (
           <Field label={editingAccessUserId ? "Nueva contraseña" : "Contraseña"} icon={KeyRound}>
             <div className="flex items-center gap-2">
               <input
@@ -3391,6 +3399,7 @@ export function EquipoSection() {
               Generar contraseña
             </button>
           </Field>
+          )}
           {accessForm.role !== "admin_general" && (
             <PermissionToggleRow
               icon={ShieldCheck}
