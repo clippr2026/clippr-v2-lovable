@@ -3920,24 +3920,26 @@ export function EquipoSection() {
               <div className="flex gap-1.5 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(
                   [
-                    ["perfil", "Perfil"],
-                    ["horarios", "Horarios"],
-                    ["acceso", "Acceso"],
+                    ["perfil", "Perfil", Pencil],
+                    ["horarios", "Horarios", CalendarPlus],
+                    ["acceso", "Acceso", ShieldCheck],
                   ] as const
                 )
                   // El Admin. General tiene todos los permisos fijos: no tiene pestaña Acceso.
                   .filter(([id]) => !(id === "acceso" && accessForm.role === "admin_general"))
-                  .map(([id, label]) => (
+                  .map(([id, label, TabIcon]) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => setDlgTab(id)}
+                    aria-label={label}
                     className={cn(
-                      "h-11 shrink-0 rounded-full px-4 text-base font-semibold transition",
-                      dlgTab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65",
+                      "inline-flex h-11 items-center justify-center gap-2 rounded-full text-base font-semibold transition",
+                      dlgTab === id ? "shrink-0 bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-white" : "flex-1 bg-white/[0.06] px-3 text-white/65",
                     )}
                   >
-                    {label}
+                    <TabIcon className="h-5 w-5 shrink-0" />
+                    {dlgTab === id && label}
                   </button>
                 ))}
               </div>
