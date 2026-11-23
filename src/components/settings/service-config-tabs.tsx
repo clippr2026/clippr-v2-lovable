@@ -309,7 +309,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
             {d.offers ? (
               <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
                 <div>
-                  <div className="mb-3 font-semibold text-white"><Titulo icon={Wallet} tono="emerald">Precio</Titulo></div>
+                  <div className="mb-3 font-semibold text-white"><Titulo icon={Wallet} tono="emeraldOscuro">Precio</Titulo></div>
                   <div className="mb-2.5">
                     <SelectClippr
                       opciones={[
@@ -357,7 +357,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice, onReg
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-white/15 pt-4">
-                  <span className="font-semibold text-white"><Titulo icon={Percent} tono="violet">Genera comisión</Titulo></span>
+                  <span className="font-semibold text-white"><Titulo icon={Percent} tono="violetOscuro">Genera comisión</Titulo></span>
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg text-white/75">{d.generates ? "Sí" : "No"}</span>
                     <Toggle on={d.generates} onChange={(v) => update(e.id, { generates: v })} />
