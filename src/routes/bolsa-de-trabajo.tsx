@@ -87,6 +87,7 @@ function PostingHeader({ p }: { p: Posting }) {
         </div>
       </div>
       <div className="truncate px-4 pt-2 text-xl font-semibold leading-tight">{p.title}</div>
+      {p.kind === "alquiler" && p.price && <div className="px-4 pt-0.5 text-lg font-semibold text-emerald-300">{p.price}</div>}
     </div>
   );
 }
@@ -124,7 +125,7 @@ function PostingFooter({
   const isLink = whatsapp !== undefined;
   return (
     <div>
-      {open && text && <p className="mb-2 whitespace-pre-line text-base text-white/75">{text}</p>}
+      {open && text && <p className="mb-2 whitespace-pre-line text-base font-semibold text-white/90">{text}</p>}
       <div className="flex items-center justify-between gap-3">
         {text ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="text-base font-semibold text-violet-300">
@@ -305,7 +306,7 @@ function BolsaPublicaPage() {
                 <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
                   <PostingHeader p={p} />
                   <div className="space-y-2 p-4 pt-3">
-                  <PostingDetails p={{ ...p, years: yearsOf(p.business_start_date) }} />
+                  <PostingDetails p={{ ...p, price: null, years: yearsOf(p.business_start_date) }} />
                   <PostingFooter
                     text={p.description}
                     logged={Boolean(session)}
@@ -329,7 +330,7 @@ function BolsaPublicaPage() {
               <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
-                <PostingDetails p={{ ...p, years: yearsOf(p.business_start_date) }} />
+                <PostingDetails p={{ ...p, price: null, years: yearsOf(p.business_start_date) }} />
                 <PostingFooter text={p.description} logged={Boolean(session)} label="Consultar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
