@@ -43,6 +43,7 @@ import {
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
+import { JobPostingsButton } from "@/components/settings/job-postings";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -3307,13 +3308,16 @@ export function EquipoSection() {
           clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="-mt-3 space-y-3">
+        <div className="flex items-center justify-end gap-2">
+          <JobPostingsButton />
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}
-          className="ml-auto flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
+          className="flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
         >
           <Plus className="h-4 w-4" /> Agregar persona
         </button>
+        </div>
 
         {loading ? (
           <div className="grid place-items-center py-16">
