@@ -331,7 +331,7 @@ function BolsaPublicaPage() {
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={{ ...p, price: null, years: yearsOf(p.business_start_date) }} />
-                <PostingFooter text={p.description} logged={Boolean(session)} label="Consultar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingFooter text={p.description} logged={Boolean(session)} label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
             ))}
