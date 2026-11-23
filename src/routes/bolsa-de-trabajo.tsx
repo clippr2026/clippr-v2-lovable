@@ -18,7 +18,7 @@ export const Route = createFileRoute("/bolsa-de-trabajo")({
   component: BolsaPublicaPage,
 });
 
-type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null; logo_url?: string | null; cover_url?: string | null };
+type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null; logo_url?: string | null; cover_url?: string | null; reviews_avg?: number | null; reviews_count?: number };
 type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
@@ -61,6 +61,13 @@ function PostingHeader({ p }: { p: Posting }) {
             <div className="min-w-0">
               <div className="text-xl font-semibold leading-tight">{p.title}</div>
               <div className="text-base text-white/60">{p.business_name}</div>
+              {!!p.reviews_count && (
+                <div className="mt-0.5 flex items-center gap-1 text-base text-white/70">
+                  <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
+                  <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
+                  <span className="text-white/50">({p.reviews_count})</span>
+                </div>
+              )}
             </div>
             <Badge />
           </div>
