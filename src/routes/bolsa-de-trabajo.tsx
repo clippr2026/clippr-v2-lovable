@@ -355,11 +355,10 @@ function BolsaPublicaPage() {
     <StartShell
       header={
         <div className="flex items-center gap-3">
-          <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
-          <PlacePicker place={place} onChange={(p) => { setPlace(p); if (p) setSort("cercanos"); else { setSort("relevantes"); setMaxKm(null); } }} openSignal={pickSignal} />
-          <Link to="/" aria-label="Inicio" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/80 ring-1 ring-white/10">
-            ✕
+          <Link to="/" aria-label="Inicio" className="shrink-0">
+            <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
           </Link>
+          <PlacePicker place={place} onChange={(p) => { setPlace(p); if (p) setSort("cercanos"); else { setSort("relevantes"); setMaxKm(null); } }} openSignal={pickSignal} />
         </div>
       }
     >

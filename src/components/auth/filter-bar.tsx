@@ -24,10 +24,10 @@ function Dropdown({ icon: Icon, label, children }: { icon: React.ComponentType<{
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex h-12 w-full items-center justify-between gap-2 rounded-full border border-white/15 bg-white/[0.05] px-4 text-base font-semibold text-white"
+        className="flex h-12 w-full items-center justify-between gap-2 rounded-full border border-white/15 bg-white/[0.05] px-3 text-[15px] font-semibold text-white"
       >
         <Icon className="h-5 w-5 shrink-0 text-violet-300" />
-        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <span className="min-w-0 flex-1 whitespace-nowrap text-left">{label}</span>
         <ChevronDown className={`h-5 w-5 shrink-0 text-white/60 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
