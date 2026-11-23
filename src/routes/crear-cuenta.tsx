@@ -98,9 +98,9 @@ function CrearCuentaPage() {
       <h1 className="font-display text-4xl font-bold leading-tight">Creá tu cuenta</h1>
       <p className="mt-2 text-lg text-white/65">
         {tipo === "negocio"
-          ? "Empezá a armar tu barbería."
+          ? "Creá tu negocio y publicá ofertas laborales."
           : tipo === "profesional"
-            ? "Armá tu perfil y mirá ofertas laborales."
+            ? "Unite a un negocio o buscá ofertas laborales."
             : "Recomendá Clippr y ganá recompensas."}
       </p>
 

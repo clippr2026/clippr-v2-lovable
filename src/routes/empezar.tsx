@@ -17,14 +17,14 @@ const OPTIONS = [
   {
     tipo: "negocio",
     icon: Store,
-    title: "Crear un negocio",
-    desc: "Sos el dueño y configurás todo desde cero.",
+    title: "Soy dueño",
+    desc: "Creá tu negocio y publicá ofertas laborales.",
   },
   {
     tipo: "profesional",
     icon: UserRound,
-    title: "Crear perfil de profesional",
-    desc: "Armá tu perfil, mostrá tu trabajo y mirá ofertas laborales.",
+    title: "Soy profesional",
+    desc: "Unite a un negocio o buscá ofertas laborales.",
   },
   {
     tipo: "embajador",
