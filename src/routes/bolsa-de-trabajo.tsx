@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -112,7 +113,9 @@ function PostingFooter({
   showAction = true,
   yearsText,
   distText,
+  askText = "para mandar solicitudes",
 }: {
+  askText?: string;
   yearsText?: string | null;
   distText?: string | null;
   text?: string | null;
@@ -162,15 +165,22 @@ function PostingFooter({
             </button>
           ))}
       </div>
-      {!logged && ask && (
-        <div className="mt-3 rounded-2xl bg-black/25 p-3">
-          <p className="text-base text-white/80">Creá tu cuenta o iniciá sesión para mandar solicitudes.</p>
-          <div className="mt-3 flex gap-2">
-            <Link to="/empezar" className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">Crear cuenta</Link>
-            <Link to="/login" className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-white/5 text-base font-semibold text-white/85 ring-1 ring-white/10">Iniciar sesión</Link>
-          </div>
-        </div>
-      )}
+      {!logged && ask && typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/75 p-5" onClick={() => setAsk(false)}>
+            <div className="w-full max-w-sm rounded-3xl border border-violet-400/40 bg-[#08070f] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="font-display text-xl font-bold leading-snug">Creá tu cuenta o iniciá sesión {askText}.</h2>
+                <button type="button" onClick={() => setAsk(false)} aria-label="Cerrar" className="-mr-2 -mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-white/70">✕</button>
+              </div>
+              <div className="mt-5 flex flex-col gap-2">
+                <Link to="/empezar" className="inline-flex h-12 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">Crear cuenta</Link>
+                <Link to="/login" className="inline-flex h-12 items-center justify-center rounded-full bg-white/5 text-base font-semibold text-white/85 ring-1 ring-white/10">Iniciar sesión</Link>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -479,6 +489,7 @@ function BolsaPublicaPage() {
                     logged={Boolean(session)}
                     showAction
                     disabled={sent || busy === p.id}
+                    askText="para postularte"
                     label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Postularme"}
                     onSend={() => (isPro ? void apply(p) : toast.info("Para postularte necesitás una cuenta de profesional."))}
                   />
@@ -498,7 +509,7 @@ function BolsaPublicaPage() {
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={{ ...p, price: null }} />
-                <PostingFooter yearsText={yearsLabel(p.business_start_date)} distText={p.distKm != null ? formatKm(p.distKm) : null} text={p.description} logged={Boolean(session)} label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingFooter yearsText={yearsLabel(p.business_start_date)} distText={p.distKm != null ? formatKm(p.distKm) : null} text={p.description} logged={Boolean(session)} askText="para solicitar este puesto" label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
             ))}
@@ -550,6 +561,7 @@ function BolsaPublicaPage() {
                     logged={Boolean(session)}
                     showAction
                     disabled={busy === r.user_id}
+                    askText="para invitar a este profesional"
                     label={busy === r.user_id ? "Enviando…" : "Invitar"}
                     onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
                   />
