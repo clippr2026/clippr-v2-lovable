@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Toggle } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
+import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
 type JobType = "tiempo_completo" | "medio_tiempo" | "por_turnos";
 const JOB_TYPES: Array<{ id: JobType; label: string }> = [
@@ -34,9 +35,11 @@ const cardStyle: React.CSSProperties = {
 const EMPTY = { title: "", zone: "", job_type: "tiempo_completo" as JobType, description: "", contact: "" };
 
 // Botón "Buscar barbero" + ventana con los avisos del negocio (crear, pausar, editar, borrar).
-export function JobPostingsButton() {
+export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolean; onClose: () => void; onSelectTab: (t: BolsaTab) => void }) {
   const { businessId } = useAuth();
-  const [open, setOpen] = React.useState(false);
+  const setOpen = (v: boolean) => {
+    if (!v) onClose();
+  };
   const [rows, setRows] = React.useState<Posting[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [editing, setEditing] = React.useState<string | "new" | null>(null);
@@ -113,13 +116,6 @@ export function JobPostingsButton() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100"
-      >
-        <Briefcase className="h-4 w-4" /> Buscar barbero
-      </button>
 
       {open &&
         typeof document !== "undefined" &&
@@ -133,7 +129,7 @@ export function JobPostingsButton() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
-                <h3 className="font-display text-lg font-semibold">{editing ? (editing === "new" ? "Nuevo aviso" : "Editar aviso") : "Buscar barbero"}</h3>
+                <h3 className="font-display text-lg font-semibold">{editing ? (editing === "new" ? "Nuevo aviso" : "Editar aviso") : "Bolsa de trabajo"}</h3>
                 <button
                   type="button"
                   onClick={() => (editing ? setEditing(null) : setOpen(false))}
@@ -146,6 +142,7 @@ export function JobPostingsButton() {
                 </button>
               </div>
 
+              {!editing && <BolsaTabs active="avisos" onSelect={onSelectTab} />}
               <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
                 {editing ? (
                   <div className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4" style={cardStyle}>

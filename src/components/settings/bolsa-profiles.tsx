@@ -1,9 +1,10 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Briefcase, Instagram, MapPin, Search, Star } from "lucide-react";
+import { Instagram, MapPin, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
 type BolsaProfile = {
   user_id: string;
@@ -33,9 +34,11 @@ function yearsSince(date: string | null): number | null {
 
 // Botón "Profesionales": perfiles que decidieron mostrarse en la bolsa de trabajo. "Solicitar" le envía
 // una solicitud; cuando la persona acepta, aparece en Solicitudes para sumarla al equipo.
-export function BolsaProfilesButton({ onInvited }: { onInvited: () => void }) {
+export function BolsaProfilesButton({ open, onClose, onSelectTab, onInvited }: { open: boolean; onClose: () => void; onSelectTab: (t: BolsaTab) => void; onInvited: () => void }) {
   const { businessId } = useAuth();
-  const [open, setOpen] = React.useState(false);
+  const setOpen = (v: boolean) => {
+    if (!v) onClose();
+  };
   const [rows, setRows] = React.useState<BolsaProfile[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -71,13 +74,6 @@ export function BolsaProfilesButton({ onInvited }: { onInvited: () => void }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100"
-      >
-        <Briefcase className="h-4 w-4" /> Profesionales
-      </button>
 
       {open &&
         typeof document !== "undefined" &&
@@ -92,7 +88,7 @@ export function BolsaProfilesButton({ onInvited }: { onInvited: () => void }) {
             >
               <div className="shrink-0 border-b border-white/5 px-5 py-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-lg font-semibold">Profesionales</h3>
+                  <h3 className="font-display text-lg font-semibold">Bolsa de trabajo</h3>
                   <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="-mr-2 grid h-12 w-12 place-items-center rounded-full text-white/80">
                     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                       <path d="M6 6l12 12M18 6L6 18" />
@@ -110,6 +106,7 @@ export function BolsaProfilesButton({ onInvited }: { onInvited: () => void }) {
                 </div>
               </div>
 
+              <BolsaTabs active="profesionales" onSelect={onSelectTab} />
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
                 {loading && <div className="py-10 text-center text-white/60">Cargando…</div>}
                 {!loading && shown.length === 0 && (

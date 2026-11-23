@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
 export type JoinRequest = {
   id: string;
@@ -42,14 +43,25 @@ function yearsSince(date: string | null): number | null {
 export function JoinCodeAndRequests({
   onAccept,
   refreshKey,
+  open,
+  onOpen,
+  onClose,
+  onSelectTab,
 }: {
   onAccept: (req: JoinRequest) => void;
   refreshKey: number;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onSelectTab: (t: BolsaTab) => void;
 }) {
   const { businessId } = useAuth();
   const [code, setCode] = React.useState<string>("");
   const [rows, setRows] = React.useState<JoinRequest[]>([]);
-  const [open, setOpen] = React.useState(false);
+  const setOpen = (v: boolean) => {
+    if (v) onOpen();
+    else onClose();
+  };
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -129,7 +141,7 @@ export function JoinCodeAndRequests({
           className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 text-base font-semibold text-violet-100"
         >
           <UserCheck className="h-4 w-4" />
-          Solicitudes{pending.length > 0 ? ` (${pending.length})` : ""}
+          Bolsa de trabajo{pending.length > 0 ? ` (${pending.length})` : ""}
         </button>
       </div>
 
@@ -145,15 +157,16 @@ export function JoinCodeAndRequests({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
-                <h3 className="font-display text-lg font-semibold">Solicitudes</h3>
+                <h3 className="font-display text-lg font-semibold">Bolsa de trabajo</h3>
                 <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="-mr-2 grid h-12 w-12 place-items-center rounded-full text-white/80">
                   <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                     <path d="M6 6l12 12M18 6L6 18" />
                   </svg>
                 </button>
               </div>
+              <BolsaTabs active="postulaciones" onSelect={onSelectTab} pending={pending.length} />
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
-                {pending.length === 0 && <div className="py-10 text-center text-lg text-white/60">No hay solicitudes pendientes.</div>}
+                {pending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie se postuló ni aceptó una solicitud.</div>}
                 {pending.map((r) => {
                   const years = yearsSince(r.experience_since);
                   const age = yearsSince(r.birth_date);
