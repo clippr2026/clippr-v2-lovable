@@ -46,10 +46,7 @@ import {
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
-import { JobPostingsButton } from "@/components/settings/job-postings";
-import type { BolsaTab } from "@/components/settings/bolsa-tabs";
 import { JoinCodeAndRequests, type JoinRequest } from "@/components/settings/join-requests";
-import { BolsaProfilesButton } from "@/components/settings/bolsa-profiles";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -1105,7 +1102,6 @@ export function EquipoSection() {
   // Solicitud de unirse que se está aceptando: al guardar el barbero nuevo se ata a la cuenta de la persona.
   const joinAfterCreateRef = useRef<string | null>(null);
   const [joinRefresh, setJoinRefresh] = useState(0);
-  const [bolsaTab, setBolsaTab] = useState<BolsaTab | null>(null);
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
@@ -3158,6 +3154,26 @@ export function EquipoSection() {
     await loadTeamMembers();
   }
 
+  // Si llegó desde la Bolsa de trabajo con "Aceptar", abre el alta de barbero con los datos de esa persona.
+  useEffect(() => {
+    if (loading || !businessId) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("clippr:accept-join");
+      if (raw) sessionStorage.removeItem("clippr:accept-join");
+    } catch {
+      raw = null;
+    }
+    if (raw) {
+      try {
+        void acceptJoinRequest(JSON.parse(raw) as JoinRequest);
+      } catch {
+        /* sin datos válidos */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, businessId]);
+
   function continueAddPerson() {
     setAddChooserOpen(false);
     if (chooserRole === "profesional" || chooserAtiende) {
@@ -3449,17 +3465,8 @@ export function EquipoSection() {
           clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
           perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="-mt-3 space-y-3">
-        <JoinCodeAndRequests
-          onAccept={(r) => void acceptJoinRequest(r)}
-          refreshKey={joinRefresh}
-          open={bolsaTab === "postulaciones"}
-          onOpen={() => setBolsaTab("postulaciones")}
-          onClose={() => setBolsaTab(null)}
-          onSelectTab={setBolsaTab}
-        />
+        <JoinCodeAndRequests onAccept={(r) => void acceptJoinRequest(r)} refreshKey={joinRefresh} />
         <div className="flex items-center justify-end gap-2">
-          <BolsaProfilesButton open={bolsaTab === "profesionales"} onClose={() => setBolsaTab(null)} onSelectTab={setBolsaTab} onInvited={() => setJoinRefresh((n) => n + 1)} />
-          <JobPostingsButton open={bolsaTab === "avisos"} onClose={() => setBolsaTab(null)} onSelectTab={setBolsaTab} />
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}

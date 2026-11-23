@@ -34,11 +34,12 @@ function yearsSince(date: string | null): number | null {
 
 // Botón "Profesionales": perfiles que decidieron mostrarse en la bolsa de trabajo. "Solicitar" le envía
 // una solicitud; cuando la persona acepta, aparece en Solicitudes para sumarla al equipo.
-export function BolsaProfilesButton({ open, onClose, onSelectTab, onInvited }: { open: boolean; onClose: () => void; onSelectTab: (t: BolsaTab) => void; onInvited: () => void }) {
+export function BolsaProfilesButton({ open = false, onClose = () => {}, onSelectTab, onInvited, inline = false }: { open?: boolean; onClose?: () => void; onSelectTab: (t: BolsaTab) => void; onInvited: () => void; inline?: boolean }) {
   const { businessId } = useAuth();
   const setOpen = (v: boolean) => {
     if (!v) onClose();
   };
+  const wrap = (n: React.ReactNode, _t?: unknown) => (inline ? n : createPortal(n, document.body));
   const [rows, setRows] = React.useState<BolsaProfile[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -75,19 +76,19 @@ export function BolsaProfilesButton({ open, onClose, onSelectTab, onInvited }: {
   return (
     <>
 
-      {open &&
+      {(open || inline) &&
         typeof document !== "undefined" &&
-        createPortal(
+        wrap(
           <div
-            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4"
+            className={inline ? "" : "fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4"}
             onClick={() => setOpen(false)}
           >
             <div
-              className="relative flex max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] shadow-2xl ring-1 ring-white/10"
+              className={inline ? "flex w-full flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10" : "relative flex max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] shadow-2xl ring-1 ring-white/10"}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="shrink-0 border-b border-white/5 px-5 py-4">
-                <div className="flex items-center justify-between">
+                <div className={inline ? "hidden" : "flex items-center justify-between"}>
                   <h3 className="font-display text-lg font-semibold">Bolsa de trabajo</h3>
                   <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="-mr-2 grid h-12 w-12 place-items-center rounded-full text-white/80">
                     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
@@ -107,7 +108,7 @@ export function BolsaProfilesButton({ open, onClose, onSelectTab, onInvited }: {
               </div>
 
               <BolsaTabs active="profesionales" onSelect={onSelectTab} />
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
+              <div className={inline ? "space-y-3 px-3.5 py-3" : "min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3"}>
                 {loading && <div className="py-10 text-center text-white/60">Cargando…</div>}
                 {!loading && shown.length === 0 && (
                   <div className="py-10 text-center text-lg text-white/60">
@@ -176,7 +177,6 @@ export function BolsaProfilesButton({ open, onClose, onSelectTab, onInvited }: {
               </div>
             </div>
           </div>,
-          document.body,
         )}
     </>
   );

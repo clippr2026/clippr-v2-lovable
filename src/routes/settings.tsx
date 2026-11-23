@@ -49,6 +49,7 @@ import {
   Loader2,
   Percent,
   Banknote,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -61,6 +62,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { BrandingSection } from "@/components/settings/branding-section";
 import { ResenasSection } from "@/components/settings/resenas-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
+import { BolsaSection } from "@/components/settings/bolsa-section";
 import { SucursalesSection } from "@/components/settings/sucursales-section";
 import { ReglasTardanzaSection } from "@/components/settings/reglas-tardanza-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
@@ -91,6 +93,7 @@ type SectionId =
   | "landing"
   | "horarios"
   | "equipo"
+  | "bolsa"
   | "servicios"
   | "catalogo"
   | "promociones"
@@ -152,6 +155,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Users,
         tint: "text-[oklch(0.82_0.16_200)]",
         glow: "from-[oklch(0.82_0.16_200/0.25)] to-[oklch(0.7_0.2_220/0.05)]",
+      },
+      {
+        id: "bolsa",
+        label: "Bolsa de trabajo",
+        icon: Briefcase,
+        tint: "text-[oklch(0.8_0.16_300)]",
+        glow: "from-[oklch(0.8_0.16_300/0.25)] to-[oklch(0.68_0.2_290/0.05)]",
       },
       {
         id: "senas",
@@ -474,6 +484,18 @@ function SettingsPage() {
                 {active === "resenas" && <ResenasSection />}
 
                 {active === "equipo" && <EquipoSection />}
+                {active === "bolsa" && (
+                  <BolsaSection
+                    onAccept={(req) => {
+                      try {
+                        sessionStorage.setItem("clippr:accept-join", JSON.stringify(req));
+                      } catch {
+                        /* sin sessionStorage */
+                      }
+                      requestSectionChange("equipo");
+                    }}
+                  />
+                )}
                 {active === "servicios" && <ServiciosSection />}
 
                 {active === "catalogo" && <CatalogoSection />}

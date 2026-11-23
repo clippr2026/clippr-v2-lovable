@@ -37,11 +37,12 @@ const cardStyle: React.CSSProperties = {
 const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", title: "", zone: "", job_type: "tiempo_completo" as JobType, description: "", contact: "" };
 
 // Botón "Buscar barbero" + ventana con los avisos del negocio (crear, pausar, editar, borrar).
-export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolean; onClose: () => void; onSelectTab: (t: BolsaTab) => void }) {
+export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTab, inline = false }: { open?: boolean; onClose?: () => void; onSelectTab: (t: BolsaTab) => void; inline?: boolean }) {
   const { businessId } = useAuth();
   const setOpen = (v: boolean) => {
     if (!v) onClose();
   };
+  const wrap = (n: React.ReactNode, _t?: unknown) => (inline ? n : createPortal(n, document.body));
   const [rows, setRows] = React.useState<Posting[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [editing, setEditing] = React.useState<string | "new" | null>(null);
@@ -121,18 +122,18 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
   return (
     <>
 
-      {open &&
+      {(open || inline) &&
         typeof document !== "undefined" &&
-        createPortal(
+        wrap(
           <div
-            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4"
+            className={inline ? "" : "fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/85 p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] lg:pb-4"}
             onClick={() => !saving && setOpen(false)}
           >
             <div
-              className="relative flex max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] shadow-2xl ring-1 ring-white/10"
+              className={inline ? "flex w-full flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10" : "relative flex max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-0.25rem-env(safe-area-inset-bottom,0px))] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] shadow-2xl ring-1 ring-white/10"}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
+              <div className={cn("shrink-0 items-center justify-between border-b border-white/5 px-5 py-4", inline && !editing ? "hidden" : "flex")}>
                 <h3 className="font-display text-lg font-semibold">{editing ? (editing === "new" ? "Nuevo aviso" : "Editar aviso") : "Bolsa de trabajo"}</h3>
                 <button
                   type="button"
@@ -147,7 +148,7 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
               </div>
 
               {!editing && <BolsaTabs active="avisos" onSelect={onSelectTab} />}
-              <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3">
+              <div className={inline ? "px-3.5 py-3" : "min-h-0 flex-1 overflow-y-auto px-3.5 py-3"}>
                 {editing ? (
                   <div className="space-y-4 rounded-2xl border border-white/20 bg-white/[0.08] p-4" style={cardStyle}>
                     <div className="flex gap-1.5">
@@ -271,7 +272,6 @@ export function JobPostingsButton({ open, onClose, onSelectTab }: { open: boolea
               </div>
             </div>
           </div>,
-          document.body,
         )}
     </>
   );
