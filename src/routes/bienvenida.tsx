@@ -1,10 +1,12 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Briefcase, Gift, KeyRound, UserRound } from "lucide-react";
+import { Briefcase, Building2, Gift, KeyRound, Star, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell } from "@/components/auth/start-shell";
 import { ProfessionalProfileForm } from "@/components/auth/professional-profile-form";
 import { ProfessionalJoin } from "@/components/auth/professional-join";
+import { ProfessionalOfertas } from "@/components/auth/professional-ofertas";
+import { ProfessionalResenas } from "@/components/auth/professional-resenas";
 import { ProfessionalBolsa } from "@/components/auth/professional-bolsa";
 
 export const Route = createFileRoute("/bienvenida")({
@@ -26,7 +28,7 @@ function BienvenidaPage() {
   }, [loading, session, businessId, navigate]);
 
   const esEmbajador = tipo === "embajador";
-  const [tab, setTab] = React.useState<"perfil" | "unirme" | "bolsa">("perfil");
+  const [tab, setTab] = React.useState<"perfil" | "unirme" | "ofertas" | "resenas" | "bolsa">("perfil");
 
   return (
     <StartShell>
@@ -45,7 +47,9 @@ function BienvenidaPage() {
               [
                 ["perfil", "Mi perfil", UserRound],
                 ["unirme", "Unirme", KeyRound],
-                ["bolsa", "Bolsa de trabajo", Briefcase],
+                ["ofertas", "Ofertas", Briefcase],
+                ["resenas", "Reseñas", Star],
+                ["bolsa", "Mi bolsa", Building2],
               ] as const
             ).map(([id, label, Icon]) => (
               <button
@@ -66,6 +70,8 @@ function BienvenidaPage() {
               <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
             )}
             {tab === "unirme" && <ProfessionalJoin />}
+            {tab === "ofertas" && <ProfessionalOfertas />}
+            {tab === "resenas" && <ProfessionalResenas />}
             {user && tab === "bolsa" && <ProfessionalBolsa userId={user.id} />}
           </div>
         </>
