@@ -187,7 +187,7 @@ function BolsaPublicaPage() {
       }
     >
       <h1 className="font-display text-3xl font-bold">Bolsa de trabajo</h1>
-      <p className="mt-2 text-lg text-white/65">Ofertas de barberías y profesionales disponibles.</p>
+      <p className="mt-2 text-lg text-white/65">Ofertas, alquileres y profesionales disponibles.</p>
 
       {!session && !authLoading && (
         <div className={`${startCardCls} mt-5 p-4`} style={startCardStyle}>
@@ -205,12 +205,12 @@ function BolsaPublicaPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`flex flex-col items-center rounded-3xl border bg-white/[0.04] px-2 pb-3 pt-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
+            className={`flex min-w-0 flex-col items-center rounded-3xl border bg-white/[0.04] px-1 pb-3 pt-3 transition active:scale-[0.98] ${tab === id ? "border-violet-400/70 shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)]" : "border-white/10"}`}
           >
             <span className="grid h-20 w-full place-items-center">
               <TabPhoto src={img} Icon={Icon} />
             </span>
-            <span className={`mt-2 text-base font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
+            <span className={`mt-2 max-w-full truncate text-[15px] font-semibold leading-tight ${tab === id ? "text-white" : "text-white/70"}`}>{label}</span>
           </button>
         ))}
       </div>
