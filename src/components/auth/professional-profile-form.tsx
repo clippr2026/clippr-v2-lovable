@@ -60,6 +60,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
   const [cropSrc, setCropSrc] = React.useState<string | null>(null);
   const [workCropSrc, setWorkCropSrc] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [savedSnap, setSavedSnap] = React.useState<string | null>(null);
   const [reviews, setReviews] = React.useState<{ count: number; avg: number | null }>({ count: 0, avg: null });
 
   React.useEffect(() => {
@@ -91,6 +92,14 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         setNationality(row.nationality ?? "");
         setPhotos(row.photos ?? []);
       }
+      setSavedSnap(
+        JSON.stringify([
+          row?.full_name ?? defaultName, row?.avatar_url ?? "", row?.zone ?? "", row?.experience_since ?? "",
+          row?.nationality ?? "", (priv.data as { birth_date?: string | null } | null)?.birth_date ?? "",
+          (priv.data as { whatsapp?: string | null } | null)?.whatsapp ?? "", row?.specialties ?? [], row?.bio ?? "",
+          row?.instagram ?? "", row?.photos ?? [],
+        ]),
+      );
       const p = priv.data as { birth_date: string | null; whatsapp: string | null } | null;
       if (p) {
         setBirth(p.birth_date ?? "");
@@ -120,7 +129,10 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     setUploading(true);
     const url = await uploadBlob(file, "");
     setUploading(false);
-    if (url) setAvatar(url);
+    if (url) {
+      setAvatar(url);
+      void save({ avatar: url });
+    }
   }
 
   async function addWorkPhoto(file: File) {
@@ -128,7 +140,11 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     setUploading(true);
     const url = await uploadBlob(file, "trabajos/");
     setUploading(false);
-    if (url) setPhotos((cur) => [...cur, url].slice(0, MAX_PHOTOS));
+    if (url) {
+      const next = [...photos, url].slice(0, MAX_PHOTOS);
+      setPhotos(next);
+      void save({ photos: next });
+    }
   }
 
   function addSpecialty(raw: string) {
@@ -139,22 +155,30 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     setSpecialties((cur) => [...cur, value]);
   }
 
-  async function save() {
+  const snap = JSON.stringify([
+    name.trim(), avatar, zone.trim(), since, nationality, birth, whatsapp.replace(/\D/g, ""), specialties, bio.trim(),
+    instagram.trim().replace(/^@/, ""), photos,
+  ]);
+  const dirty = savedSnap !== null && snap !== savedSnap;
+
+  async function save(over?: { avatar?: string; photos?: string[] }) {
     if (!name.trim()) return toast.error("Ingresá tu nombre");
+    const avatarV = over?.avatar ?? avatar;
+    const photosV = over?.photos ?? photos;
     setSaving(true);
     const [a, b] = await Promise.all([
       (supabase as any).from("professional_profiles").upsert(
         {
           user_id: userId,
           full_name: name.trim(),
-          avatar_url: avatar || null,
+          avatar_url: avatarV || null,
           zone: zone.trim() || null,
           experience_since: since || null,
           specialties,
           bio: bio.trim() || null,
           instagram: instagram.trim().replace(/^@/, "") || null,
           nationality: nationality || null,
-          photos,
+          photos: photosV,
         },
         { onConflict: "user_id" },
       ),
@@ -165,6 +189,12 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     ]);
     setSaving(false);
     if (a.error || b.error) return toast.error("No se pudo guardar tu perfil");
+    setSavedSnap(
+      JSON.stringify([
+        name.trim(), avatarV, zone.trim(), since, nationality, birth, whatsapp.replace(/\D/g, ""), specialties, bio.trim(),
+        instagram.trim().replace(/^@/, ""), photosV,
+      ]),
+    );
     toast.success("Perfil guardado");
   }
 
@@ -394,8 +424,8 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving || uploading}
-        className="h-14 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)] transition active:scale-[0.99] disabled:opacity-60"
+        disabled={saving || uploading || !dirty}
+        className="h-14 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)] transition active:scale-[0.99] disabled:bg-white/[0.04] disabled:bg-none disabled:text-white/30 disabled:shadow-none"
       >
         {saving ? "Guardando…" : "Guardar perfil"}
       </button>
