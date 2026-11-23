@@ -160,6 +160,58 @@ function PostingFooter({
   );
 }
 
+type Local = {
+  slug: string; name: string; logo_url: string | null; cover_url: string | null; address: string | null;
+  instagram: string | null; business_start_date: string | null; reviews_avg: number | null; reviews_count: number; distKm?: number | null;
+};
+
+// Tarjeta de un local: portada, logo, nombre con estrellas, dirección y botón para reservar.
+function LocalCard({ l }: { l: Local }) {
+  const y = yearsOf(l.business_start_date);
+  return (
+    <div className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
+      <div className="relative">
+        {l.cover_url ? <img src={l.cover_url} alt="" loading="lazy" decoding="async" className="h-32 w-full object-cover" /> : <div className="h-20 bg-gradient-to-r from-sky-500/20 to-violet-500/30" />}
+        <div className="absolute right-3 top-3">
+          <Badge />
+        </div>
+      </div>
+      <div className="-mt-7 flex items-start gap-3 px-4">
+        <span className="relative z-10 grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#0d0b18] text-xl font-semibold ring-2 ring-[#08070f]">
+          {l.logo_url ? <img src={l.logo_url} alt={l.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : (l.name[0] || "?").toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1 pt-8">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-xl font-semibold leading-tight">{l.name}</span>
+            {!!l.reviews_count && (
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-base">
+                <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
+                <span className="font-semibold">{String(l.reviews_avg).replace(".", ",")}</span>
+                <span className="text-white/50">({l.reviews_count})</span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2 p-4 pt-3">
+        {l.address && (
+          <div className="flex items-center gap-2 text-base text-white/75">
+            <MapPin className="h-4 w-4 shrink-0 text-violet-300" />
+            <span className="truncate">{l.address}</span>
+            {l.distKm != null && <span className="shrink-0 text-white/50">· {formatKm(l.distKm)}</span>}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-base text-white/60">{y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : ""}</span>
+          <Link to="/reservar/$slug" params={{ slug: l.slug }} className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-base font-semibold text-white">
+            Reservar
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function yearsOf(date?: string | null): number | null {
   if (!date) return null;
   const y = Math.floor((Date.now() - new Date(date).getTime()) / (365.25 * 24 * 3600 * 1000));
@@ -176,6 +228,8 @@ function years(date: string | null): number | null {
 function BolsaPublicaPage() {
   const { session, businessId, user, loading: authLoading } = useAuth();
   const [tab, setTab] = React.useState<"ofertas" | "alquileres" | "profesionales">("ofertas");
+  const [section, setSection] = React.useState<"locales" | "bolsa">("locales");
+  const [locales, setLocales] = React.useState<Local[] | null>(null);
   const [postings, setPostings] = React.useState<Posting[] | null>(null);
   const [pros, setPros] = React.useState<Pro[] | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -191,7 +245,8 @@ function BolsaPublicaPage() {
   const load = React.useCallback(async () => {
     if (authLoading) return;
     const rpc = (supabase as any).rpc.bind(supabase);
-    const [a, b] = await Promise.all([rpc("public_job_postings"), rpc("public_bolsa_profiles")]);
+    const [a, b, c] = await Promise.all([rpc("public_job_postings"), rpc("public_bolsa_profiles"), rpc("public_businesses")]);
+    setLocales((c.data as Local[] | null) ?? []);
     setPostings((a.data as Posting[] | null) ?? []);
     setPros((b.data as Pro[] | null) ?? []);
   }, [authLoading, session]);
@@ -204,7 +259,7 @@ function BolsaPublicaPage() {
   React.useEffect(() => {
     if (!place) return;
     const texts = Array.from(
-      new Set([...(postings ?? []).map((x) => x.address ?? x.zone ?? ""), ...(pros ?? []).map((x) => x.zone ?? "")].map((t) => t.trim()).filter(Boolean)),
+      new Set([...(postings ?? []).map((x) => x.address ?? x.zone ?? ""), ...(pros ?? []).map((x) => x.zone ?? ""), ...(locales ?? []).map((x) => x.address ?? "")].map((t) => t.trim()).filter(Boolean)),
     ).slice(0, 40);
     let cancelled = false;
     void (async () => {
@@ -221,7 +276,7 @@ function BolsaPublicaPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [place, postings, pros]);
+  }, [place, postings, pros, locales]);
 
   const withDist = <T extends { distKm?: number | null }>(rows: T[] | null, textOf: (r: T) => string): T[] | null => {
     if (!rows) return rows;
@@ -232,6 +287,7 @@ function BolsaPublicaPage() {
     });
     return out.sort((a, b) => (a.distKm ?? 1e9) - (b.distKm ?? 1e9));
   };
+  const localesView = withDist(locales, (r) => (r as Local).address ?? "");
   const postingsView = withDist(postings, (r) => (r as Posting).address ?? (r as Posting).zone ?? "");
   const prosView = withDist(pros, (r) => (r as Pro).zone ?? "");
 
@@ -266,10 +322,35 @@ function BolsaPublicaPage() {
         </div>
       }
     >
-      <h1 className="font-display text-3xl font-bold">Bolsa de trabajo</h1>
-      <p className="mt-2 text-lg text-white/65">Empleos, alquileres y profesionales disponibles.</p>
+      <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/[0.06] p-1">
+        {([["locales", "Locales"], ["bolsa", "Bolsa de trabajo"]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSection(id)}
+            className={`h-11 rounded-full text-base font-semibold transition ${section === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "text-white/65"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {!session && !authLoading && (
+      <h1 className="mt-5 font-display text-3xl font-bold">{section === "locales" ? "Reservá tu turno" : "Bolsa de trabajo"}</h1>
+      <p className="mt-2 text-lg text-white/65">
+        {section === "locales" ? "Locales que usan Clippr, cerca tuyo." : "Empleos, alquileres y profesionales disponibles."}
+      </p>
+
+      {section === "locales" && (
+        <div className="mt-5 space-y-4 pb-10">
+          {localesView === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
+          {localesView?.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay locales.</div>}
+          {localesView?.map((l) => (
+            <LocalCard key={l.slug} l={l} />
+          ))}
+        </div>
+      )}
+
+      {section === "bolsa" && !session && !authLoading && (
         <div className={`${startCardCls} mt-5 p-4`} style={startCardStyle}>
           <p className="text-base text-white/75">Para postularte o solicitar a un profesional, iniciá sesión o creá tu cuenta.</p>
           <div className="mt-3 flex gap-2">
@@ -279,6 +360,8 @@ function BolsaPublicaPage() {
         </div>
       )}
 
+      {section === "bolsa" && (
+      <>
       <div className="mt-5 grid grid-cols-3 gap-3">
         {([["ofertas", "Empleos", ClipboardList, "/bolsa/ofertas.webp"], ["alquileres", "Alquileres", Home, "/bolsa/alquileres.webp"], ["profesionales", "Profesionales", Briefcase, "/bolsa/profesionales.webp"]] as const).map(([id, label, Icon, img]) => (
           <button
@@ -392,6 +475,8 @@ function BolsaPublicaPage() {
           </>
         )}
       </div>
+      </>
+      )}
     </StartShell>
   );
 }
