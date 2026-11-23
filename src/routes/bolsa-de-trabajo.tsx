@@ -49,27 +49,30 @@ function WhatsAppButton({ number }: { number?: string | null }) {
   );
 }
 
-// Encabezado de un aviso: portada y logo del negocio (si los cargó), título, nombre e insignia.
+// Encabezado de un aviso: portada, logo con las estrellas debajo, nombre del local y el título en una sola línea.
 function PostingHeader({ p }: { p: Posting }) {
   return (
     <div>
-      {p.cover_url && <img src={p.cover_url} alt="" loading="lazy" className="h-28 w-full object-cover" />}
+      {p.cover_url && <img src={p.cover_url} alt="" loading="lazy" decoding="async" className="h-28 w-full object-cover" />}
       <div className={`flex items-start gap-3 px-4 ${p.cover_url ? "-mt-7" : "pt-4"}`}>
-        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/20 text-lg font-semibold ring-2 ring-[#08070f]">
-          {p.logo_url ? <img src={p.logo_url} alt={p.business_name} loading="lazy" className="h-full w-full object-cover" /> : (p.business_name[0] || "?").toUpperCase()}
-        </span>
+        <div className="flex w-16 shrink-0 flex-col items-center">
+          <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-violet-500/20 text-xl font-semibold ring-2 ring-[#08070f]">
+            {p.logo_url ? <img src={p.logo_url} alt={p.business_name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : (p.business_name[0] || "?").toUpperCase()}
+          </span>
+          {!!p.reviews_count && (
+            <span className="mt-1 inline-flex items-center gap-0.5 whitespace-nowrap text-sm">
+              <Star className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
+              <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
+              <span className="text-white/50">({p.reviews_count})</span>
+            </span>
+          )}
+        </div>
         <div className={`min-w-0 flex-1 ${p.cover_url ? "pt-8" : ""}`}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-xl font-semibold leading-tight">{p.title}</div>
-              <div className="text-base text-white/60">{p.business_name}{p.distKm != null ? ` · ${formatKm(p.distKm)}` : ""}</div>
-              {!!p.reviews_count && (
-                <div className="mt-0.5 flex items-center gap-1 text-base text-white/70">
-                  <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
-                  <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
-                  <span className="text-white/50">({p.reviews_count})</span>
-                </div>
-              )}
+              <div className="truncate text-xl font-semibold leading-tight">{p.business_name}</div>
+              <div className="truncate text-base text-white/75">{p.title}</div>
+              {p.distKm != null && <div className="text-sm text-white/50">{formatKm(p.distKm)}</div>}
             </div>
             <Badge />
           </div>
@@ -77,13 +80,6 @@ function PostingHeader({ p }: { p: Posting }) {
       </div>
     </div>
   );
-}
-
-// Foto de la pestaña: si todavía no está cargada, muestra un icono grande.
-function TabPhoto({ src, Icon }: { src: string; Icon: React.ComponentType<{ className?: string }> }) {
-  const [failed, setFailed] = React.useState(false);
-  if (failed) return <Icon className="h-10 w-10 text-violet-300" />;
-  return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
 }
 
 function years(date: string | null): number | null {

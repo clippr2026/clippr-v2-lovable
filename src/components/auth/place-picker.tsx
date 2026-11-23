@@ -65,7 +65,7 @@ export function PlacePicker({ place, onChange }: { place: Place | null; onChange
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="min-h-14 min-w-0 flex-1 touch-manipulation py-1 text-center">
+      <button type="button" onPointerDown={() => setOpen(true)} onClick={() => setOpen(true)} className="min-h-14 min-w-0 flex-1 touch-manipulation py-1 text-center">
         <span className="block text-sm text-white/55">Buscar cerca de</span>
         <span className="mx-auto flex max-w-full items-center justify-center gap-1 text-lg font-bold">
           <span className="truncate">{place?.label ?? "Elegí tu zona"}</span>

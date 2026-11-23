@@ -167,8 +167,8 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                       {form.kind === "alquiler" ? "Alquilo un puesto" : "Busco personal"}
                     </div>
                     <label className="block">
-                      <span className="mb-1.5 block text-base font-semibold text-white/85">Título</span>
-                      <input value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.kind === "alquiler" ? "Ej: Puesto disponible" : "Ej: Busco personal para el turno tarde"} className={inputCls} />
+                      <span className="mb-1.5 flex items-center justify-between text-base font-semibold text-white/85">Título<span className="text-sm font-medium text-white/50">{form.title.length}/36</span></span>
+                      <input value={form.title} maxLength={36} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.kind === "alquiler" ? "Ej: Puesto disponible" : "Ej: Busco personal para el turno tarde"} className={inputCls} />
                     </label>
                     <label className="block">
                       <span className="mb-1.5 flex items-center gap-2 text-base font-semibold text-white/85">
