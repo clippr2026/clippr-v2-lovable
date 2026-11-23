@@ -84,7 +84,6 @@ function PostingHeader({ p }: { p: Posting }) {
             </div>
             {!p.cover_url && <Badge />}
           </div>
-          {p.distKm != null && <div className="text-sm text-white/50">{formatKm(p.distKm)}</div>}
         </div>
       </div>
       <div className="truncate px-4 pt-2 text-xl font-semibold leading-tight">{p.title}</div>
@@ -110,7 +109,11 @@ function PostingFooter({
   onSend,
   whatsapp,
   showAction = true,
+  yearsText,
+  distText,
 }: {
+  yearsText?: string | null;
+  distText?: string | null;
   text?: string | null;
   logged: boolean;
   label: string;
@@ -126,6 +129,12 @@ function PostingFooter({
   const isLink = whatsapp !== undefined;
   return (
     <div>
+      {(yearsText || distText) && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="text-base font-bold text-white/90">{yearsText ?? ""}</span>
+          {distText && <span className="shrink-0 text-base text-white/60">{distText}</span>}
+        </div>
+      )}
       {open && text && <p className="mb-2 whitespace-pre-line text-base font-semibold text-white/90">{text}</p>}
       <div className="flex items-center justify-between gap-3">
         {text ? (
@@ -248,6 +257,11 @@ function formatHours(hours?: Record<string, { s: string; e: string }> | null): s
     i = j + 1;
   }
   return out;
+}
+
+function yearsLabel(date?: string | null): string | null {
+  const y = yearsOf(date);
+  return y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : null;
 }
 
 function yearsOf(date?: string | null): number | null {
@@ -446,8 +460,10 @@ function BolsaPublicaPage() {
                 <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
                   <PostingHeader p={p} />
                   <div className="space-y-2 p-4 pt-3">
-                  <PostingDetails p={{ ...p, price: null, years: yearsOf(p.business_start_date) }} />
+                  <PostingDetails p={{ ...p, price: null }} />
                   <PostingFooter
+                    yearsText={yearsLabel(p.business_start_date)}
+                    distText={p.distKm != null ? formatKm(p.distKm) : null}
                     text={p.description}
                     logged={Boolean(session)}
                     showAction
@@ -470,8 +486,8 @@ function BolsaPublicaPage() {
               <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
-                <PostingDetails p={{ ...p, price: null, years: yearsOf(p.business_start_date) }} />
-                <PostingFooter text={p.description} logged={Boolean(session)} label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingDetails p={{ ...p, price: null }} />
+                <PostingFooter yearsText={yearsLabel(p.business_start_date)} distText={p.distKm != null ? formatKm(p.distKm) : null} text={p.description} logged={Boolean(session)} label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
                 </div>
               </div>
             ))}
