@@ -3218,6 +3218,7 @@ export function EquipoSection() {
     return (
       <>
         <DlgSection title="Datos del acceso" icon={Mail} tone="sky">
+        {accessForm.role !== "admin_general" && (
         <Field label="Estado">
           <select
             value={accessForm.status}
@@ -3233,6 +3234,7 @@ export function EquipoSection() {
             <option value="inactive">Inactivo</option>
           </select>
         </Field>
+        )}
 
         <div>
           <Field label="Correo electrónico">
@@ -3308,6 +3310,7 @@ export function EquipoSection() {
               )}
             </div>
 
+            {accessForm.role !== "admin_general" && (
             <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
                 <span>Personalizar permisos</span>
@@ -3418,6 +3421,7 @@ export function EquipoSection() {
                 </div>
               </div>
             </details>
+            )}
           </div>
         </div>
       </>
