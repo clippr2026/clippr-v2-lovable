@@ -6,9 +6,12 @@ import { ArrowLeft } from "lucide-react";
 // con luces violeta/azul, logo arriba y un botón para volver.
 export function StartShell({
   back,
+  header,
   children,
 }: {
   back?: { to: "/" | "/empezar" | "/login"; label: string };
+  // Reemplaza el encabezado de siempre (volver + logo).
+  header?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -24,6 +27,7 @@ export function StartShell({
         />
       </div>
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-6">
+        {header ?? (
         <div className="flex items-center justify-between">
           {back ? (
             <Link
@@ -39,6 +43,7 @@ export function StartShell({
           <img src="/clippr-logo-login.webp" alt="Clippr" className="h-12 w-12 object-contain" />
           <span className="w-11" />
         </div>
+        )}
         <div className="flex flex-1 flex-col pt-8">{children}</div>
       </div>
     </div>

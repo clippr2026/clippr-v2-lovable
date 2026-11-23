@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { StartShell, startCardCls, startCardStyle } from "@/components/auth/start-shell";
 import { PostingDetails } from "@/components/auth/posting-details";
 import { PostingMore } from "@/components/auth/posting-more";
+import { PlacePicker, loadPlace } from "@/components/auth/place-picker";
+import { distanceKm, formatKm, geocodeCached, type Place } from "@/lib/geo";
 
 export const Route = createFileRoute("/bolsa-de-trabajo")({
   head: () => ({
@@ -18,11 +20,11 @@ export const Route = createFileRoute("/bolsa-de-trabajo")({
   component: BolsaPublicaPage,
 });
 
-type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null; logo_url?: string | null; cover_url?: string | null; reviews_avg?: number | null; reviews_count?: number };
+type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null; logo_url?: string | null; cover_url?: string | null; reviews_avg?: number | null; reviews_count?: number; distKm?: number | null };
 type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
-  photos: string[] | null; reviews_count: number; reviews_avg: number | null; whatsapp?: string | null;
+  photos: string[] | null; reviews_count: number; reviews_avg: number | null; whatsapp?: string | null; distKm?: number | null;
 };
 
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
@@ -60,7 +62,7 @@ function PostingHeader({ p }: { p: Posting }) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-xl font-semibold leading-tight">{p.title}</div>
-              <div className="text-base text-white/60">{p.business_name}</div>
+              <div className="text-base text-white/60">{p.business_name}{p.distKm != null ? ` · ${formatKm(p.distKm)}` : ""}</div>
               {!!p.reviews_count && (
                 <div className="mt-0.5 flex items-center gap-1 text-base text-white/70">
                   <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
@@ -90,6 +92,11 @@ function BolsaPublicaPage() {
   const [postings, setPostings] = React.useState<Posting[] | null>(null);
   const [pros, setPros] = React.useState<Pro[] | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [place, setPlace] = React.useState<Place | null>(null);
+  const [coords, setCoords] = React.useState<Record<string, { lat: number; lng: number } | null>>({});
+  React.useEffect(() => {
+    setPlace(loadPlace());
+  }, []);
 
   const isOwner = Boolean(session && businessId);
   const isPro = Boolean(session && !businessId && (user?.user_metadata as { account_type?: string } | undefined)?.account_type === "profesional");
@@ -105,6 +112,41 @@ function BolsaPublicaPage() {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  // Con una zona elegida, se ubican las direcciones de los avisos y perfiles y se ordenan por cercanía.
+  React.useEffect(() => {
+    if (!place) return;
+    const texts = Array.from(
+      new Set([...(postings ?? []).map((x) => x.address ?? x.zone ?? ""), ...(pros ?? []).map((x) => x.zone ?? "")].map((t) => t.trim()).filter(Boolean)),
+    ).slice(0, 40);
+    let cancelled = false;
+    void (async () => {
+      for (const t of texts) {
+        if (cancelled) return;
+        if (t in coords) continue;
+        const c = await geocodeCached(t).catch(() => null);
+        if (cancelled) return;
+        setCoords((cur) => ({ ...cur, [t]: c }));
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [place, postings, pros]);
+
+  const withDist = <T extends { distKm?: number | null }>(rows: T[] | null, textOf: (r: T) => string): T[] | null => {
+    if (!rows) return rows;
+    if (!place) return rows;
+    const out = rows.map((r) => {
+      const c = coords[textOf(r).trim()];
+      return { ...r, distKm: c ? distanceKm(place, c) : null };
+    });
+    return out.sort((a, b) => (a.distKm ?? 1e9) - (b.distKm ?? 1e9));
+  };
+  const postingsView = withDist(postings, (r) => (r as Posting).address ?? (r as Posting).zone ?? "");
+  const prosView = withDist(pros, (r) => (r as Pro).zone ?? "");
 
   async function apply(p: Posting) {
     setBusy(p.id);
@@ -126,7 +168,17 @@ function BolsaPublicaPage() {
   }
 
   return (
-    <StartShell back={{ to: "/", label: "Volver" }}>
+    <StartShell
+      header={
+        <div className="flex items-center gap-3">
+          <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
+          <PlacePicker place={place} onChange={setPlace} />
+          <Link to="/" aria-label="Inicio" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/80 ring-1 ring-white/10">
+            ✕
+          </Link>
+        </div>
+      }
+    >
       <h1 className="font-display text-3xl font-bold">Bolsa de trabajo</h1>
       <p className="mt-2 text-lg text-white/65">Ofertas de barberías y profesionales disponibles.</p>
 
@@ -158,8 +210,8 @@ function BolsaPublicaPage() {
         {tab === "ofertas" && (
           <>
             {postings === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
-            {postings?.filter((p) => p.kind !== "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay ofertas publicadas.</div>}
-            {postings?.filter((p) => p.kind !== "alquiler").map((p) => {
+            {postingsView?.filter((p) => p.kind !== "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay ofertas publicadas.</div>}
+            {postingsView?.filter((p) => p.kind !== "alquiler").map((p) => {
               const sent = p.request_status === "pending" || p.request_status === "accepted";
               return (
                 <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
@@ -187,8 +239,8 @@ function BolsaPublicaPage() {
         {tab === "alquileres" && (
           <>
             {postings === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
-            {postings?.filter((p) => p.kind === "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay puestos para alquilar.</div>}
-            {postings?.filter((p) => p.kind === "alquiler").map((p) => (
+            {postingsView?.filter((p) => p.kind === "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay puestos para alquilar.</div>}
+            {postingsView?.filter((p) => p.kind === "alquiler").map((p) => (
               <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
@@ -203,8 +255,8 @@ function BolsaPublicaPage() {
         {tab === "profesionales" && (
           <>
             {pros === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
-            {pros?.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay profesionales disponibles.</div>}
-            {pros?.map((r, i) => {
+            {prosView?.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay profesionales disponibles.</div>}
+            {prosView?.map((r, i) => {
               const y = years(r.experience_since);
               return (
                 <div key={r.user_id ?? `${r.full_name}-${i}`} className={`${startCardCls} space-y-3 p-4`} style={startCardStyle}>
@@ -224,7 +276,7 @@ function BolsaPublicaPage() {
                     <Badge />
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-                    {r.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{r.zone}</span>}
+                    {r.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{r.zone}{r.distKm != null ? ` · ${formatKm(r.distKm)}` : ""}</span>}
                     {y !== null && <span>{y} años en el rubro</span>}
                     {r.nationality && <span>{r.nationality}</span>}
                     {r.instagram && <span className="inline-flex items-center gap-1.5"><Instagram className="h-4 w-4 text-violet-300" />@{r.instagram}</span>}
