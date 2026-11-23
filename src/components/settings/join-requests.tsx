@@ -84,6 +84,8 @@ export function PostulacionesPanel({
   const pending = rows.filter((r) => r.status === "pending");
   const blocked = rows.filter((r) => r.status === "blocked");
   const invited = rows.filter((r) => r.status === "invited");
+  const accepted = rows.filter((r) => r.status === "accepted");
+  const [filter, setFilter] = React.useState<"recibidas" | "enviadas" | "aceptadas">("recibidas");
 
   return (
     <>
@@ -107,9 +109,23 @@ export function PostulacionesPanel({
                 </button>
               </div>
               <BolsaTabs active="postulaciones" onSelect={onSelectTab} pending={pending.length} />
+              <div className="flex shrink-0 gap-1.5 px-4 pb-3">
+                {([["recibidas", "Recibidas", pending.length], ["enviadas", "Enviadas", invited.length], ["aceptadas", "Aceptadas", accepted.length]] as const).map(([id, label, n]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFilter(id)}
+                    className={cn("h-10 flex-1 rounded-full text-base font-semibold transition", filter === id ? "bg-violet-500/30 text-white ring-1 ring-violet-300/50" : "bg-white/[0.06] text-white/65")}
+                  >
+                    {label}{n > 0 ? ` ${n}` : ""}
+                  </button>
+                ))}
+              </div>
               <div className={inline ? "space-y-3 px-3.5 py-3" : "min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3"}>
-                {pending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie se postuló ni aceptó una solicitud.</div>}
-                {pending.map((r) => {
+                {filter === "recibidas" && pending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie te envió una solicitud.</div>}
+                {filter === "enviadas" && invited.length === 0 && <div className="py-10 text-center text-lg text-white/60">No tenés solicitudes enviadas esperando respuesta.</div>}
+                {filter === "aceptadas" && accepted.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no aceptaste a nadie.</div>}
+                {filter === "recibidas" && pending.map((r) => {
                   const years = yearsSince(r.experience_since);
                   const age = yearsSince(r.birth_date);
                   return (
@@ -215,7 +231,7 @@ export function PostulacionesPanel({
                   );
                 })}
 
-                {invited.length > 0 && (
+                {filter === "enviadas" && invited.length > 0 && (
                   <div className="pt-2">
                     <div className="mb-2 text-base font-semibold text-white/60">Esperando respuesta</div>
                     {invited.map((r) => (
@@ -227,7 +243,27 @@ export function PostulacionesPanel({
                   </div>
                 )}
 
-                {blocked.length > 0 && (
+                {filter === "aceptadas" && accepted.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-lg font-semibold ring-2 ring-violet-400/40">
+                      {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-lg font-semibold">{r.full_name}</div>
+                      <div className="flex items-center gap-1 text-base text-white/60">
+                        <Star className="h-4 w-4 text-amber-300" />
+                        {r.reviews_count > 0 ? String(r.reviews_avg).replace(".", ",") : "Sin reseñas"}
+                      </div>
+                    </div>
+                    {r.whatsapp && (
+                      <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">
+                        <MessageCircle className="h-5 w-5" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+
+                {filter === "recibidas" && blocked.length > 0 && (
                   <div className="pt-2">
                     <div className="mb-2 text-base font-semibold text-white/60">Bloqueados</div>
                     {blocked.map((r) => (
