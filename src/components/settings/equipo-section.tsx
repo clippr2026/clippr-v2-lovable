@@ -4079,7 +4079,7 @@ export function EquipoSection() {
 
               {dlgTab === "horarios" && (
                 <div className="space-y-4">
-                  <DlgSection title="Días" icon={CalendarPlus} tone="violet">
+                  <DlgSection title="Días y horarios" icon={CalendarPlus} tone="violet">
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     const hasBreak = Boolean(d.breakStart && d.breakEnd);
@@ -4093,8 +4093,8 @@ export function EquipoSection() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25">
-                              <CalendarDays className="h-4.5 w-4.5 text-violet-200" />
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/20 ring-1 ring-sky-300/25">
+                              <CalendarDays className="h-4.5 w-4.5 text-sky-200" />
                             </span>
                             {label}
                           </div>
