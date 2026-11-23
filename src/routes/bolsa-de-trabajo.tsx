@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell, startCardCls, startCardStyle } from "@/components/auth/start-shell";
 import { PostingDetails } from "@/components/auth/posting-details";
+import { PostingMore } from "@/components/auth/posting-more";
 
 export const Route = createFileRoute("/bolsa-de-trabajo")({
   head: () => ({
@@ -17,7 +18,7 @@ export const Route = createFileRoute("/bolsa-de-trabajo")({
   component: BolsaPublicaPage,
 });
 
-type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null };
+type Posting = { id: string; business_name: string; title: string; zone: string | null; job_type: string | null; description: string | null; contact?: string | null; request_status?: string | null; kind?: string; price?: string | null; schedule?: string | null; instagram?: string | null; address?: string | null; logo_url?: string | null; cover_url?: string | null };
 type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
@@ -43,6 +44,29 @@ function WhatsAppButton({ number }: { number?: string | null }) {
       <MessageCircle className="h-4 w-4" />
       WhatsApp
     </a>
+  );
+}
+
+// Encabezado de un aviso: portada y logo del negocio (si los cargó), título, nombre e insignia.
+function PostingHeader({ p }: { p: Posting }) {
+  return (
+    <div>
+      {p.cover_url && <img src={p.cover_url} alt="" loading="lazy" className="h-28 w-full object-cover" />}
+      <div className={`flex items-start gap-3 px-4 ${p.cover_url ? "-mt-7" : "pt-4"}`}>
+        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/20 text-lg font-semibold ring-2 ring-[#08070f]">
+          {p.logo_url ? <img src={p.logo_url} alt={p.business_name} loading="lazy" className="h-full w-full object-cover" /> : (p.business_name[0] || "?").toUpperCase()}
+        </span>
+        <div className={`min-w-0 flex-1 ${p.cover_url ? "pt-8" : ""}`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-xl font-semibold leading-tight">{p.title}</div>
+              <div className="text-base text-white/60">{p.business_name}</div>
+            </div>
+            <Badge />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -131,16 +155,11 @@ function BolsaPublicaPage() {
             {postings?.filter((p) => p.kind !== "alquiler").map((p) => {
               const sent = p.request_status === "pending" || p.request_status === "accepted";
               return (
-                <div key={p.id} className={`${startCardCls} space-y-2 p-4`} style={startCardStyle}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xl font-semibold">{p.title}</div>
-                      <div className="text-base text-white/60">{p.business_name}</div>
-                    </div>
-                    <Badge />
-                  </div>
+                <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
+                  <PostingHeader p={p} />
+                  <div className="space-y-2 p-4 pt-3">
                   <PostingDetails p={p} />
-                  {p.description && <p className="text-base text-white/75">{p.description}</p>}
+                  {p.description && <PostingMore text={p.description} />}
                   {isPro && (
                     <button
                       type="button"
@@ -151,6 +170,7 @@ function BolsaPublicaPage() {
                       {p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : "Enviar solicitud"}
                     </button>
                   )}
+                  </div>
                 </div>
               );
             })}
@@ -162,16 +182,12 @@ function BolsaPublicaPage() {
             {postings === null && <div className="py-10 text-center text-white/60">Cargando…</div>}
             {postings?.filter((p) => p.kind === "alquiler").length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no hay puestos para alquilar.</div>}
             {postings?.filter((p) => p.kind === "alquiler").map((p) => (
-              <div key={p.id} className={`${startCardCls} space-y-2 p-4`} style={startCardStyle}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-xl font-semibold">{p.title}</div>
-                    <div className="text-base text-white/60">{p.business_name}</div>
-                  </div>
-                  <Badge />
-                </div>
+              <div key={p.id} className={`${startCardCls} overflow-hidden`} style={startCardStyle}>
+                <PostingHeader p={p} />
+                <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={p} />
-                {p.description && <p className="text-base text-white/75">{p.description}</p>}
+                {p.description && <PostingMore text={p.description} />}
+                </div>
               </div>
             ))}
           </>
