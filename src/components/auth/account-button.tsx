@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { ArrowRight, LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -47,12 +47,17 @@ export function AccountButton() {
 
   if (!session) {
     return (
-      <div className="flex items-center gap-2">
-        <Link to="/login" className="inline-flex h-10 items-center rounded-full bg-white/[0.06] px-4 text-[15px] font-semibold text-white/85 ring-1 ring-white/10">
+      <div className="flex items-center gap-3">
+        <Link to="/login" className="whitespace-nowrap text-[15px] font-medium text-white/65 transition hover:text-white">
           Iniciar sesión
         </Link>
-        <Link to="/empezar" className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-[15px] font-semibold text-white">
+        <Link
+          to="/empezar"
+          className="group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-[15px] font-semibold text-white transition hover:brightness-110"
+          style={{ background: "linear-gradient(135deg, oklch(0.62 0.24 292), oklch(0.46 0.24 296))", boxShadow: "0 10px 30px -10px oklch(0.55 0.26 292 / 0.65)" }}
+        >
           Registrarse
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
     );
