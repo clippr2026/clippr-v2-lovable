@@ -3550,30 +3550,6 @@ export function EquipoSection() {
             >
               <div className="space-y-4">
                 <DlgSection title="Persona" icon={UserPlus} tone="violet">
-                  {/* El rol se elige al agregar la persona; acá solo se cambia al editar. */}
-                  {editingAccessUserId && accessForm.role !== "profesional" && (
-                    <div className="flex flex-wrap gap-2">
-                      {(["admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
-                        <button
-                          key={role}
-                          type="button"
-                          onClick={() => {
-                            setAccessForm((f) => ({ ...f, role }));
-                            setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
-                          }}
-                          className={cn(
-                            "h-11 rounded-full px-4 text-base font-semibold ring-1 transition-colors",
-                            accessForm.role === role
-                              ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40"
-                              : "bg-white/[0.04] text-white/70 ring-white/10",
-                          )}
-                        >
-                          {ROLE_LABEL_BY_ID[role]}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   {accessForm.role !== "profesional" && (
                     <Field label="Nombre" icon={UserPlus}>
                       <input
