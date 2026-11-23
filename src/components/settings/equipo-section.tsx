@@ -901,7 +901,7 @@ function AccessChips({ access, hideRole }: { access: PersonAccessInfo; hideRole?
   const badge = access.badge && access.badge.label !== "Acceso activo" ? access.badge : null;
   const showRole = !hideRole && access.roleLabel !== "Profesional";
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-2 space-y-2">
       {(showRole || badge || access.expired) && (
         <div className="flex flex-wrap items-center gap-2">
           {showRole && (
@@ -923,26 +923,29 @@ function AccessChips({ access, hideRole }: { access: PersonAccessInfo; hideRole?
         </div>
       )}
       <div className="truncate text-sm text-white/65">{access.email}</div>
-      {access.atiende && (
-        <button
-          type="button"
-          onClick={access.atiende.onToggle}
-          className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white/[0.07] px-4 py-2.5 text-left text-base font-semibold ring-1 ring-white/15"
-        >
-          <span>Atiendo clientes</span>
-          <span
-            className={cn(
-              "inline-flex h-6 w-11 items-center rounded-full px-0.5 transition",
-              access.atiende.on ? "bg-emerald-500/80" : "bg-white/20",
-            )}
-          >
-            <span className={cn("h-5 w-5 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-5")} />
-          </span>
-        </button>
-      )}
     </div>
   );
 }
+
+function AtiendeToggle({ atiende }: { atiende: { on: boolean; onToggle: () => void } }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={atiende.on}
+      onClick={atiende.onToggle}
+      className="mt-3 flex h-12 w-full items-center justify-between gap-3 rounded-full bg-white/[0.07] pl-5 pr-3 text-left text-base font-semibold ring-1 ring-white/15"
+    >
+      Atiendo clientes
+      <span className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", atiende.on ? "bg-emerald-500/80" : "bg-white/20")}>
+        <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white transition-all", atiende.on ? "left-6" : "left-1")} />
+      </span>
+    </button>
+  );
+}
+
+const editBtnCls =
+  "inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50";
 
 const ProfessionalCard = React.memo(function ProfessionalCard({
   emp,
@@ -967,32 +970,34 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   return (
     <div
       className={cn(
-        "rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-4 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)] transition-opacity",
+        "rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-opacity",
         (!online || deleting) && "opacity-70",
       )}
+      style={{
+        backgroundImage:
+          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+      }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <div
           className={cn(
-            "h-12 w-12 shrink-0 rounded-full overflow-hidden grid place-items-center text-lg font-semibold text-white bg-gradient-to-br ring-2 ring-violet-400/40",
+            "grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br text-xl font-semibold text-white ring-1 ring-white/15",
             tintClass,
           )}
         >
           {emp.avatar_url ? (
-            <img
-              src={emp.avatar_url}
-              alt={displayName}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+            <img src={emp.avatar_url} alt={displayName} className="h-full w-full object-cover" loading="lazy" />
           ) : (
             displayName[0]?.toUpperCase()
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="truncate text-lg font-semibold text-white">{displayName}</div>
-          <div className="text-sm text-white/65">{emp.role?.trim() || "Profesional"}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xl font-semibold text-white">{displayName}</div>
+          <div className="text-base text-white/65">{emp.role?.trim() || "Profesional"}</div>
         </div>
+      </div>
+      {access ? <AccessChips access={access} hideRole /> : <div className="mt-2 text-sm text-white/55">Sin acceso a Clippr</div>}
+      <div className="mt-3 flex items-center gap-3">
         {/* Refleja el único switch "Acepta reservas en línea" del perfil
             (employees.is_active). Un clic acá alterna ese mismo campo, así
             que sigue habiendo una sola fuente de verdad para la visibilidad
@@ -1004,28 +1009,18 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           aria-label="En línea"
           onClick={() => onToggleOnline(emp)}
           disabled={deleting}
-          className="inline-flex shrink-0 items-center gap-2.5 text-sm font-semibold text-white/85 disabled:opacity-50"
+          className="inline-flex shrink-0 items-center gap-2.5 disabled:opacity-50"
         >
-          En línea
           <span className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", online ? "bg-emerald-500/80" : "bg-white/20")}>
             <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white transition-all", online ? "left-6" : "left-1")} />
           </span>
+          <span className={cn("text-base font-semibold", online ? "text-emerald-300" : "text-white/55")}>En línea</span>
+        </button>
+        <button onClick={() => onEdit(emp)} disabled={deleting} className={editBtnCls}>
+          <Pencil className="h-4 w-4" /> Editar
         </button>
       </div>
-      {access ? (
-        <AccessChips access={access} hideRole />
-      ) : (
-        <div className="mt-3 text-sm text-white/55">Sin acceso a Clippr</div>
-      )}
-      <div className="mt-4 flex items-center gap-2">
-        <button
-          onClick={() => onEdit(emp)}
-          disabled={deleting}
-          className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50"
-        >
-          Editar
-        </button>
-      </div>
+      {access?.atiende && <AtiendeToggle atiende={access.atiende} />}
     </div>
   );
 });
@@ -1041,25 +1036,28 @@ function AccessPersonCard({
   onEdit?: () => void;
 }) {
   return (
-    <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.04] p-4 shadow-[0_8px_30px_-12px_rgba(139,92,246,0.35)]">
+    <div
+      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+      style={{
+        backgroundImage:
+          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+      }}
+    >
       <div className="flex items-center gap-3">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/20 text-lg font-semibold text-violet-100 ring-2 ring-violet-400/40">
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-xl font-semibold text-violet-100 ring-1 ring-white/15">
           {(title[0] || "A").toUpperCase()}
         </div>
-        <div className="min-w-0 flex-1 truncate text-lg font-semibold text-white">{title}</div>
+        <div className="min-w-0 flex-1 truncate text-xl font-semibold text-white">{title}</div>
       </div>
       <AccessChips access={access} hideRole={title.trim().toLowerCase() === access.roleLabel.trim().toLowerCase()} />
-      <div className="mt-4 flex items-center gap-2">
-        {onEdit && (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/25"
-          >
-            Editar
+      {onEdit && (
+        <div className="mt-3 flex items-center gap-3">
+          <button type="button" onClick={onEdit} className={editBtnCls}>
+            <Pencil className="h-4 w-4" /> Editar
           </button>
-        )}
-      </div>
+        </div>
+      )}
+      {access.atiende && <AtiendeToggle atiende={access.atiende} />}
     </div>
   );
 }
@@ -3447,7 +3445,7 @@ export function EquipoSection() {
         <button
           type="button"
           onClick={() => setAddChooserOpen(true)}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
+          className="ml-auto flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-base font-semibold text-white shadow-lg shadow-sky-500/25"
         >
           <Plus className="h-4 w-4" /> Agregar persona
         </button>
