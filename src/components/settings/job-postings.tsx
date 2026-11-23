@@ -25,7 +25,22 @@ const cardStyle: React.CSSProperties = {
     "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
 };
 
-const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", title: "", schedule: "", description: "" };
+type Period = "mes" | "semana";
+const EMPTY = { kind: "empleo" as "empleo" | "alquiler", price: "", period: "mes" as Period, title: "", schedule: "", description: "" };
+
+// El precio se guarda como texto ("$150.000 por mes"): se separa el monto del período para el formulario.
+function splitPrice(text: string | null): { price: string; period: Period } {
+  const t = (text ?? "").trim();
+  const m = t.match(/^(.*?)\s*por\s+(mes|semana)$/i);
+  const amount = (m ? m[1] : t).replace(/^\$\s*/, "");
+  return { price: amount.replace(/\D/g, ""), period: m && m[2].toLowerCase() === "semana" ? "semana" : "mes" };
+}
+
+function joinPrice(price: string, period: Period): string | null {
+  const digits = price.replace(/\D/g, "");
+  if (!digits) return null;
+  return `$${Number(digits).toLocaleString("es-AR")} por ${period}`;
+}
 
 // Avisos del negocio (personal o alquiler de puestos): crear, pausar, editar, borrar.
 export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTab, inline = false }: { open?: boolean; onClose?: () => void; onSelectTab: (t: BolsaTab) => void; inline?: boolean }) {
@@ -62,7 +77,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
     setAskKind(!p);
     setForm(
       p
-        ? { kind: p.kind, price: p.price ?? "", title: p.title, schedule: p.schedule ?? "", description: p.description ?? "" }
+        ? { kind: p.kind, ...splitPrice(p.price), title: p.title, schedule: p.schedule ?? "", description: p.description ?? "" }
         : EMPTY,
     );
   }
@@ -73,7 +88,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
     setSaving(true);
     const payload = {
       kind: form.kind,
-      price: form.kind === "alquiler" ? form.price.trim() || null : null,
+      price: form.kind === "alquiler" ? joinPrice(form.price, form.period) : null,
       title: form.title.trim(),
       schedule: form.schedule.trim() || null,
       description: form.description.trim() || null,
@@ -177,10 +192,24 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                       <input value={form.schedule} maxLength={80} onChange={(e) => setForm({ ...form, schedule: e.target.value })} placeholder="Ej: Lunes a sábado de 10 a 19" className={inputCls} />
                     </label>
                     {form.kind === "alquiler" && (
-                      <label className="block">
-                        <span className="mb-1.5 block text-base font-semibold text-white/85">Precio</span>
-                        <input value={form.price} maxLength={40} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Ej: $150.000 por mes" className={inputCls} />
-                      </label>
+                      <div className="space-y-2">
+                        <label className="block">
+                          <span className="mb-1.5 block text-base font-semibold text-white/85">Precio del alquiler</span>
+                          <input inputMode="numeric" value={form.price} maxLength={12} onChange={(e) => setForm({ ...form, price: e.target.value.replace(/\D/g, "") })} placeholder="Ej: 150000" className={inputCls} />
+                        </label>
+                        <div className="flex gap-1.5">
+                          {([["mes", "Mensual"], ["semana", "Semanal"]] as const).map(([id, label]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setForm({ ...form, period: id })}
+                              className={cn("h-11 flex-1 rounded-full text-base font-semibold ring-1 transition", form.period === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white ring-violet-300/40" : "bg-white/[0.04] text-white/70 ring-white/10")}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                     <label className="block">
                       <span className="mb-1.5 block text-base font-semibold text-white/85">Detalles (opcional)</span>
