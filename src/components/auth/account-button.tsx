@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Dueño",
@@ -16,6 +17,32 @@ const ROLE_LABEL: Record<string, string> = {
 export function AccountButton() {
   const { session, user, profile, businessId, signOut, loading } = useAuth();
   const [open, setOpen] = React.useState(false);
+  const [photo, setPhoto] = React.useState<string | null>(null);
+  const userId = user?.id ?? null;
+  const employeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
+
+  // Foto de la cuenta: la del perfil de barbero vinculado y, si no hay, la del perfil profesional.
+  React.useEffect(() => {
+    let cancelled = false;
+    setPhoto(null);
+    if (!userId) return;
+    void (async () => {
+      let url: string | null = null;
+      if (employeeId) {
+        const { data } = await supabase.from("employees").select("avatar_url").eq("id", employeeId).maybeSingle();
+        url = (data as { avatar_url?: string | null } | null)?.avatar_url ?? null;
+      }
+      if (!url) {
+        const { data } = await (supabase as any).from("professional_profiles").select("avatar_url").eq("user_id", userId).maybeSingle();
+        url = (data as { avatar_url?: string | null } | null)?.avatar_url ?? null;
+      }
+      if (!cancelled) setPhoto(url || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, employeeId]);
+
   if (loading) return <span className="h-11 w-11" />;
 
   if (!session) {
@@ -43,16 +70,18 @@ export function AccountButton() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Mi cuenta"
         aria-expanded={open}
-        className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-lg font-bold text-white ring-2 ring-violet-300/40"
+        className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-lg font-bold text-white ring-2 ring-violet-300/40"
       >
-        {(name[0] || "A").toUpperCase()}
+        {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (name[0] || "A").toUpperCase()}
       </button>
       {open && (
         <>
           <button type="button" aria-label="Cerrar" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-14 z-50 w-72 rounded-2xl border border-white/10 bg-[#0d0b18] p-4 shadow-2xl">
             <div className="flex items-center gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-lg font-bold text-white">{(name[0] || "A").toUpperCase()}</span>
+              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-lg font-bold text-white">
+                {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (name[0] || "A").toUpperCase()}
+              </span>
               <div className="min-w-0">
                 <div className="truncate text-lg font-semibold">{name}</div>
                 <div className="truncate text-sm text-white/60">{user?.email}</div>

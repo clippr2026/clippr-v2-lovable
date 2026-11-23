@@ -379,8 +379,9 @@ function BolsaPublicaPage() {
       header={
         <div>
           <div className="flex items-center justify-between gap-3">
-            <Link to="/" aria-label="Inicio" className="shrink-0">
-              <img src="/clippr-logo-login.webp" alt="Clippr" className="h-11 w-11 shrink-0 object-contain" />
+            <Link to="/" aria-label="Inicio" className="flex shrink-0 items-center gap-2">
+              <img src="/clippr-logo-login.webp" alt="" className="h-11 w-11 shrink-0 object-contain" />
+              <span className="font-display text-2xl font-bold uppercase tracking-wide">Clippr</span>
             </Link>
             <AccountButton />
           </div>
