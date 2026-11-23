@@ -982,23 +982,17 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
             del profesional en la página pública. */}
         <button
           type="button"
+          role="switch"
+          aria-checked={online}
+          aria-label="En línea"
           onClick={() => onToggleOnline(emp)}
           disabled={deleting}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full ring-1 px-2.5 py-1 text-sm font-semibold transition hover:brightness-110 disabled:opacity-50",
-            online
-              ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-              : "bg-white/5 ring-white/10 text-muted-foreground",
-          )}
-          title={online ? "Acepta reservas en línea: tocá para desactivar" : "No acepta reservas en línea: tocá para activar"}
+          className="inline-flex shrink-0 items-center gap-2.5 text-sm font-semibold text-white/85 disabled:opacity-50"
         >
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full",
-              online ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
-            )}
-          />
-          {online ? "En línea" : "Sin reservas"}
+          En línea
+          <span className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors", online ? "bg-emerald-500/80" : "bg-white/20")}>
+            <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white transition-all", online ? "left-6" : "left-1")} />
+          </span>
         </button>
       </div>
       {access ? (
