@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Clock, Info, Pencil, Plus, Trash2 } from "lucide-react";
+import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,7 +40,6 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
   const [askKind, setAskKind] = React.useState(false);
-  const [biz, setBiz] = React.useState<{ phone: string | null; instagram: string | null; address: string | null } | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
@@ -51,8 +50,6 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
     setRows((data as Posting[] | null) ?? []);
-    const { data: b } = await supabase.from("businesses").select("phone,instagram,address").eq("id", businessId).maybeSingle();
-    setBiz((b as { phone: string | null; instagram: string | null; address: string | null } | null) ?? null);
     setLoading(false);
   }, [businessId]);
 
@@ -196,12 +193,6 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                       />
                       <div className="mt-1 text-right text-sm text-white/50">{form.description.length}/300</div>
                     </label>
-                    <div className="flex items-start gap-2 rounded-2xl bg-black/25 px-4 py-3 text-sm text-white/65">
-                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
-                      <span>
-                        Se muestran tu {biz?.phone ? "WhatsApp" : "WhatsApp (falta cargarlo)"}, {biz?.instagram ? "Instagram" : "Instagram (falta cargarlo)"} y {biz?.address ? "dirección" : "dirección (falta cargarla)"}, que tomamos de los datos de tu negocio en Página de reservas.
-                      </span>
-                    </div>
                     </>
                     )}
                   </div>
