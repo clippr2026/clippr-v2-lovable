@@ -58,7 +58,7 @@ export function FilterBar({
 }) {
   return (
     <div className="mt-5 flex gap-2">
-      <Dropdown icon={ListFilter} label={SORTS.find(([k]) => k === sort)![1]}>
+      <Dropdown icon={ListFilter} label={{ relevantes: "Relevantes", cercanos: "Cercanos", puntuados: "Puntuados" }[sort]}>
         {(close) =>
           SORTS.map(([k, l]) => (
             <button
@@ -76,7 +76,7 @@ export function FilterBar({
           ))
         }
       </Dropdown>
-      <Dropdown icon={MapPin} label={`Distancia: ${maxKm ? `${maxKm} km` : "todas"}`}>
+      <Dropdown icon={MapPin} label={maxKm ? `Hasta ${maxKm} km` : "Distancia"}>
         {(close) =>
           DISTANCES.map(([k, l]) => (
             <button
