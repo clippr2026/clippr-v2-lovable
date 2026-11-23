@@ -205,12 +205,16 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                     {rows.map((p) => (
                       <div key={p.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.03] p-4", !p.is_active && "opacity-60")} style={cardStyle}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-xl font-semibold">{p.title}</div>
-                            <div className="text-base text-white/60">
-                              {p.kind === "alquiler" ? `Alquiler${p.price ? ` · ${p.price}` : ""}` : "Personal"}
-                              {p.schedule ? ` · ${p.schedule}` : ""}
-                            </div>
+                          <div className="min-w-0 space-y-2">
+                            <span
+                              className={cn(
+                                "inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1",
+                                p.kind === "alquiler" ? "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" : "bg-violet-500/20 text-violet-100 ring-violet-400/40",
+                              )}
+                            >
+                              {p.kind === "alquiler" ? "Alquiler" : "Personal"}
+                            </span>
+                            <div className="text-xl font-semibold">{p.title}</div>
                           </div>
                           <Toggle on={p.is_active} onChange={(v) => void toggleActive(p, v)} />
                         </div>
