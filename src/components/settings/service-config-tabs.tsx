@@ -911,7 +911,7 @@ export function ServicePromoTab({ serviceId, serviceName, listPrice, onRegister 
           {draft.useMaxTotal ? <input inputMode="numeric" value={draft.maxTotal} onChange={(e) => set({ maxTotal: e.target.value.replace(/\D/g, "") })} placeholder="Ej: 100" className={cn(inputCls, "mt-3")} /> : null}
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
             <div className="min-w-0">
-              <div className="text-lg font-semibold text-white">Límite por cliente</div>
+              <div className="font-semibold text-white"><Titulo icon={UserRound} tono="sky">Límite por cliente</Titulo></div>
               <div className="text-lg text-white/70">Veces que puede usarla cada cliente</div>
             </div>
             <Toggle on={draft.useMaxPerClient} onChange={(v) => set({ useMaxPerClient: v })} />
