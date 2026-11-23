@@ -63,7 +63,7 @@ export function ProfessionalBolsa({ userId }: { userId: string }) {
         </div>
         <p className="mt-3 text-base text-white/60">
           {hasProfile
-            ? "Tu perfil se muestra en la bolsa de trabajo pública: cualquier persona puede verlo, sin tu WhatsApp, tu fecha de nacimiento ni tu correo. Las barberías pueden solicitarte."
+            ? "Tu perfil se muestra en la bolsa de trabajo pública: cualquier persona puede verlo, con tu WhatsApp para que te contacten. Tu fecha de nacimiento y tu correo no se muestran."
             : "Primero guardá tu perfil para poder mostrarlo."}
         </p>
       </div>
