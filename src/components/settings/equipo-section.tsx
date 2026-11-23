@@ -3902,7 +3902,10 @@ export function EquipoSection() {
                     ["horarios", "Horarios"],
                     ["acceso", "Acceso"],
                   ] as const
-                ).map(([id, label]) => (
+                )
+                  // El Admin. General tiene todos los permisos fijos: no tiene pestaña Acceso.
+                  .filter(([id]) => !(id === "acceso" && accessForm.role === "admin_general"))
+                  .map(([id, label]) => (
                   <button
                     key={id}
                     type="button"
