@@ -275,7 +275,7 @@ export function ProfessionalActividad() {
       {cancelRow &&
         createPortal(
           <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-5" onClick={() => setCancelRow(null)}>
-            <div className={`${startCardCls} w-full max-w-sm space-y-3 bg-[#0b0818] p-5`} style={startCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="w-full max-w-sm space-y-3 rounded-2xl border border-violet-400/30 p-5 shadow-2xl" style={{ ...startCardStyle, backgroundColor: "#0b0818" }} onClick={(e) => e.stopPropagation()}>
               <div className="text-xl font-semibold">{cancelRow.row.name}</div>
               <p className="text-base text-white/70">{cancelRow.kind === "cancel" ? "¿Querés cancelar esta solicitud?" : "¿Qué querés hacer con esta invitación?"}</p>
               {cancelRow.kind === "cancel" ? (
@@ -304,7 +304,7 @@ export function ProfessionalActividad() {
       {delRow &&
         createPortal(
           <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-5" onClick={() => setDelRow(null)}>
-            <div className={`${startCardCls} w-full max-w-sm space-y-3 bg-[#0b0818] p-5`} style={startCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="w-full max-w-sm space-y-3 rounded-2xl border border-violet-400/30 p-5 shadow-2xl" style={{ ...startCardStyle, backgroundColor: "#0b0818" }} onClick={(e) => e.stopPropagation()}>
               <div className="text-xl font-semibold">Eliminar contacto</div>
               <p className="text-base text-white/75">¿Eliminar a {delRow.name} de tus contactos? Dejarás de ver sus datos de contacto.</p>
               <button type="button" disabled={busy} onClick={() => void removeContact(delRow)} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
@@ -321,7 +321,7 @@ export function ProfessionalActividad() {
       {confirm &&
         createPortal(
           <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-5" onClick={() => setConfirm(null)}>
-            <div className={`${startCardCls} w-full max-w-sm space-y-4 bg-[#0b0818] p-5`} style={startCardStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="w-full max-w-sm space-y-4 rounded-2xl border border-violet-400/30 p-5 shadow-2xl" style={{ ...startCardStyle, backgroundColor: "#0b0818" }} onClick={(e) => e.stopPropagation()}>
               <div className="text-xl font-semibold">Aceptar invitación</div>
               <p className="text-base text-white/80">Al aceptar, ambos podrán ver sus datos de contacto.</p>
               <p className="text-sm text-white/50">Aceptar no confirma una contratación ni un alquiler: Clippr solo facilita el contacto entre las partes.</p>
