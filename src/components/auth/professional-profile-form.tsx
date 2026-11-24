@@ -62,7 +62,7 @@ function ReferencesEditor({ refs, setRefs }: { refs: RefDraft[]; setRefs: React.
   return (
     <div>
       <Label icon={Building2} extra={<span className="text-sm font-medium text-white/50">{refs.length}/{MAX_REFS}</span>}>
-        Referencias
+        Referencias laborales
       </Label>
       <p className="mb-3 text-base text-white/55">Lugares donde trabajaste.</p>
       <div className="space-y-2">
@@ -378,7 +378,7 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
             />
           </label>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-semibold">{uploading ? "Subiendo…" : avatar ? "Tu foto" : "Agregá tu foto"}</div>
+            <div className="text-lg font-semibold">{uploading ? "Subiendo…" : avatar ? "Foto de perfil" : "Agregá tu foto"}</div>
             {reviews.count > 0 && (
               <div className="mt-1 flex items-center gap-1 text-base text-white/65">
                 <Star className="h-4 w-4 text-amber-300" />
@@ -406,6 +406,31 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
       </label>
 
       <label className="block">
+        <Label extra={<span className="text-sm font-medium text-white/50">Opcional</span>}>Fecha de nacimiento</Label>
+        <span className="relative block">
+          <Cake className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input type="date" value={birth} onChange={(e) => setBirth(e.target.value)} className={inputCls} />
+        </span>
+      </label>
+
+      <label className="block">
+        <Label extra={<span className="text-sm font-medium text-white/50">Opcional</span>}>Nacionalidad</Label>
+        <span className="relative block">
+          <Flag className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={inputCls}>
+            <option value="">Sin indicar</option>
+            {NATIONALITIES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </span>
+      </label>
+
+      <hr className="border-white/10" />
+
+      <label className="block">
         <Label extra={<span className="text-sm font-medium text-white/50">{bio.length}/300</span>}>Sobre mí</Label>
         <textarea
           value={bio}
@@ -415,6 +440,14 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
           placeholder="Contá tu experiencia y tu estilo de trabajo"
           className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
         />
+      </label>
+
+      <label className="block">
+        <Label>Trabajo en el rubro desde</Label>
+        <span className="relative block">
+          <Briefcase className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={inputCls} />
+        </span>
       </label>
 
       <div>
@@ -487,17 +520,9 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
         )}
       </div>
 
-      <label className="block">
-        <Label>Trabajo en el rubro desde</Label>
-        <span className="relative block">
-          <Briefcase className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={inputCls} />
-        </span>
-      </label>
-
       <div>
         <Label icon={ImageIcon} extra={<span className="text-sm font-medium text-white/50">{photos.length}/{MAX_PHOTOS}</span>}>
-          Fotos de tus trabajos
+          Portafolio
         </Label>
         <div className="grid grid-cols-3 gap-3">
           {photos.map((url) => (
@@ -533,6 +558,8 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
 
       <ReferencesEditor refs={refs} setRefs={setRefs} />
 
+      <hr className="border-white/10" />
+
       <label className="block">
         <Label>WhatsApp</Label>
         <span className="relative block">
@@ -552,29 +579,6 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
         <span className="relative block">
           <Instagram className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
           <input value={instagram} onChange={(e) => setInstagram(e.target.value.slice(0, 30))} maxLength={30} placeholder="tu_usuario" className={inputCls} />
-        </span>
-      </label>
-
-      <label className="block">
-        <Label>Fecha de nacimiento</Label>
-        <span className="relative block">
-          <Cake className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input type="date" value={birth} onChange={(e) => setBirth(e.target.value)} className={inputCls} />
-        </span>
-      </label>
-
-      <label className="block">
-        <Label>Nacionalidad</Label>
-        <span className="relative block">
-          <Flag className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={inputCls}>
-            <option value="">Sin indicar</option>
-            {NATIONALITIES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
         </span>
       </label>
 
