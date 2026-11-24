@@ -147,7 +147,7 @@ export function ProfessionalActividad() {
                 )}
 
                 {r.state === "contacto" && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap justify-center gap-2">
                     {wa.length >= 8 && (
                       <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-emerald-500/20 px-4 text-base font-semibold text-white ring-1 ring-emerald-400/50">
                         <FaWhatsapp className="h-5 w-5 text-[#25D366]" /> WhatsApp
