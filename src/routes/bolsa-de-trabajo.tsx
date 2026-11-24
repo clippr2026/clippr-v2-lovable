@@ -114,7 +114,9 @@ function PostingFooter({
   yearsText,
   distText,
   askText = "para mandar solicitudes",
+  expanded,
 }: {
+  expanded?: React.ReactNode;
   askText?: string;
   yearsText?: string | null;
   distText?: string | null;
@@ -139,13 +141,14 @@ function PostingFooter({
           {distText && <span className="shrink-0 text-base text-white/60">{distText}</span>}
         </div>
       )}
+      {open && expanded && <div className="mb-3 space-y-3">{expanded}</div>}
       {open && text && (
         <div className="mb-3 rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
           <p className="whitespace-pre-line text-base font-semibold text-white/90">{text}</p>
         </div>
       )}
       <div className="flex items-center justify-between gap-3">
-        {text ? (
+        {text || expanded ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="text-base font-semibold text-violet-300">
             {open ? "Ver menos" : "Ver más"}
           </button>
@@ -523,39 +526,35 @@ function BolsaPublicaPage() {
               const y = years(r.experience_since);
               return (
                 <div key={r.user_id ?? `${r.full_name}-${i}`} className={`${startCardCls} space-y-3 p-4`} style={startCardStyle}>
+                  <div className="flex justify-end">
+                    <Badge />
+                  </div>
                   <div className="flex items-center gap-3">
                     <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
                       {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xl font-semibold">{r.full_name}</div>
-                      {(
-                        <div className="flex items-center gap-1 text-base text-white/60">
-                          <Star className="h-4 w-4 text-amber-300" />
-                          {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas todavía"}
-                        </div>
-                      )}
+                      <div className="break-words text-xl font-semibold leading-tight">{r.full_name}</div>
+                      <div className="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
+                        <Star className="h-4 w-4 shrink-0 text-amber-300" />
+                        {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
+                      </div>
                     </div>
-                    <Badge />
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-                    {r.zone && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-violet-300" />{r.zone}{r.distKm != null ? ` · ${formatKm(r.distKm)}` : ""}</span>}
-                    {y !== null && <span>{y} años en el rubro</span>}
-                    {r.nationality && <span>{r.nationality}</span>}
-                    {r.instagram && <span className="inline-flex items-center gap-1.5"><Instagram className="h-4 w-4 text-violet-300" />@{r.instagram}</span>}
+                  <div className="space-y-1 text-base text-white/75">
+                    {r.zone && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0 text-violet-300" />
+                        <span>{r.zone}{r.distKm != null ? ` · ${formatKm(r.distKm)}` : ""}</span>
+                      </div>
+                    )}
+                    {y !== null && <div className="font-bold text-white/90">{y} años en el rubro</div>}
                   </div>
-                  {r.specialties && r.specialties.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.specialties.map((s) => <span key={s} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">{s}</span>)}
-                    </div>
-                  )}
-                  {r.bio && <p className="text-base text-white/75">{r.bio}</p>}
                   {r.photos && r.photos.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {r.photos.map((u) => <img key={u} src={u} alt="Trabajo" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />)}
+                      {r.photos.map((u) => <img key={u} src={u} alt="Trabajo" loading="lazy" decoding="async" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />)}
                     </div>
                   )}
-                  <WhatsAppButton number={r.whatsapp} />
                   <PostingFooter
                     logged={Boolean(session)}
                     showAction
@@ -563,6 +562,22 @@ function BolsaPublicaPage() {
                     askText="para invitar a este profesional"
                     label={busy === r.user_id ? "Enviando…" : "Invitar"}
                     onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
+                    expanded={
+                      r.specialties?.length || r.bio ? (
+                        <>
+                          {r.specialties && r.specialties.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {r.specialties.map((sp) => <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">{sp}</span>)}
+                            </div>
+                          )}
+                          {r.bio && (
+                            <div className="rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
+                              <p className="whitespace-pre-line text-base font-semibold text-white/90">{r.bio}</p>
+                            </div>
+                          )}
+                        </>
+                      ) : null
+                    }
                   />
                 </div>
               );
