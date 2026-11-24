@@ -81,7 +81,7 @@ import { HistorialTabs } from "@/components/professionals/historial-tabs";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { SlotScaleSelect, readStoredSlotMinutes, SLOT_STORAGE_KEY, type SlotMinutes } from "@/components/agenda/slot-scale-select";
 import { HorarioEspecialPanel } from "@/components/professionals/horario-especial-panel";
-import type { EmployeeCommissionMap } from "@/lib/service-pricing";
+import { applyPromotionDiscount, resolvePromotionBadgeLabel, type EmployeeCommissionMap, type Promotion } from "@/lib/service-pricing";
 import { cancelAppointment, type Appointment as AgendaAppointment } from "@/components/agenda/use-agenda-data";
 import { crearAccionesTurno } from "@/components/agenda/appointment-actions";
 import { AppointmentDetailDialog } from "@/routes/agenda";
@@ -1794,6 +1794,15 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                     if (e.key === "Enter") setDetalleTurno(t);
                   }}
                 >
+                  {resolvePromotionBadgeLabel(t.promotion_id, t.promotion_snapshot ?? null) && (
+                    <span
+                      className="absolute bottom-1 right-1.5 rounded-md px-1.5 py-px text-[10px] font-black uppercase leading-none tracking-wide"
+                      style={{ color: meta.dot, background: `color-mix(in srgb, ${meta.dot} 18%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${meta.dot} 60%, transparent)` }}
+                      aria-label="Turno con promoción"
+                    >
+                      Promo
+                    </span>
+                  )}
                   {threeLines ? (
                     <>
                       <div className="text-[11px] font-semibold tabular-nums leading-none">{startLabel} • {endLabel}</div>
@@ -1878,6 +1887,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 starts_at: cobroTurno.starts_at,
                 notes: cobroTurno.notes,
                 status: cobroTurno.status,
+                promotion_id: cobroTurno.promotion_id ?? null,
+                promotion_snapshot: cobroTurno.promotion_snapshot ?? null,
               }}
               pendingChargeInitialStep={3}
               pendingChargeExtraItems={parseProfessionalProductsFromNotes(cobroTurno.notes).map((p) => ({ name: p.name, price: p.amount }))}
@@ -1994,9 +2005,23 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               {/* Servicio y horario juntos, en una sola tarjeta con el color del estado. */}
               <div className="rounded-3xl p-4" style={statusNeonStyle(meta.dot, meta.border, meta.bg)}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 break-words font-display text-lg font-semibold leading-tight text-white">{t.service_name ?? "Servicio"}</div>
+                  <div className="min-w-0">
+                    <div className="break-words font-display text-lg font-semibold leading-tight text-white">{t.service_name ?? "Servicio"}</div>
+                    {t.promotion_id && t.promotion_snapshot?.name && (
+                      <div className="truncate text-sm font-medium" style={{ color: meta.dot }}>{t.promotion_snapshot.name}</div>
+                    )}
+                  </div>
                   {t.service_price ? (
-                    <div className="shrink-0 text-lg font-semibold tabular-nums text-white">{fmtMoney(t.service_price)}</div>
+                    t.promotion_id && t.promotion_snapshot ? (
+                      <div className="shrink-0 text-right leading-none">
+                        <div className="text-sm tabular-nums text-white/40 line-through">{fmtMoney(t.service_price)}</div>
+                        <div className="mt-1 text-lg font-semibold tabular-nums text-white">
+                          {fmtMoney(applyPromotionDiscount(t.service_price, t.promotion_snapshot as unknown as Promotion))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="shrink-0 text-lg font-semibold tabular-nums text-white">{fmtMoney(t.service_price)}</div>
+                    )
                   ) : null}
                 </div>
                 <div className="mt-3 flex items-center gap-3 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.14)" }}>

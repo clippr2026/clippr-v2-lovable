@@ -80,6 +80,9 @@ export type ProfTurno = {
   charged_by: string | null;
   payment_method: string | null;
   deposit_status?: string | null;
+  // Promoción prevista guardada en el turno (misma que ve la Agenda del dueño).
+  promotion_id?: string | null;
+  promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
 };
 
 // ── Professionals list ─────────────────────────────────────────────────────
@@ -379,7 +382,7 @@ export function useProfTurnos(
       // cuántos se cancelaran ni cuántas veces se refetcheara.
       const { data, error } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id,deposit_status")
+        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id,deposit_status,promotion_id,promotion_snapshot")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("starts_at", fromDate.toISOString())
@@ -407,6 +410,8 @@ export function useProfTurnos(
           charged_by: null,
           payment_method: null,
           deposit_status: (row as { deposit_status?: string | null }).deposit_status ?? null,
+          promotion_id: (row as { promotion_id?: string | null }).promotion_id ?? null,
+          promotion_snapshot: (row as { promotion_snapshot?: ProfTurno["promotion_snapshot"] }).promotion_snapshot ?? null,
         })) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,
