@@ -565,7 +565,7 @@ function BolsaPublicaPage() {
                           <Star className="h-4 w-4 shrink-0 text-amber-300" />
                           {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
                         </span>
-                        <Badge compact />
+                        <Badge />
                       </div>
                     </div>
                   </div>
