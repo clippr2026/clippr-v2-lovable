@@ -394,50 +394,15 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       </label>
 
       <label className="block">
-        <Label>Fecha de nacimiento</Label>
-        <span className="relative block">
-          <Cake className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input type="date" value={birth} onChange={(e) => setBirth(e.target.value)} className={inputCls} />
-        </span>
-      </label>
-
-      <label className="block">
-        <Label>Nacionalidad</Label>
-        <span className="relative block">
-          <Flag className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={inputCls}>
-            <option value="">Sin indicar</option>
-            {NATIONALITIES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </span>
-      </label>
-
-      <label className="block">
-        <Label>Trabajo en el rubro desde</Label>
-        <span className="relative block">
-          <Briefcase className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={inputCls} />
-        </span>
-      </label>
-
-      <ReferencesEditor refs={refs} setRefs={setRefs} />
-
-      <label className="block">
-        <Label>WhatsApp</Label>
-        <span className="relative block">
-          <MessageCircle className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input
-            inputMode="tel"
-            value={whatsapp}
-            onChange={(e) => setWhatsapp(e.target.value.replace(/[^\d+]/g, "").slice(0, 20))}
-            placeholder="Ej: 5491155551234"
-            className={inputCls}
-          />
-        </span>
+        <Label extra={<span className="text-sm font-medium text-white/50">{bio.length}/300</span>}>Sobre mí</Label>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value.slice(0, 300))}
+          maxLength={300}
+          rows={4}
+          placeholder="Contá tu experiencia y tu estilo de trabajo"
+          className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
+        />
       </label>
 
       <div>
@@ -511,22 +476,10 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       </div>
 
       <label className="block">
-        <Label extra={<span className="text-sm font-medium text-white/50">{bio.length}/300</span>}>Sobre mí</Label>
-        <textarea
-          value={bio}
-          onChange={(e) => setBio(e.target.value.slice(0, 300))}
-          maxLength={300}
-          rows={4}
-          placeholder="Contá tu experiencia y tu estilo de trabajo"
-          className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
-        />
-      </label>
-
-      <label className="block">
-        <Label>Instagram</Label>
+        <Label>Trabajo en el rubro desde</Label>
         <span className="relative block">
-          <Instagram className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
-          <input value={instagram} onChange={(e) => setInstagram(e.target.value.slice(0, 30))} maxLength={30} placeholder="tu_usuario" className={inputCls} />
+          <Briefcase className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={inputCls} />
         </span>
       </label>
 
@@ -565,6 +518,53 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
           )}
         </div>
       </div>
+
+      <ReferencesEditor refs={refs} setRefs={setRefs} />
+
+      <label className="block">
+        <Label>WhatsApp</Label>
+        <span className="relative block">
+          <MessageCircle className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input
+            inputMode="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value.replace(/[^\d+]/g, "").slice(0, 20))}
+            placeholder="Ej: 5491155551234"
+            className={inputCls}
+          />
+        </span>
+      </label>
+
+      <label className="block">
+        <Label>Instagram</Label>
+        <span className="relative block">
+          <Instagram className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input value={instagram} onChange={(e) => setInstagram(e.target.value.slice(0, 30))} maxLength={30} placeholder="tu_usuario" className={inputCls} />
+        </span>
+      </label>
+
+      <label className="block">
+        <Label>Fecha de nacimiento</Label>
+        <span className="relative block">
+          <Cake className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <input type="date" value={birth} onChange={(e) => setBirth(e.target.value)} className={inputCls} />
+        </span>
+      </label>
+
+      <label className="block">
+        <Label>Nacionalidad</Label>
+        <span className="relative block">
+          <Flag className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-300" />
+          <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={inputCls}>
+            <option value="">Sin indicar</option>
+            {NATIONALITIES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </span>
+      </label>
 
       <button
         type="button"
