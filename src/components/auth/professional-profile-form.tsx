@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Briefcase, Building2, Pencil, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
+import { fmtRating } from "@/lib/rating";
 import { useBlocker } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
@@ -382,7 +383,7 @@ export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: 
             {reviews.count > 0 && (
               <div className="mt-1 flex items-center gap-1 text-base text-white/65">
                 <Star className="h-4 w-4 text-amber-300" />
-                {reviews.avg} ({reviews.count} reseñas)
+                {fmtRating(reviews.avg)} ({reviews.count} reseñas)
               </div>
             )}
           </div>

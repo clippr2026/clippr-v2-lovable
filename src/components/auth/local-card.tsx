@@ -1,4 +1,5 @@
 import * as React from "react";
+import { fmtRating } from "@/lib/rating";
 import { Link } from "@tanstack/react-router";
 import { Clock, MapPin, Scissors, Star } from "lucide-react";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
@@ -77,7 +78,7 @@ export function LocalCard({ l, footer }: { l: Local; footer?: React.ReactNode })
             {!!l.reviews_count && (
               <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-base">
                 <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
-                <span className="font-semibold">{String(l.reviews_avg).replace(".", ",")}</span>
+                <span className="font-semibold">{fmtRating(l.reviews_avg)}</span>
                 <span className="text-white/50">({l.reviews_count})</span>
               </span>
             )}

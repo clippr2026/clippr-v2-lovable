@@ -24,7 +24,7 @@ export function ProfessionalBolsa() {
   async function respond(id: string, accept: boolean) {
     const { error } = await (supabase as any).rpc("respond_join_invite", { p_id: id, p_accept: accept });
     if (error) return toast.error("No se pudo responder. Probá de nuevo.");
-    toast.success(accept ? "Aceptaste. Ya podés hablar con la barbería." : "Rechazaste la solicitud.");
+    toast.success(accept ? "Ya podés hablar con la barbería." : "Rechazaste la solicitud.");
     void loadInvites();
   }
 
@@ -48,7 +48,7 @@ export function ProfessionalBolsa() {
               footer={
                 accepted ? (
                   <div className="space-y-2">
-                    <div className="text-base font-semibold text-emerald-300">Aceptaste. Ya podés hablar con la barbería.</div>
+                    <div className="text-base font-semibold text-emerald-300">Ya podés hablar con la barbería.</div>
                     <div className="flex flex-wrap gap-2">
                       {wa.length >= 8 && (
                         <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-violet-500/15 px-4 text-base font-semibold text-white ring-1 ring-violet-400/40">

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { fmtRating } from "@/lib/rating";
 import { createPortal } from "react-dom";
 import { Cake, Copy, Info, Instagram, KeyRound, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -112,7 +113,7 @@ function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolea
               <div className="truncate text-lg font-semibold">{r.full_name}</div>
               <div className="flex items-center gap-1 text-base text-white/60">
                 <Star className="h-4 w-4 text-amber-300" />
-                {r.reviews_count > 0 ? String(r.reviews_avg).replace(".", ",") : "Sin reseñas"}
+                {r.reviews_count > 0 ? fmtRating(r.reviews_avg) : "Sin reseñas"}
               </div>
             </div>
             {r.whatsapp && (
@@ -246,7 +247,7 @@ export function PostulacionesPanel({
                           <div className="truncate text-xl font-semibold">{r.full_name}</div>
                           <div className="flex items-center gap-1 text-base text-white/60">
                             <Star className="h-4 w-4 text-amber-300" />
-                            {r.reviews_count > 0 ? `${r.reviews_avg} (${r.reviews_count} reseñas)` : "Sin reseñas todavía"}
+                            {r.reviews_count > 0 ? `${fmtRating(r.reviews_avg)} (${r.reviews_count} reseñas)` : "Sin reseñas todavía"}
                           </div>
                         </div>
                       </div>
@@ -364,7 +365,7 @@ export function PostulacionesPanel({
                       <div className="truncate text-lg font-semibold">{r.full_name}</div>
                       <div className="flex items-center gap-1 text-base text-white/60">
                         <Star className="h-4 w-4 text-amber-300" />
-                        {r.reviews_count > 0 ? String(r.reviews_avg).replace(".", ",") : "Sin reseñas"}
+                        {r.reviews_count > 0 ? fmtRating(r.reviews_avg) : "Sin reseñas"}
                       </div>
                     </div>
                     {r.whatsapp && (
@@ -509,7 +510,7 @@ export function JoinCodeAndRequests({ onAccept, refreshKey }: { onAccept: (req: 
                   <div className="truncate text-lg font-semibold">{r.full_name}</div>
                   <div className="flex items-center gap-1 text-base text-white/60">
                     <Star className="h-4 w-4 text-amber-300" />
-                    {r.reviews_count > 0 ? String(r.reviews_avg).replace(".", ",") : "Sin reseñas"}
+                    {r.reviews_count > 0 ? fmtRating(r.reviews_avg) : "Sin reseñas"}
                   </div>
                 </div>
               </div>

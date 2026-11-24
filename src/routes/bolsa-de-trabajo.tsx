@@ -1,4 +1,5 @@
 import * as React from "react";
+import { fmtRating } from "@/lib/rating";
 import { createPortal } from "react-dom";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
@@ -71,7 +72,7 @@ function PostingHeader({ p }: { p: Posting }) {
               {!!p.reviews_count && (
                 <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-base">
                   <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
-                  <span className="font-semibold">{String(p.reviews_avg).replace(".", ",")}</span>
+                  <span className="font-semibold">{fmtRating(p.reviews_avg)}</span>
                   <span className="text-white/50">({p.reviews_count})</span>
                 </span>
               )}
@@ -475,7 +476,7 @@ function BolsaPublicaPage() {
                       </div>
                       <div className="mt-1 clear-right inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
                         <Star className="h-4 w-4 shrink-0 text-amber-300" />
-                        {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
+                        {r.reviews_count > 0 ? `${fmtRating(r.reviews_avg)} (${r.reviews_count} reseñas)` : "Sin reseñas"}
                       </div>
                     </div>
                   </div>
