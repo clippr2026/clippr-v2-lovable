@@ -113,8 +113,10 @@ export function ProfessionalActividad() {
             l={r}
             footer={
               <div className="space-y-3">
-                {r.motive !== "alquiler" && <div className="text-lg font-semibold text-white">Oportunidad laboral</div>}
                 <div className="flex flex-wrap items-center gap-2">
+                  {r.motive !== "alquiler" && (
+                    <span className="inline-flex rounded-full bg-sky-400/15 px-3 py-1 text-sm font-semibold text-sky-200 ring-1 ring-sky-300/30">Oportunidad laboral</span>
+                  )}
                   <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 ${m.cls}`}>{m.label}</span>
                 </div>
 
@@ -148,12 +150,12 @@ export function ProfessionalActividad() {
                 {r.state === "contacto" && (
                   <div className="flex flex-wrap gap-2">
                     {wa.length >= 8 && (
-                      <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-violet-500/15 px-4 text-base font-semibold text-white ring-1 ring-violet-400/40">
+                      <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-emerald-500/20 px-4 text-base font-semibold text-white ring-1 ring-emerald-400/50">
                         <FaWhatsapp className="h-5 w-5 text-[#25D366]" /> WhatsApp
                       </a>
                     )}
                     {ig && (
-                      <a href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-violet-500/15 px-4 text-base font-semibold text-white ring-1 ring-violet-400/40">
+                      <a href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full bg-rose-500/20 px-4 text-base font-semibold text-white ring-1 ring-rose-400/50">
                         <FaInstagram className="h-5 w-5 text-[#F0447F]" /> Instagram
                       </a>
                     )}
