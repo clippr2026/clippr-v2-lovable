@@ -96,16 +96,28 @@ function yearsSince(date: string | null): number | null {
 
 // Solicitud recibida: vista previa corta y "Ver más" con el resto. Los datos de contacto y las referencias solo se
 // muestran cuando ambas partes ya aceptaron (cuando la persona aceptó una invitación del negocio).
-function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinRequest; busy: boolean; businessId: string | null; onAccept: () => void; onDecide: (a: "reject" | "block") => void }) {
+function PendingCard({
+  r, busy, businessId, onAccept, onDecide, label, accepted, canBlock = true, hideActions = false,
+}: {
+  r: JoinRequest;
+  busy: boolean;
+  businessId: string | null;
+  onAccept?: () => void;
+  onDecide?: (a: "reject" | "block") => void;
+  label?: string;
+  accepted?: boolean;
+  canBlock?: boolean;
+  hideActions?: boolean;
+}) {
   const [more, setMore] = React.useState(false);
   const [askCancel, setAskCancel] = React.useState(false);
   const years = yearsSince(r.experience_since);
   const age = yearsSince(r.birth_date);
-  const bothAccepted = r.initiated_by === "business";
+  const bothAccepted = accepted ?? r.initiated_by === "business";
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={cardStyle}>
       <div className="inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">
-        {bothAccepted ? "Aceptó tu invitación" : "Quiere trabajar"}
+        {label ?? (bothAccepted ? "Aceptó tu invitación" : "Quiere trabajar")}
       </div>
       <div className="flex items-center gap-3">
         <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
@@ -188,14 +200,16 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
             </>
           )}
 
-          <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={onAccept} className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">
-              Aceptar
-            </button>
-            <button type="button" disabled={busy} onClick={() => setAskCancel(true)} className="h-12 flex-1 rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50">
-              Cancelar
-            </button>
-          </div>
+          {!hideActions && (
+            <div className="flex gap-2">
+              <button type="button" disabled={busy} onClick={onAccept} className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">
+                Aceptar
+              </button>
+              <button type="button" disabled={busy} onClick={() => setAskCancel(true)} className="h-12 flex-1 rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50">
+                Cancelar
+              </button>
+            </div>
+          )}
           <button type="button" onClick={() => setMore(false)} className="text-base font-semibold text-violet-200">
             Ver menos
           </button>
@@ -208,13 +222,17 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
             <div className="w-full max-w-sm space-y-3 rounded-2xl border border-violet-400/30 p-5 shadow-2xl" style={{ ...cardStyle, backgroundColor: "#0b0818" }} onClick={(e) => e.stopPropagation()}>
               <div className="text-xl font-semibold">{r.full_name}</div>
               <p className="text-base text-white/70">¿Qué querés hacer con esta solicitud?</p>
-              <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide("reject"); }} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white disabled:opacity-60">
+              <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide?.("reject"); }} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white disabled:opacity-60">
                 Eliminar solicitud
               </button>
-              <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide("block"); }} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
-                Eliminar y bloquear
-              </button>
-              <p className="text-xs text-white/45">Si bloqueás, no va a poder volver a pedir unirse.</p>
+              {canBlock && (
+                <>
+                  <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide?.("block"); }} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
+                    Eliminar y bloquear
+                  </button>
+                  <p className="text-xs text-white/45">Si bloqueás, no va a poder volver a pedir unirse.</p>
+                </>
+              )}
               <button type="button" onClick={() => setAskCancel(false)} className="h-12 w-full rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10">
                 Salir
               </button>
@@ -227,46 +245,37 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
 }
 
 // Panel "Postulaciones" de la Bolsa de trabajo: quienes se postularon o aceptaron una solicitud.
-type RentalReq = { id: string; posting_title: string; status: string; user_id: string; full_name: string; avatar_url: string | null; whatsapp: string | null; instagram?: string | null; reviews_count: number; reviews_avg: number | null };
+type RentalReq = {
+  id: string; posting_title: string; status: string; user_id: string; full_name: string; avatar_url: string | null;
+  whatsapp: string | null; instagram?: string | null; reviews_count: number; reviews_avg: number | null;
+  zone?: string | null; experience_since?: string | null; nationality?: string | null; birth_date?: string | null;
+  specialties?: string[] | null; bio?: string | null; photos?: string[] | null; created_at?: string;
+};
 
+// Pedido de alquiler: misma tarjeta que una postulación, con la etiqueta "Quiere alquilar".
 function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolean; onDecide?: (id: string, a: "accept" | "reject") => void }) {
   const { businessId } = useAuth();
   return (
     <>
       {rows.map((r) => (
-        <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3" style={cardStyle}>
-          <div className="mb-2 inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">Quiere alquilar</div>
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-lg font-semibold ring-2 ring-violet-400/40">
-              {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-lg font-semibold">{r.full_name}</div>
-              <div className="flex items-center gap-1 text-base text-white/60">
-                <Star className="h-4 w-4 text-amber-300" />
-                {r.reviews_count > 0 ? fmtRating(r.reviews_avg) : "Sin reseñas"}
-              </div>
-            </div>
-            {r.whatsapp && (
-              <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">
-                <MessageCircle className="h-5 w-5" />
-              </a>
-            )}
-            {r.instagram && (
-              <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer" aria-label="Instagram" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-fuchsia-400/30">
-                <Instagram className="h-5 w-5" />
-              </a>
-            )}
-          </div>
-          {!onDecide && businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
-          {onDecide && <div className="mt-3"><RefsPreview userId={r.user_id} /></div>}
-          {onDecide && (
-            <div className="mt-3 flex gap-2">
-              <button type="button" disabled={busy} onClick={() => onDecide(r.id, "accept")} className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">Aceptar</button>
-              <button type="button" disabled={busy} onClick={() => onDecide(r.id, "reject")} className="h-11 rounded-full bg-white/5 px-5 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50">Rechazar</button>
-            </div>
-          )}
-        </div>
+        <PendingCard
+          key={r.id}
+          r={{
+            id: r.id, user_id: r.user_id, initiated_by: "professional", status: r.status, created_at: r.created_at ?? "",
+            full_name: r.full_name, avatar_url: r.avatar_url, zone: r.zone ?? null, experience_since: r.experience_since ?? null,
+            specialties: r.specialties ?? null, bio: r.bio ?? null, instagram: r.instagram ?? null, nationality: r.nationality ?? null,
+            photos: r.photos ?? null, whatsapp: r.whatsapp, birth_date: r.birth_date ?? null,
+            reviews_count: r.reviews_count, reviews_avg: r.reviews_avg,
+          }}
+          busy={busy}
+          businessId={businessId}
+          label="Quiere alquilar"
+          accepted={!onDecide}
+          canBlock={false}
+          hideActions={!onDecide}
+          onAccept={() => onDecide?.(r.id, "accept")}
+          onDecide={() => onDecide?.(r.id, "reject")}
+        />
       ))}
     </>
   );
