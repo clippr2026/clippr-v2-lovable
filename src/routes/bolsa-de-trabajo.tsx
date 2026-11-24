@@ -388,32 +388,40 @@ function BolsaPublicaPage() {
   const postingsView = withDist(postings, (r) => (r as Posting).address ?? (r as Posting).zone ?? "");
   const prosView = withDist(pros, (r) => (r as Pro).zone ?? "");
 
+  // Envía una solicitud: nunca queda "Enviando…" para siempre (15 s de tope) y siempre avisa el resultado.
+  async function send(key: string, call: () => PromiseLike<{ error: { message?: string } | null }>, okText: string) {
+    setBusy(key);
+    try {
+      const result = await Promise.race([
+        call(),
+        new Promise<{ error: { message: string } }>((resolve) => setTimeout(() => resolve({ error: { message: "timeout" } }), 15000)),
+      ]);
+      if (result.error) {
+        const m = result.error.message ?? "";
+        toast.error(m.includes("perfil_incompleto") ? "Primero guardá tu perfil." : m === "timeout" ? "Tardó demasiado. Revisá tu conexión y probá de nuevo." : "No se pudo enviar la solicitud.");
+        return;
+      }
+      toast.success(okText);
+      void load();
+    } catch {
+      toast.error("No se pudo enviar la solicitud. Probá de nuevo.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function apply(p: Posting) {
-    setBusy(p.id);
-    const { error } = await (supabase as any).rpc("apply_to_posting", { p_posting: p.id });
-    setBusy(null);
-    if (error) return toast.error(error.message?.includes("perfil_incompleto") ? "Primero guardá tu perfil." : "No se pudo enviar la solicitud.");
-    toast.success(`Solicitud enviada a ${p.business_name}`);
-    void load();
+    await send(p.id, () => (supabase as any).rpc("apply_to_posting", { p_posting: p.id }), `Solicitud enviada a ${p.business_name}`);
   }
 
   async function applyRental(p: Posting) {
-    setBusy(p.id);
-    const { error } = await (supabase as any).rpc("apply_to_rental", { p_posting: p.id });
-    setBusy(null);
-    if (error) return toast.error(error.message?.includes("perfil_incompleto") ? "Primero guardá tu perfil." : "No se pudo enviar la solicitud.");
-    toast.success(`Solicitud enviada a ${p.business_name}`);
-    void load();
+    await send(p.id, () => (supabase as any).rpc("apply_to_rental", { p_posting: p.id }), `Solicitud enviada a ${p.business_name}`);
   }
 
   async function invite(p: Pro) {
-    if (!p.user_id || !businessId) return;
-    setBusy(p.user_id);
-    const { error } = await (supabase as any).rpc("invite_professional", { p_business: businessId, p_user: p.user_id });
-    setBusy(null);
-    if (error) return toast.error("No se pudo enviar la solicitud");
-    toast.success(`Solicitud enviada a ${p.full_name}`);
-    void load();
+    if (!businessId) return;
+    if (!p.user_id) return toast.error("Actualizá la página e iniciá sesión de nuevo para invitar.");
+    await send(p.user_id, () => (supabase as any).rpc("invite_professional", { p_business: businessId, p_user: p.user_id }), `Solicitud enviada a ${p.full_name}`);
   }
 
   return (
@@ -582,9 +590,9 @@ function BolsaPublicaPage() {
                   <PostingFooter
                     logged={Boolean(session)}
                     showAction
-                    disabled={busy === r.user_id}
+                    disabled={busy !== null && busy === r.user_id}
                     askText="para invitar a este profesional"
-                    label={busy === r.user_id ? "Enviando…" : "Invitar"}
+                    label={busy !== null && busy === r.user_id ? "Enviando…" : "Invitar"}
                     onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
                     expanded={
                       r.specialties?.length || r.bio ? (
