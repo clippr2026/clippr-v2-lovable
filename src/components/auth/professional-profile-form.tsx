@@ -92,13 +92,13 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         setNationality(row.nationality ?? "");
         setPhotos(row.photos ?? []);
       }
+      const pv = priv.data as { birth_date?: string | null; whatsapp?: string | null } | null;
       setSavedSnap(
-        JSON.stringify([
-          row?.full_name ?? defaultName, row?.avatar_url ?? "", row?.zone ?? "", row?.experience_since ?? "",
-          row?.nationality ?? "", (priv.data as { birth_date?: string | null } | null)?.birth_date ?? "",
-          (priv.data as { whatsapp?: string | null } | null)?.whatsapp ?? "", row?.specialties ?? [], row?.bio ?? "",
-          row?.instagram ?? "", row?.photos ?? [],
-        ]),
+        makeSnap({
+          name: row?.full_name ?? defaultName, avatar: row?.avatar_url ?? "", zone: row?.zone ?? "", since: row?.experience_since ?? "",
+          nationality: row?.nationality ?? "", birth: pv?.birth_date ?? "", whatsapp: pv?.whatsapp ?? "", specialties: row?.specialties ?? [],
+          bio: row?.bio ?? "", instagram: row?.instagram ?? "", photos: row?.photos ?? [],
+        }),
       );
       const p = priv.data as { birth_date: string | null; whatsapp: string | null } | null;
       if (p) {
@@ -127,8 +127,14 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
 
   async function uploadAvatar(file: File) {
     setUploading(true);
-    const url = await uploadBlob(file, "");
-    setUploading(false);
+    let url: string | null = null;
+    try {
+      url = await uploadBlob(file, "");
+    } catch {
+      toast.error("No se pudo subir la foto");
+    } finally {
+      setUploading(false);
+    }
     if (url) {
       setAvatar(url);
       void save({ avatar: url });
@@ -138,10 +144,16 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
   async function addWorkPhoto(file: File) {
     if (photos.length >= MAX_PHOTOS) return;
     setUploading(true);
-    const url = await uploadBlob(file, "trabajos/");
-    setUploading(false);
+    let url: string | null = null;
+    try {
+      url = await uploadBlob(file, "trabajos/");
+    } catch {
+      toast.error("No se pudo subir la foto");
+    } finally {
+      setUploading(false);
+    }
     if (url) {
-      const next = [...photos, url].slice(0, MAX_PHOTOS);
+      const next = [...latest.current.photos, url].slice(0, MAX_PHOTOS);
       setPhotos(next);
       void save({ photos: next });
     }
@@ -155,47 +167,53 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     setSpecialties((cur) => [...cur, value]);
   }
 
-  const snap = JSON.stringify([
-    name.trim(), avatar, zone.trim(), since, nationality, birth, whatsapp.replace(/\D/g, ""), specialties, bio.trim(),
-    instagram.trim().replace(/^@/, ""), photos,
-  ]);
+  // Valores más recientes de los campos: las subidas de fotos guardan solas, y sin esto guardaban lo que había en
+  // pantalla cuando empezó la subida (pisando lo que se escribió mientras tanto).
+  const latest = React.useRef({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos });
+  latest.current = { name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos };
+
+  const makeSnap = (f: typeof latest.current) =>
+    JSON.stringify([
+      f.name.trim(), f.avatar, f.zone.trim(), f.since, f.nationality, f.birth, f.whatsapp.replace(/\D/g, ""), f.specialties, f.bio.trim(),
+      f.instagram.trim().replace(/^@/, ""), f.photos,
+    ]);
+  const snap = makeSnap({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos });
   const dirty = savedSnap !== null && snap !== savedSnap;
 
   async function save(over?: { avatar?: string; photos?: string[] }) {
-    if (!name.trim()) return toast.error("Ingresá tu nombre");
-    const avatarV = over?.avatar ?? avatar;
-    const photosV = over?.photos ?? photos;
+    const f = { ...latest.current, ...(over?.avatar !== undefined ? { avatar: over.avatar } : {}), ...(over?.photos ? { photos: over.photos } : {}) };
+    if (!f.name.trim()) return toast.error("Ingresá tu nombre");
     setSaving(true);
-    const [a, b] = await Promise.all([
-      (supabase as any).from("professional_profiles").upsert(
-        {
-          user_id: userId,
-          full_name: name.trim(),
-          avatar_url: avatarV || null,
-          zone: zone.trim() || null,
-          experience_since: since || null,
-          specialties,
-          bio: bio.trim() || null,
-          instagram: instagram.trim().replace(/^@/, "") || null,
-          nationality: nationality || null,
-          photos: photosV,
-        },
-        { onConflict: "user_id" },
-      ),
-      (supabase as any).from("professional_private").upsert(
-        { user_id: userId, birth_date: birth || null, whatsapp: whatsapp.replace(/\D/g, "") || null },
-        { onConflict: "user_id" },
-      ),
-    ]);
-    setSaving(false);
-    if (a.error || b.error) return toast.error("No se pudo guardar tu perfil");
-    setSavedSnap(
-      JSON.stringify([
-        name.trim(), avatarV, zone.trim(), since, nationality, birth, whatsapp.replace(/\D/g, ""), specialties, bio.trim(),
-        instagram.trim().replace(/^@/, ""), photosV,
-      ]),
-    );
-    toast.success("Perfil guardado");
+    try {
+      const [a, b] = await Promise.all([
+        (supabase as any).from("professional_profiles").upsert(
+          {
+            user_id: userId,
+            full_name: f.name.trim(),
+            avatar_url: f.avatar || null,
+            zone: f.zone.trim() || null,
+            experience_since: f.since || null,
+            specialties: f.specialties,
+            bio: f.bio.trim() || null,
+            instagram: f.instagram.trim().replace(/^@/, "") || null,
+            nationality: f.nationality || null,
+            photos: f.photos,
+          },
+          { onConflict: "user_id" },
+        ),
+        (supabase as any).from("professional_private").upsert(
+          { user_id: userId, birth_date: f.birth || null, whatsapp: f.whatsapp.replace(/\D/g, "") || null },
+          { onConflict: "user_id" },
+        ),
+      ]);
+      if (a.error || b.error) return toast.error("No se pudo guardar tu perfil");
+      setSavedSnap(makeSnap(f));
+      toast.success("Perfil guardado");
+    } catch {
+      toast.error("No se pudo guardar tu perfil. Probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="py-10 text-center text-white/60">Cargando…</div>;
@@ -424,12 +442,11 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving || uploading || !dirty}
+        disabled={saving || !dirty}
         className="h-14 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-lg font-semibold text-white shadow-[0_0_22px_-6px_rgba(139,92,246,0.8)] transition active:scale-[0.99] disabled:bg-white/[0.04] disabled:bg-none disabled:text-white/30 disabled:shadow-none"
       >
         {saving ? "Guardando…" : "Guardar perfil"}
       </button>
-      {!dirty && savedSnap !== null && !saving && <p className="text-center text-base text-emerald-300/80">Todo guardado. Se activa cuando cambies algo.</p>}
 
       {workCropSrc && (
         <AvatarCropper
