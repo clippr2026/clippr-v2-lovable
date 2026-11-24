@@ -74,13 +74,6 @@ function BienvenidaPage() {
               </button>
             ))}
           </div>
-          <Link
-            to="/bolsa-de-trabajo"
-            className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 text-base font-semibold text-violet-100"
-          >
-            <Briefcase className="h-4 w-4" />
-            Ir a la bolsa de trabajo
-          </Link>
           <div className="mt-6">
             {user && tab === "perfil" && (
               <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
