@@ -135,10 +135,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     } finally {
       setUploading(false);
     }
-    if (url) {
-      setAvatar(url);
-      void save({ avatar: url });
-    }
+    if (url) setAvatar(url);
   }
 
   async function addWorkPhoto(file: File) {
@@ -153,9 +150,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       setUploading(false);
     }
     if (url) {
-      const next = [...latest.current.photos, url].slice(0, MAX_PHOTOS);
-      setPhotos(next);
-      void save({ photos: next });
+      setPhotos([...latest.current.photos, url].slice(0, MAX_PHOTOS));
     }
   }
 
