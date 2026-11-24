@@ -18,9 +18,9 @@ type Row = Local & {
 };
 
 const MOTIVE: Record<Row["motive"], { label: string; cls: string }> = {
-  oferta: { label: "Postulación laboral", cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
+  oferta: { label: "Te postulaste", cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
   alquiler: { label: "Alquiler de puesto", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
-  invitacion: { label: "Invitación laboral", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
+  invitacion: { label: "Te invitaron", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
 };
 
 const TABS = [
