@@ -30,7 +30,7 @@ type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
   photos: string[] | null; reviews_count: number; reviews_avg: number | null; whatsapp?: string | null; distKm?: number | null;
-  refs?: Array<{ n: string; l: string | null; f: string | null; t: string | null }> | null;
+  refs?: Array<{ n: string; l: string | null; f: string | null; t: string | null; i?: string | null }> | null;
 };
 
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
@@ -538,7 +538,7 @@ function BolsaPublicaPage() {
                             <div className="space-y-2">
                               <div className="text-base font-semibold text-white/85">Referencias</div>
                               {r.refs.map((x, i) => (
-                                <RefItem key={`${x.n}-${i}`} x={{ id: String(i), place_name: x.n, locality: x.l, from_date: x.f, to_date: x.t, instagram: null, whatsapp: null }} />
+                                <RefItem key={`${x.n}-${i}`} x={{ id: String(i), place_name: x.n, locality: x.l, from_date: x.f, to_date: x.t, instagram: x.i ?? null, whatsapp: null }} />
                               ))}
                             </div>
                           )}

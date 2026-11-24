@@ -33,7 +33,7 @@ export type JoinRequest = {
 
 
 
-type RefPrev = { id: string; place_name: string; locality: string | null; from_date: string | null; to_date: string | null };
+type RefPrev = { id: string; place_name: string; locality: string | null; from_date: string | null; to_date: string | null; instagram: string | null };
 
 // Referencias sin datos de contacto: nombre del lugar y, en "Ver más", localidad y fechas.
 export function RefsPreview({ userId }: { userId: string }) {
@@ -49,7 +49,7 @@ export function RefsPreview({ userId }: { userId: string }) {
     <div className="space-y-2">
       <div className="text-base font-semibold text-white/85">Referencias</div>
       {rows.map((x) => (
-        <RefItem key={x.id} x={{ ...x, instagram: null, whatsapp: null }} />
+        <RefItem key={x.id} x={{ ...x, whatsapp: null }} />
       ))}
     </div>
   );
@@ -180,7 +180,7 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
             <>
               <RefsPreview userId={r.user_id} />
               <div className="flex items-center gap-2 rounded-xl bg-black/25 p-3 text-sm text-white/65 ring-1 ring-white/10">
-                <Lock className="h-4 w-4 shrink-0" /> Si aceptás, se podrán contactar y ver el WhatsApp e Instagram de sus referencias.
+                <Lock className="h-4 w-4 shrink-0" /> Si aceptás, se podrán contactar y ver el WhatsApp de sus referencias.
               </div>
             </>
           )}
