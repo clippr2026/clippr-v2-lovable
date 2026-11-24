@@ -49,7 +49,7 @@ function SwipeToDelete({ children, onDelete }: { children: React.ReactNode; onDe
         </span>
       </div>
       <div
-        className="relative"
+        className="relative rounded-[28px] bg-[#070512]"
         style={{ transform: `translateX(${dx}px)`, transition: start.current ? "none" : "transform .2s ease", touchAction: "pan-y" }}
         onTouchStart={(e) => {
           start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
