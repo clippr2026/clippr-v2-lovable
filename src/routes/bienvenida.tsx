@@ -29,6 +29,8 @@ function BienvenidaPage() {
   }, [loading, session, businessId, navigate]);
 
   const esEmbajador = tipo === "embajador";
+  const dirtyRef = React.useRef(false);
+  const onDirty = React.useCallback((d: boolean) => { dirtyRef.current = d; }, []);
   const [tab, setTab] = React.useState<"perfil" | "unirme" | "resenas" | "bolsa">("perfil");
 
   return (
@@ -70,7 +72,10 @@ function BienvenidaPage() {
               <button
                 key={id}
                 type="button"
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  if (tab === "perfil" && id !== "perfil" && dirtyRef.current && !window.confirm("Tenés cambios sin guardar en tu perfil. Si cambiás de pestaña, se pierden. ¿Salir igual?")) return;
+                  setTab(id);
+                }}
                 className={`glass flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-1 py-4 transition-all ${
                   tab === id ? "bg-white/[0.04] shadow-[0_0_30px_-10px_var(--neon-blue)] ring-1 ring-primary/40" : "hover:bg-white/[0.04]"
                 }`}
@@ -82,7 +87,7 @@ function BienvenidaPage() {
           </div>
           <div className="mt-6">
             {user && tab === "perfil" && (
-              <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
+              <ProfessionalProfileForm onDirtyChange={onDirty} userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
             )}
             {tab === "unirme" && <ProfessionalJoin />}
             {tab === "resenas" && <ProfessionalResenas />}

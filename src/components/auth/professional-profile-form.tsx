@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Briefcase, Building2, Pencil, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
+import { useBlocker } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
@@ -137,7 +138,7 @@ function ReferencesEditor({ refs, setRefs }: { refs: RefDraft[]; setRefs: React.
 }
 
 // Ficha permanente del profesional: queda guardada aunque cambie de barbería.
-export function ProfessionalProfileForm({ userId, defaultName }: { userId: string; defaultName: string }) {
+export function ProfessionalProfileForm({ userId, defaultName, onDirtyChange }: { userId: string; defaultName: string; onDirtyChange?: (dirty: boolean) => void }) {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [name, setName] = React.useState(defaultName);
@@ -287,6 +288,17 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
     ]);
   const snap = makeSnap({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos, refs });
   const dirty = savedSnap !== null && snap !== savedSnap;
+
+  // Cambios sin guardar: avisa al salir de la pantalla, al recargar o al cerrar la pestaña.
+  useBlocker({
+    shouldBlockFn: () => !window.confirm("Tenés cambios sin guardar. Si salís, se pierden. ¿Salir igual?"),
+    disabled: !dirty,
+    enableBeforeUnload: dirty,
+  });
+  React.useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   async function save(over?: { avatar?: string; photos?: string[] }) {
     const f = { ...latest.current, ...(over?.avatar !== undefined ? { avatar: over.avatar } : {}), ...(over?.photos ? { photos: over.photos } : {}) };
