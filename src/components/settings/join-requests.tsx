@@ -180,7 +180,7 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
             <>
               <RefsPreview userId={r.user_id} />
               <div className="flex items-center gap-2 rounded-xl bg-black/25 p-3 text-sm text-white/65 ring-1 ring-white/10">
-                <Lock className="h-4 w-4 shrink-0" /> Si aceptás, se podrán contactar y ver el WhatsApp de sus referencias.
+                <Lock className="h-4 w-4 shrink-0" /> Si aceptás, se podrán contactar.
               </div>
             </>
           )}
