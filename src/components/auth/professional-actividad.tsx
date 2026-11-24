@@ -19,7 +19,7 @@ type Row = Local & {
 
 const MOTIVE: Record<Row["motive"], { label: string; cls: string }> = {
   oferta: { label: "Oferta laboral", cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
-  alquiler: { label: "Alquiler de puesto", cls: "bg-amber-400/15 text-amber-200 ring-amber-300/30" },
+  alquiler: { label: "Alquiler de puesto", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
   invitacion: { label: "Invitación profesional", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
 };
 
@@ -134,9 +134,9 @@ export function ProfessionalActividad() {
                 )}
 
                 {r.state === "enviada" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="grid h-12 place-items-center whitespace-nowrap rounded-full bg-amber-400/15 px-2 text-[15px] font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</span>
-                    <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-12 whitespace-nowrap rounded-full bg-white/5 px-2 text-[15px] font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-60">
+                  <div className="space-y-2">
+                    <div className="grid h-12 place-items-center rounded-full bg-amber-400/15 text-base font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</div>
+                    <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
                       Cancelar solicitud
                     </button>
                   </div>
