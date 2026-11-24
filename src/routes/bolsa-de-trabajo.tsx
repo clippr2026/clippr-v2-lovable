@@ -325,6 +325,8 @@ function BolsaPublicaPage() {
   const [postings, setPostings] = React.useState<Posting[] | null>(null);
   const [pros, setPros] = React.useState<Pro[] | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
+  // Estado de las invitaciones que envió este negocio, por persona.
+  const [inviteStatus, setInviteStatus] = React.useState<Record<string, string>>({});
   const [viewer, setViewer] = React.useState<{ photos: string[]; index: number } | null>(null);
   const [place, setPlace] = React.useState<Place | null>(null);
   const [coords, setCoords] = React.useState<Record<string, { lat: number; lng: number } | null>>({});
@@ -340,9 +342,15 @@ function BolsaPublicaPage() {
     const rpc = (supabase as any).rpc.bind(supabase);
     const [a, b, c] = await Promise.all([rpc("public_job_postings"), rpc("public_bolsa_profiles"), rpc("public_businesses")]);
     setLocales((c.data as Local[] | null) ?? []);
+    if (isOwner && businessId) {
+      const { data: mine } = await rpc("business_join_requests", { p_business: businessId });
+      const map: Record<string, string> = {};
+      for (const r of (mine as Array<{ user_id: string; status: string }> | null) ?? []) map[r.user_id] = r.status;
+      setInviteStatus(map);
+    }
     setPostings((a.data as Posting[] | null) ?? []);
     setPros((b.data as Pro[] | null) ?? []);
-  }, [authLoading, session]);
+  }, [authLoading, session, isOwner, businessId]);
 
   React.useEffect(() => {
     void load();
@@ -421,7 +429,9 @@ function BolsaPublicaPage() {
   async function invite(p: Pro) {
     if (!businessId) return;
     if (!p.user_id) return toast.error("Actualizá la página e iniciá sesión de nuevo para invitar.");
-    await send(p.user_id, () => (supabase as any).rpc("invite_professional", { p_business: businessId, p_user: p.user_id }), `Solicitud enviada a ${p.full_name}`);
+    const uid = p.user_id;
+    await send(uid, () => (supabase as any).rpc("invite_professional", { p_business: businessId, p_user: uid }), `Invitación enviada a ${p.full_name}`);
+    setInviteStatus((m) => (m[uid] ? m : { ...m, [uid]: "invited" }));
   }
 
   return (
@@ -593,9 +603,17 @@ function BolsaPublicaPage() {
                   <PostingFooter
                     logged={Boolean(session)}
                     showAction
-                    disabled={busy !== null && busy === r.user_id}
+                    disabled={(busy !== null && busy === r.user_id) || Boolean(r.user_id && inviteStatus[r.user_id] && inviteStatus[r.user_id] !== "rejected")}
                     askText="para invitar a este profesional"
-                    label={busy !== null && busy === r.user_id ? "Enviando…" : "Invitar"}
+                    label={
+                      busy !== null && busy === r.user_id
+                        ? "Enviando…"
+                        : r.user_id && inviteStatus[r.user_id] === "accepted"
+                          ? "Ya es parte"
+                          : r.user_id && inviteStatus[r.user_id] && inviteStatus[r.user_id] !== "rejected"
+                            ? "Invitación enviada"
+                            : "Invitar"
+                    }
                     onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
                     expanded={
                       r.specialties?.length || r.bio ? (
