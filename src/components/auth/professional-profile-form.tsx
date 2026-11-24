@@ -429,6 +429,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       >
         {saving ? "Guardando…" : "Guardar perfil"}
       </button>
+      {!dirty && savedSnap !== null && !saving && <p className="text-center text-base text-emerald-300/80">Todo guardado. Se activa cuando cambies algo.</p>}
 
       {workCropSrc && (
         <AvatarCropper
