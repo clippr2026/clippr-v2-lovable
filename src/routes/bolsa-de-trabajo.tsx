@@ -31,10 +31,10 @@ type Pro = {
 
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
 
-function Badge() {
+function Badge({ compact }: { compact?: boolean } = {}) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#1b1245] px-3 py-1 text-sm font-semibold text-white shadow-lg ring-1 ring-violet-300/60">
-      <img src="/clippr-logo-login.webp" alt="" className="h-4 w-4 object-contain" />
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#1b1245] font-semibold text-white shadow-lg ring-1 ring-violet-300/60 ${compact ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm"}`}>
+      <img src="/clippr-logo-login.webp" alt="" className={compact ? "h-3.5 w-3.5 object-contain" : "h-4 w-4 object-contain"} />
       Usa Clippr
     </span>
   );
@@ -277,6 +277,25 @@ function formatHours(hours?: Record<string, { s: string; e: string }> | null): s
   return out;
 }
 
+// Visor de fotos: toca una foto para verla grande; flechas para pasar a la siguiente.
+function PhotoViewer({ photos, index, onClose, onIndex }: { photos: string[]; index: number; onClose: () => void; onIndex: (i: number) => void }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4" onClick={onClose}>
+      <img src={photos[index]} alt="Trabajo" className="max-h-[85vh] max-w-full rounded-2xl object-contain" onClick={(e) => e.stopPropagation()} />
+      <button type="button" onClick={onClose} aria-label="Cerrar" className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-full bg-white/10 text-xl text-white">✕</button>
+      {photos.length > 1 && (
+        <>
+          <button type="button" aria-label="Anterior" onClick={(e) => { e.stopPropagation(); onIndex((index + photos.length - 1) % photos.length); }} className="absolute left-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-2xl text-white">‹</button>
+          <button type="button" aria-label="Siguiente" onClick={(e) => { e.stopPropagation(); onIndex((index + 1) % photos.length); }} className="absolute right-3 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-2xl text-white">›</button>
+          <div className="absolute bottom-6 left-0 right-0 text-center text-base text-white/70">{index + 1} / {photos.length}</div>
+        </>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 function yearsLabel(date?: string | null): string | null {
   const y = yearsOf(date);
   return y != null && y >= 1 ? `${y} ${y === 1 ? "año" : "años"} de experiencia` : null;
@@ -306,6 +325,7 @@ function BolsaPublicaPage() {
   const [postings, setPostings] = React.useState<Posting[] | null>(null);
   const [pros, setPros] = React.useState<Pro[] | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [viewer, setViewer] = React.useState<{ photos: string[]; index: number } | null>(null);
   const [place, setPlace] = React.useState<Place | null>(null);
   const [coords, setCoords] = React.useState<Record<string, { lat: number; lng: number } | null>>({});
   React.useEffect(() => {
@@ -526,18 +546,18 @@ function BolsaPublicaPage() {
               const y = years(r.experience_since);
               return (
                 <div key={r.user_id ?? `${r.full_name}-${i}`} className={`${startCardCls} space-y-3 p-4`} style={startCardStyle}>
-                  <div className="flex justify-end">
-                    <Badge />
-                  </div>
                   <div className="flex items-center gap-3">
                     <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
                       {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="break-words text-xl font-semibold leading-tight">{r.full_name}</div>
-                      <div className="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
-                        <Star className="h-4 w-4 shrink-0 text-amber-300" />
-                        {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
+                          <Star className="h-4 w-4 shrink-0 text-amber-300" />
+                          {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
+                        </span>
+                        <Badge compact />
                       </div>
                     </div>
                   </div>
@@ -552,7 +572,11 @@ function BolsaPublicaPage() {
                   </div>
                   {r.photos && r.photos.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {r.photos.map((u) => <img key={u} src={u} alt="Trabajo" loading="lazy" decoding="async" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />)}
+                      {r.photos.map((u, idx) => (
+                        <button key={u} type="button" onClick={() => setViewer({ photos: r.photos ?? [], index: idx })} aria-label="Ver foto" className="block">
+                          <img src={u} alt="Trabajo" loading="lazy" decoding="async" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />
+                        </button>
+                      ))}
                     </div>
                   )}
                   <PostingFooter
@@ -566,13 +590,19 @@ function BolsaPublicaPage() {
                       r.specialties?.length || r.bio ? (
                         <>
                           {r.specialties && r.specialties.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
+                            <div>
+                              <div className="mb-2 flex items-center gap-2 text-base font-semibold text-white/85"><Scissors className="h-4 w-4 text-violet-300" />Especialidades</div>
+                              <div className="flex flex-wrap gap-1.5">
                               {r.specialties.map((sp) => <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">{sp}</span>)}
+                              </div>
                             </div>
                           )}
                           {r.bio && (
-                            <div className="rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
-                              <p className="whitespace-pre-line text-base font-semibold text-white/90">{r.bio}</p>
+                            <div>
+                              <div className="mb-2 text-base font-semibold text-white/85">Sobre mí</div>
+                              <div className="rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
+                                <p className="whitespace-pre-line text-base font-semibold text-white/90">{r.bio}</p>
+                              </div>
                             </div>
                           )}
                         </>
@@ -587,6 +617,7 @@ function BolsaPublicaPage() {
       </div>
       </>
       )}
+      {viewer && <PhotoViewer photos={viewer.photos} index={viewer.index} onClose={() => setViewer(null)} onIndex={(n) => setViewer({ ...viewer, index: n })} />}
     </StartShell>
   );
 }
