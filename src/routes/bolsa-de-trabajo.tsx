@@ -374,6 +374,15 @@ function BolsaPublicaPage() {
     void load();
   }
 
+  async function applyRental(p: Posting) {
+    setBusy(p.id);
+    const { error } = await (supabase as any).rpc("apply_to_rental", { p_posting: p.id });
+    setBusy(null);
+    if (error) return toast.error(error.message?.includes("perfil_incompleto") ? "Primero guardá tu perfil." : "No se pudo enviar la solicitud.");
+    toast.success(`Solicitud enviada a ${p.business_name}`);
+    void load();
+  }
+
   async function invite(p: Pro) {
     if (!p.user_id || !businessId) return;
     setBusy(p.user_id);
@@ -499,7 +508,7 @@ function BolsaPublicaPage() {
                 <PostingHeader p={p} />
                 <div className="space-y-2 p-4 pt-3">
                 <PostingDetails p={{ ...p, price: null }} />
-                <PostingFooter yearsText={yearsLabel(p.business_start_date)} distText={p.distKm != null ? formatKm(p.distKm) : null} text={p.description} logged={Boolean(session)} askText="para solicitar este puesto" label="Solicitar" whatsapp={p.contact} onSend={() => {}} />
+                <PostingFooter yearsText={yearsLabel(p.business_start_date)} distText={p.distKm != null ? formatKm(p.distKm) : null} text={p.description} logged={Boolean(session)} askText="para solicitar este puesto" disabled={p.request_status === "pending" || p.request_status === "accepted" || busy === p.id} label={p.request_status === "accepted" ? "Solicitud aceptada" : p.request_status === "pending" ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Solicitar"} onSend={() => (isPro ? void applyRental(p) : toast.info("Para solicitar un puesto necesitás una cuenta de profesional."))} />
                 </div>
               </div>
             ))}

@@ -40,6 +40,43 @@ function yearsSince(date: string | null): number | null {
 }
 
 // Panel "Postulaciones" de la Bolsa de trabajo: quienes se postularon o aceptaron una solicitud.
+type RentalReq = { id: string; posting_title: string; status: string; user_id: string; full_name: string; avatar_url: string | null; whatsapp: string | null; reviews_count: number; reviews_avg: number | null };
+
+function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolean; onDecide?: (id: string, a: "accept" | "reject") => void }) {
+  return (
+    <>
+      {rows.map((r) => (
+        <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3" style={cardStyle}>
+          <div className="mb-2 inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">Quiere alquilar · {r.posting_title}</div>
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-lg font-semibold ring-2 ring-violet-400/40">
+              {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-lg font-semibold">{r.full_name}</div>
+              <div className="flex items-center gap-1 text-base text-white/60">
+                <Star className="h-4 w-4 text-amber-300" />
+                {r.reviews_count > 0 ? String(r.reviews_avg).replace(".", ",") : "Sin reseñas"}
+              </div>
+            </div>
+            {r.whatsapp && (
+              <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">
+                <MessageCircle className="h-5 w-5" />
+              </a>
+            )}
+          </div>
+          {onDecide && (
+            <div className="mt-3 flex gap-2">
+              <button type="button" disabled={busy} onClick={() => onDecide(r.id, "accept")} className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">Aceptar</button>
+              <button type="button" disabled={busy} onClick={() => onDecide(r.id, "reject")} className="h-11 rounded-full bg-white/5 px-5 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50">Rechazar</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function PostulacionesPanel({
   onAccept,
   refreshKey,
@@ -57,6 +94,7 @@ export function PostulacionesPanel({
 }) {
   const { businessId } = useAuth();
   const [rows, setRows] = React.useState<JoinRequest[]>([]);
+  const [rentals, setRentals] = React.useState<RentalReq[]>([]);
   const [busy, setBusy] = React.useState(false);
   const setOpen = (v: boolean) => {
     if (!v) onClose();
@@ -65,12 +103,24 @@ export function PostulacionesPanel({
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
-    const { data } = await (supabase as any).rpc("business_join_requests", { p_business: businessId });
-    setRows((data as JoinRequest[] | null) ?? []);
+    const [a, b] = await Promise.all([
+      (supabase as any).rpc("business_join_requests", { p_business: businessId }),
+      (supabase as any).rpc("business_rental_requests", { p_business: businessId }),
+    ]);
+    setRows((a.data as JoinRequest[] | null) ?? []);
+    setRentals((b.data as RentalReq[] | null) ?? []);
   }, [businessId]);
   React.useEffect(() => {
     void load();
   }, [load, refreshKey]);
+
+  async function decideRental(id: string, action: "accept" | "reject") {
+    setBusy(true);
+    const { error } = await (supabase as any).rpc("decide_rental_request", { p_id: id, p_action: action });
+    setBusy(false);
+    if (error) return toast.error("No se pudo completar la acción");
+    void load();
+  }
 
   async function decide(id: string, action: "reject" | "block" | "unblock") {
     if (action === "block" && !window.confirm("¿Bloquear a esta persona? No va a poder volver a pedir unirse.")) return;
@@ -85,6 +135,8 @@ export function PostulacionesPanel({
   const blocked = rows.filter((r) => r.status === "blocked");
   const invited = rows.filter((r) => r.status === "invited");
   const accepted = rows.filter((r) => r.status === "accepted");
+  const rentalPending = rentals.filter((r) => r.status === "pending");
+  const rentalAccepted = rentals.filter((r) => r.status === "accepted");
   const [filter, setFilter] = React.useState<"recibidas" | "enviadas" | "aceptadas">("recibidas");
 
   return (
@@ -110,7 +162,7 @@ export function PostulacionesPanel({
               </div>
               <BolsaTabs active="postulaciones" onSelect={onSelectTab} pending={pending.length} />
               <div className="flex shrink-0 gap-1.5 px-4 pb-3">
-                {([["recibidas", "Recibidas", pending.length], ["enviadas", "Enviadas", invited.length], ["aceptadas", "Aceptadas", accepted.length]] as const).map(([id, label, n]) => (
+                {([["recibidas", "Recibidas", pending.length + rentalPending.length], ["enviadas", "Enviadas", invited.length], ["aceptadas", "Aceptadas", accepted.length + rentalAccepted.length]] as const).map(([id, label, n]) => (
                   <button
                     key={id}
                     type="button"
@@ -122,9 +174,9 @@ export function PostulacionesPanel({
                 ))}
               </div>
               <div className={inline ? "space-y-3 px-3.5 py-3" : "min-h-0 flex-1 space-y-3 overflow-y-auto px-3.5 py-3"}>
-                {filter === "recibidas" && pending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie te envió una solicitud.</div>}
+                {filter === "recibidas" && pending.length === 0 && rentalPending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie te envió una solicitud.</div>}
                 {filter === "enviadas" && invited.length === 0 && <div className="py-10 text-center text-lg text-white/60">No tenés solicitudes enviadas esperando respuesta.</div>}
-                {filter === "aceptadas" && accepted.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no aceptaste a nadie.</div>}
+                {filter === "aceptadas" && accepted.length === 0 && rentalAccepted.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no aceptaste a nadie.</div>}
                 {filter === "recibidas" && pending.map((r) => {
                   const years = yearsSince(r.experience_since);
                   const age = yearsSince(r.birth_date);
@@ -242,6 +294,9 @@ export function PostulacionesPanel({
                     ))}
                   </div>
                 )}
+
+                {filter === "recibidas" && <RentalCards rows={rentalPending} busy={busy} onDecide={(id, a) => void decideRental(id, a)} />}
+                {filter === "aceptadas" && <RentalCards rows={rentalAccepted} busy={busy} />}
 
                 {filter === "aceptadas" && accepted.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
