@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Briefcase, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Scissors, UserRound, X } from "lucide-react";
+import { Briefcase, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
@@ -296,7 +296,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
       </label>
 
       <div>
-        <Label icon={Scissors} extra={<span className="text-sm font-medium text-white/50">{specialties.length}/{MAX_SPECIALTIES}</span>}>
+        <Label icon={Tag} extra={<span className="text-sm font-medium text-white/50">{specialties.length}/{MAX_SPECIALTIES}</span>}>
           Especialidades
         </Label>
         <div className="flex flex-wrap gap-2">

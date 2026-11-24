@@ -591,7 +591,7 @@ function BolsaPublicaPage() {
                         <>
                           {r.specialties && r.specialties.length > 0 && (
                             <div>
-                              <div className="mb-2 flex items-center gap-2 text-base font-semibold text-white/85"><Scissors className="h-4 w-4 text-violet-300" />Especialidades</div>
+                              <div className="mb-2 text-base font-semibold text-white/85">Especialidades</div>
                               <div className="flex flex-wrap gap-1.5">
                               {r.specialties.map((sp) => <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">{sp}</span>)}
                               </div>
