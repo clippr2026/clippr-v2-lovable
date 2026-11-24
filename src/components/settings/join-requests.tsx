@@ -104,6 +104,9 @@ function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinReque
   const bothAccepted = r.initiated_by === "business";
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={cardStyle}>
+      <div className="inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">
+        {bothAccepted ? "Aceptó tu invitación" : "Quiere trabajar"}
+      </div>
       <div className="flex items-center gap-3">
         <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
           {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
@@ -232,7 +235,7 @@ function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolea
     <>
       {rows.map((r) => (
         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3" style={cardStyle}>
-          <div className="mb-2 inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">Quiere alquilar · {r.posting_title}</div>
+          <div className="mb-2 inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">Quiere alquilar</div>
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-lg font-semibold ring-2 ring-violet-400/40">
               {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
