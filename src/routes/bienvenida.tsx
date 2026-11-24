@@ -1,11 +1,11 @@
 import * as React from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Briefcase, Building2, Gift, KeyRound, Star, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell } from "@/components/auth/start-shell";
+import { AccountButton } from "@/components/auth/account-button";
 import { ProfessionalProfileForm } from "@/components/auth/professional-profile-form";
 import { ProfessionalJoin } from "@/components/auth/professional-join";
-import { ProfessionalOfertas } from "@/components/auth/professional-ofertas";
 import { ProfessionalResenas } from "@/components/auth/professional-resenas";
 import { ProfessionalBolsa } from "@/components/auth/professional-bolsa";
 
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/bienvenida")({
 // Pantalla de quien creó una cuenta de profesional o embajador y todavía no tiene negocio:
 // para el profesional, el dueño de la barbería lo suma al equipo con este mismo correo.
 function BienvenidaPage() {
-  const { loading, session, businessId, user, signOut } = useAuth();
+  const { loading, session, businessId, user } = useAuth();
   const navigate = useNavigate();
   const tipo = (user?.user_metadata as { account_type?: string } | undefined)?.account_type;
 
@@ -28,10 +28,20 @@ function BienvenidaPage() {
   }, [loading, session, businessId, navigate]);
 
   const esEmbajador = tipo === "embajador";
-  const [tab, setTab] = React.useState<"perfil" | "unirme" | "ofertas" | "resenas" | "bolsa">("perfil");
+  const [tab, setTab] = React.useState<"perfil" | "unirme" | "resenas" | "bolsa">("perfil");
 
   return (
-    <StartShell>
+    <StartShell
+      header={
+        <div className="flex items-center justify-between gap-3">
+          <Link to="/" aria-label="Inicio" className="flex shrink-0 items-center gap-2">
+            <img src="/clippr-logo-login.webp" alt="" className="h-11 w-11 shrink-0 object-contain" />
+            <span className="font-display text-2xl font-medium">Clippr</span>
+          </Link>
+          <AccountButton />
+        </div>
+      }
+    >
       {esEmbajador ? (
         <>
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-violet-500/20 text-violet-300 ring-1 ring-violet-300/25">
@@ -47,7 +57,6 @@ function BienvenidaPage() {
               [
                 ["perfil", "Mi perfil", UserRound],
                 ["unirme", "Unirme", KeyRound],
-                ["ofertas", "Ofertas", Briefcase],
                 ["resenas", "Reseñas", Star],
                 ["bolsa", "Mi bolsa", Building2],
               ] as const
@@ -70,16 +79,12 @@ function BienvenidaPage() {
               <ProfessionalProfileForm userId={user.id} defaultName={(user.user_metadata as { full_name?: string } | undefined)?.full_name ?? ""} />
             )}
             {tab === "unirme" && <ProfessionalJoin />}
-            {tab === "ofertas" && <ProfessionalOfertas />}
             {tab === "resenas" && <ProfessionalResenas />}
             {user && tab === "bolsa" && <ProfessionalBolsa userId={user.id} />}
           </div>
         </>
       )}
 
-      <button type="button" onClick={() => void signOut()} className="mt-auto pt-10 text-center text-base text-white/60 underline underline-offset-4">
-        Cerrar sesión
-      </button>
     </StartShell>
   );
 }

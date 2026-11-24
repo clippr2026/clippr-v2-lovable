@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Toggle } from "@/components/settings/shared";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
+import { MyRequestsList } from "@/components/auth/professional-join";
 
 // Pestaña "Bolsa de trabajo": el profesional decide si su perfil se muestra a las barberías.
 export function ProfessionalBolsa({ userId }: { userId: string }) {
@@ -95,6 +96,8 @@ export function ProfessionalBolsa({ userId }: { userId: string }) {
           </div>
         )}
       </div>
+
+      <MyRequestsList />
     </div>
   );
 }

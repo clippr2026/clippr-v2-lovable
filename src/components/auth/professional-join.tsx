@@ -29,17 +29,6 @@ function errorText(message: string): string {
 export function ProfessionalJoin() {
   const [code, setCode] = React.useState("");
   const [sending, setSending] = React.useState(false);
-  const [rows, setRows] = React.useState<MyRequest[]>([]);
-
-  const load = React.useCallback(async () => {
-    const { data } = await (supabase as any).rpc("my_join_requests");
-    setRows((data as MyRequest[] | null) ?? []);
-  }, []);
-
-  React.useEffect(() => {
-    void load();
-  }, [load]);
-
   async function send() {
     if (code.trim().length < 4) return toast.error("Escribí el código del negocio");
     setSending(true);
@@ -48,7 +37,7 @@ export function ProfessionalJoin() {
     if (error) return toast.error(errorText(error.message ?? ""));
     toast.success(`Solicitud enviada a ${(data as { business_name?: string })?.business_name ?? "la barbería"}`);
     setCode("");
-    void load();
+    toast.info("Tus solicitudes enviadas se ven en la pestaña Mi bolsa.");
   }
 
   return (
@@ -79,26 +68,39 @@ export function ProfessionalJoin() {
         </button>
       </div>
 
-      {rows.length > 0 && (
-        <div className="space-y-3">
-          <div className="text-lg font-semibold text-white/85">Tus solicitudes</div>
-          {rows.map((r) => {
-            const st = STATUS[r.status] ?? STATUS.pending;
-            return (
-              <div key={r.id} className={`${startCardCls} flex items-center gap-3 p-4`} style={startCardStyle}>
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-violet-300">
-                  <Building2 className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-lg font-semibold">{r.business_name}</div>
-                  <div className="text-sm text-white/50">{r.initiated_by === "business" ? "Te solicitó la barbería" : "Enviaste la solicitud"}</div>
-                </div>
-                <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ring-1 ${st.cls}`}>{st.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+    </div>
+  );
+}
+
+// Solicitudes que envió la persona (por código o desde una oferta) y cómo van. Las invitaciones de los negocios
+// (estado "invited") se responden aparte, en la tarjeta "Barberías que te solicitaron".
+export function MyRequestsList() {
+  const [rows, setRows] = React.useState<MyRequest[]>([]);
+  React.useEffect(() => {
+    void (async () => {
+      const { data } = await (supabase as any).rpc("my_join_requests");
+      setRows(((data as MyRequest[] | null) ?? []).filter((r) => r.status !== "invited"));
+    })();
+  }, []);
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      <div className="text-lg font-semibold text-white/85">Tus solicitudes</div>
+      {rows.map((r) => {
+        const st = STATUS[r.status] ?? STATUS.pending;
+        return (
+          <div key={r.id} className={`${startCardCls} flex items-center gap-3 p-4`} style={startCardStyle}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-violet-300">
+              <Building2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-lg font-semibold">{r.business_name}</div>
+              <div className="text-sm text-white/50">{r.initiated_by === "business" ? "Te solicitó la barbería" : "Enviaste la solicitud"}</div>
+            </div>
+            <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ring-1 ${st.cls}`}>{st.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
