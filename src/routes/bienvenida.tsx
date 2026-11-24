@@ -66,7 +66,7 @@ function BienvenidaPage() {
                 ["perfil", "Mi perfil", UserRound, "text-cyan-300"],
                 ["unirme", "Unirme", KeyRound, "text-sky-300"],
                 ["resenas", "Reseñas", Star, "text-amber-300"],
-                ["bolsa", "Mi actividad", Building2, "text-violet-300"],
+                ["bolsa", "Actividad", Building2, "text-violet-300"],
               ] as const
             ).map(([id, label, Icon, tint]) => (
               <button

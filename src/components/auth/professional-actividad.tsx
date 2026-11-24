@@ -115,7 +115,6 @@ export function ProfessionalActividad() {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 ${m.cls}`}>{m.label}</span>
-                  {r.posting_title && <span className="truncate text-sm text-white/60">{r.posting_title}</span>}
                 </div>
 
                 {r.state === "recibida" && (
@@ -135,9 +134,9 @@ export function ProfessionalActividad() {
                 )}
 
                 {r.state === "enviada" && (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="rounded-full bg-amber-400/15 px-3 py-1.5 text-sm font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</span>
-                    <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-10 rounded-full bg-white/5 px-4 text-sm font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-60">
+                  <div className="grid grid-cols-2 gap-2">
+                    <span className="grid h-12 place-items-center whitespace-nowrap rounded-full bg-amber-400/15 px-2 text-[15px] font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</span>
+                    <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-12 whitespace-nowrap rounded-full bg-white/5 px-2 text-[15px] font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-60">
                       Cancelar solicitud
                     </button>
                   </div>
