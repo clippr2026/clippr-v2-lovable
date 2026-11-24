@@ -91,14 +91,16 @@ function ReferencesEditor({ refs, setRefs }: { refs: RefDraft[]; setRefs: React.
           <div className="space-y-3 rounded-2xl border border-violet-400/30 bg-white/[0.03] p-3">
             <input autoFocus value={draft.place} onChange={(e) => patch({ place: e.target.value.slice(0, 60) })} placeholder="Nombre del lugar" className={mini} />
             <input value={draft.locality} onChange={(e) => patch({ locality: e.target.value.slice(0, 60) })} placeholder="Localidad" className={mini} />
-            <label className="block min-w-0">
-              <span className="mb-1 block text-sm font-medium text-white/55">Desde</span>
-              <input type="month" value={draft.from} onChange={(e) => patch({ from: e.target.value })} className={`${mini} appearance-none`} style={{ WebkitAppearance: "none", maxWidth: "100%" }} />
-            </label>
-            <label className="block min-w-0">
-              <span className="mb-1 block text-sm font-medium text-white/55">Hasta</span>
-              <input type="month" value={draft.to} onChange={(e) => patch({ to: e.target.value })} className={`${mini} appearance-none`} style={{ WebkitAppearance: "none", maxWidth: "100%" }} />
-            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block min-w-0">
+                <span className="mb-1 block text-sm font-medium text-white/55">Desde</span>
+                <input type="month" value={draft.from} onChange={(e) => patch({ from: e.target.value })} className={`${mini} appearance-none !px-3 !text-[15px]`} style={{ WebkitAppearance: "none", width: "100%", minWidth: 0, maxWidth: "100%" }} />
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-sm font-medium text-white/55">Hasta</span>
+                <input type="month" value={draft.to} onChange={(e) => patch({ to: e.target.value })} className={`${mini} appearance-none !px-3 !text-[15px]`} style={{ WebkitAppearance: "none", width: "100%", minWidth: 0, maxWidth: "100%" }} />
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input value={draft.instagram} onChange={(e) => patch({ instagram: e.target.value.slice(0, 30) })} placeholder="Instagram" className={`${mini} px-3 text-base`} />
               <input
