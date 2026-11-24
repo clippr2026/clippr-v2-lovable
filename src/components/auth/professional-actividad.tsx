@@ -134,11 +134,13 @@ export function ProfessionalActividad() {
                 )}
 
                 {r.state === "enviada" && (
-                  <div className="space-y-2">
-                    <div className="grid h-12 place-items-center rounded-full bg-amber-400/15 text-base font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</div>
-                    <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
-                      Cancelar solicitud
-                    </button>
+                  <div className="space-y-3">
+                    <span className="inline-flex rounded-full bg-amber-400/15 px-3 py-1 text-sm font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</span>
+                    <div>
+                      <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-10 rounded-full bg-rose-500 px-6 text-sm font-semibold text-white shadow-[0_0_16px_-4px_rgba(244,63,94,0.7)] disabled:opacity-60">
+                        Cancelar solicitud
+                      </button>
+                    </div>
                   </div>
                 )}
 
