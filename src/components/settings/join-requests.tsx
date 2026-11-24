@@ -28,6 +28,62 @@ export type JoinRequest = {
   reviews_avg: number | null;
 };
 
+
+type RefRow = { id: string; place_name: string; locality: string | null; from_date: string | null; to_date: string | null; instagram: string | null; whatsapp: string | null };
+
+function monthLabel(d: string | null): string {
+  if (!d) return "";
+  const [y, m] = d.split("-");
+  const names = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${names[Number(m) - 1] ?? ""} ${y}`;
+}
+
+// Referencias laborales de una persona ya aceptada (la base solo las entrega si ambos aceptaron).
+function AcceptedReferences({ businessId, userId }: { businessId: string; userId: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [rows, setRows] = React.useState<RefRow[] | null>(null);
+  React.useEffect(() => {
+    if (!open || rows !== null) return;
+    void (async () => {
+      const { data } = await (supabase as any).rpc("accepted_pro_references", { p_business: businessId, p_user: userId });
+      setRows((data as RefRow[] | null) ?? []);
+    })();
+  }, [open, rows, businessId, userId]);
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="h-10 rounded-full bg-white/5 px-4 text-sm font-semibold text-violet-200 ring-1 ring-white/10">
+        {open ? "Ocultar referencias" : "Ver referencias"}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {rows === null && <div className="text-base text-white/60">Cargando…</div>}
+          {rows?.length === 0 && <div className="text-base text-white/60">No cargó referencias.</div>}
+          {rows?.map((x) => (
+            <div key={x.id} className="rounded-xl bg-black/25 p-3 ring-1 ring-white/10">
+              <div className="text-base font-semibold">{x.place_name}{x.locality ? ` · ${x.locality}` : ""}</div>
+              <div className="text-sm text-white/60">
+                {x.from_date ? monthLabel(x.from_date) : "—"} → {x.to_date ? monthLabel(x.to_date) : "Actualidad"}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {x.whatsapp && (
+                  <a href={`https://wa.me/${x.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </a>
+                )}
+                {x.instagram && (
+                  <a href={`https://instagram.com/${x.instagram}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-fuchsia-500/15 px-3 text-sm font-semibold text-fuchsia-200 ring-1 ring-fuchsia-400/30">
+                    <Instagram className="h-4 w-4" /> @{x.instagram}
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const cardStyle: React.CSSProperties = {
   backgroundImage:
     "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
@@ -299,7 +355,8 @@ export function PostulacionesPanel({
                 {filter === "aceptadas" && <RentalCards rows={rentalAccepted} busy={busy} />}
 
                 {filter === "aceptadas" && accepted.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-center gap-3">
                     <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-lg font-semibold ring-2 ring-violet-400/40">
                       {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
                     </span>
@@ -315,6 +372,8 @@ export function PostulacionesPanel({
                         <MessageCircle className="h-5 w-5" />
                       </a>
                     )}
+                  </div>
+                  {businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
                   </div>
                 ))}
 

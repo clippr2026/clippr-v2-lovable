@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Briefcase, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
+import { Briefcase, Building2, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
@@ -40,6 +40,70 @@ function Label({ icon: Icon, children, extra }: { icon?: React.ComponentType<{ c
   );
 }
 
+
+type RefDraft = { key: string; place: string; locality: string; from: string; to: string; instagram: string; whatsapp: string };
+const MAX_REFS = 10;
+
+function ReferencesEditor({ refs, setRefs }: { refs: RefDraft[]; setRefs: React.Dispatch<React.SetStateAction<RefDraft[]>> }) {
+  const set = (key: string, patch: Partial<RefDraft>) => setRefs((cur) => cur.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const mini = "h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
+  return (
+    <div>
+      <Label icon={Building2} extra={<span className="text-sm font-medium text-white/50">{refs.length}/{MAX_REFS}</span>}>
+        Referencias
+      </Label>
+      <p className="mb-3 text-base text-white/55">
+        Lugares donde trabajaste. Solo las ve el dueño de un negocio cuando los dos aceptan.
+      </p>
+      <div className="space-y-3">
+        {refs.map((r) => (
+          <div key={r.key} className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="flex gap-2">
+              <input value={r.place} onChange={(e) => set(r.key, { place: e.target.value.slice(0, 60) })} placeholder="Nombre del lugar" className={mini} />
+              <button
+                type="button"
+                aria-label="Quitar referencia"
+                onClick={() => setRefs((cur) => cur.filter((x) => x.key !== r.key))}
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/5 text-white/70 ring-1 ring-white/10"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input value={r.locality} onChange={(e) => set(r.key, { locality: e.target.value.slice(0, 60) })} placeholder="Localidad" className={mini} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-white/55">Desde</span>
+                <input type="month" value={r.from} onChange={(e) => set(r.key, { from: e.target.value })} className={mini} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-white/55">Hasta</span>
+                <input type="month" value={r.to} onChange={(e) => set(r.key, { to: e.target.value })} className={mini} />
+              </label>
+            </div>
+            <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value.slice(0, 30) })} placeholder="Instagram del lugar" className={mini} />
+            <input
+              inputMode="tel"
+              value={r.whatsapp}
+              onChange={(e) => set(r.key, { whatsapp: e.target.value.replace(/[^\d+]/g, "").slice(0, 20) })}
+              placeholder="WhatsApp del lugar"
+              className={mini}
+            />
+          </div>
+        ))}
+        {refs.length < MAX_REFS && (
+          <button
+            type="button"
+            onClick={() => setRefs((cur) => [...cur, { key: Math.random().toString(36).slice(2), place: "", locality: "", from: "", to: "", instagram: "", whatsapp: "" }])}
+            className="inline-flex h-11 items-center gap-1.5 rounded-full border border-dashed border-violet-400/50 px-4 text-base font-semibold text-violet-200"
+          >
+            <Plus className="h-4 w-4" /> Agregar referencia
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Ficha permanente del profesional: queda guardada aunque cambie de barbería.
 export function ProfessionalProfileForm({ userId, defaultName }: { userId: string; defaultName: string }) {
   const [loading, setLoading] = React.useState(true);
@@ -57,6 +121,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
   const [bio, setBio] = React.useState("");
   const [instagram, setInstagram] = React.useState("");
   const [photos, setPhotos] = React.useState<string[]>([]);
+  const [refs, setRefs] = React.useState<RefDraft[]>([]);
   const [cropSrc, setCropSrc] = React.useState<string | null>(null);
   const [workCropSrc, setWorkCropSrc] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
@@ -71,15 +136,30 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         const r = (data as Array<{ reviews_count: number; reviews_avg: number | null }> | null)?.[0];
         if (alive && r) setReviews({ count: r.reviews_count, avg: r.reviews_avg });
       })();
-      const [pub, priv] = await Promise.all([
+      const [pub, priv, refRows] = await Promise.all([
         (supabase as any)
           .from("professional_profiles")
           .select("full_name,avatar_url,zone,experience_since,specialties,bio,instagram,nationality,photos")
           .eq("user_id", userId)
           .maybeSingle(),
         (supabase as any).from("professional_private").select("birth_date,whatsapp").eq("user_id", userId).maybeSingle(),
+        (supabase as any)
+          .from("professional_references")
+          .select("place_name,locality,from_date,to_date,instagram,whatsapp")
+          .eq("user_id", userId)
+          .order("from_date", { ascending: false, nullsFirst: false }),
       ]);
       if (!alive) return;
+      const loadedRefs: RefDraft[] = ((refRows.data as Array<{ place_name: string; locality: string | null; from_date: string | null; to_date: string | null; instagram: string | null; whatsapp: string | null }> | null) ?? []).map((r) => ({
+        key: Math.random().toString(36).slice(2),
+        place: r.place_name,
+        locality: r.locality ?? "",
+        from: (r.from_date ?? "").slice(0, 7),
+        to: (r.to_date ?? "").slice(0, 7),
+        instagram: r.instagram ?? "",
+        whatsapp: r.whatsapp ?? "",
+      }));
+      setRefs(loadedRefs);
       const row = pub.data as ProfileRow | null;
       if (row) {
         setName(row.full_name);
@@ -97,7 +177,7 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         makeSnap({
           name: row?.full_name ?? defaultName, avatar: row?.avatar_url ?? "", zone: row?.zone ?? "", since: row?.experience_since ?? "",
           nationality: row?.nationality ?? "", birth: pv?.birth_date ?? "", whatsapp: pv?.whatsapp ?? "", specialties: row?.specialties ?? [],
-          bio: row?.bio ?? "", instagram: row?.instagram ?? "", photos: row?.photos ?? [],
+          bio: row?.bio ?? "", instagram: row?.instagram ?? "", photos: row?.photos ?? [], refs: loadedRefs,
         }),
       );
       const p = priv.data as { birth_date: string | null; whatsapp: string | null } | null;
@@ -164,20 +244,22 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
 
   // Valores más recientes de los campos: las subidas de fotos guardan solas, y sin esto guardaban lo que había en
   // pantalla cuando empezó la subida (pisando lo que se escribió mientras tanto).
-  const latest = React.useRef({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos });
-  latest.current = { name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos };
+  const latest = React.useRef({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos, refs });
+  latest.current = { name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos, refs };
 
   const makeSnap = (f: typeof latest.current) =>
     JSON.stringify([
       f.name.trim(), f.avatar, f.zone.trim(), f.since, f.nationality, f.birth, f.whatsapp.replace(/\D/g, ""), f.specialties, f.bio.trim(),
       f.instagram.trim().replace(/^@/, ""), f.photos,
+      f.refs.map((r) => [r.place.trim(), r.locality.trim(), r.from, r.to, r.instagram.trim().replace(/^@/, ""), r.whatsapp.replace(/\D/g, "")]),
     ]);
-  const snap = makeSnap({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos });
+  const snap = makeSnap({ name, avatar, zone, since, nationality, birth, whatsapp, specialties, bio, instagram, photos, refs });
   const dirty = savedSnap !== null && snap !== savedSnap;
 
   async function save(over?: { avatar?: string; photos?: string[] }) {
     const f = { ...latest.current, ...(over?.avatar !== undefined ? { avatar: over.avatar } : {}), ...(over?.photos ? { photos: over.photos } : {}) };
     if (!f.name.trim()) return toast.error("Ingresá tu nombre");
+    if (f.refs.some((r) => !r.place.trim())) return toast.error("Cada referencia necesita el nombre del lugar");
     setSaving(true);
     try {
       const [a, b] = await Promise.all([
@@ -202,6 +284,22 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
         ),
       ]);
       if (a.error || b.error) return toast.error("No se pudo guardar tu perfil");
+      const del = await (supabase as any).from("professional_references").delete().eq("user_id", userId);
+      if (del.error) return toast.error("No se pudieron guardar tus referencias");
+      if (f.refs.length > 0) {
+        const ins = await (supabase as any).from("professional_references").insert(
+          f.refs.map((r) => ({
+            user_id: userId,
+            place_name: r.place.trim(),
+            locality: r.locality.trim() || null,
+            from_date: r.from ? `${r.from}-01` : null,
+            to_date: r.to ? `${r.to}-01` : null,
+            instagram: r.instagram.trim().replace(/^@/, "") || null,
+            whatsapp: r.whatsapp.replace(/\D/g, "") || null,
+          })),
+        );
+        if (ins.error) return toast.error("No se pudieron guardar tus referencias");
+      }
       setSavedSnap(makeSnap(f));
       toast.success("Perfil guardado");
     } catch {
@@ -293,6 +391,8 @@ export function ProfessionalProfileForm({ userId, defaultName }: { userId: strin
           <input type="date" value={since} onChange={(e) => setSince(e.target.value)} className={inputCls} />
         </span>
       </label>
+
+      <ReferencesEditor refs={refs} setRefs={setRefs} />
 
       <label className="block">
         <Label>WhatsApp</Label>
