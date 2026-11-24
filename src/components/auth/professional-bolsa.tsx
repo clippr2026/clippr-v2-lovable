@@ -32,6 +32,12 @@ export function ProfessionalBolsa({ userId }: { userId: string }) {
   }
 
   React.useEffect(() => {
+    const onChange = (e: Event) => setListed(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener("clippr:perfil-visible-cambio", onChange);
+    return () => window.removeEventListener("clippr:perfil-visible-cambio", onChange);
+  }, []);
+
+  React.useEffect(() => {
     void (async () => {
       const { data } = await (supabase as any).from("professional_profiles").select("is_listed").eq("user_id", userId).maybeSingle();
       setHasProfile(Boolean(data));
@@ -46,7 +52,9 @@ export function ProfessionalBolsa({ userId }: { userId: string }) {
     if (error) {
       setListed(!next);
       toast.error("No se pudo cambiar. Probá de nuevo.");
+      return;
     }
+    window.dispatchEvent(new CustomEvent("clippr:perfil-visible-cambio", { detail: next }));
   }
 
   if (loading) return <div className="py-10 text-center text-white/60">Cargando…</div>;

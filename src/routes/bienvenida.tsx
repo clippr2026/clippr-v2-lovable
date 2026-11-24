@@ -4,6 +4,7 @@ import { Briefcase, Building2, Gift, KeyRound, Star, UserRound } from "lucide-re
 import { useAuth } from "@/hooks/use-auth";
 import { StartShell } from "@/components/auth/start-shell";
 import { AccountButton } from "@/components/auth/account-button";
+import { ProfileWwwButton } from "@/components/auth/profile-www-button";
 import { ProfessionalProfileForm } from "@/components/auth/professional-profile-form";
 import { ProfessionalJoin } from "@/components/auth/professional-join";
 import { ProfessionalResenas } from "@/components/auth/professional-resenas";
@@ -38,7 +39,10 @@ function BienvenidaPage() {
             <img src="/clippr-logo-login.webp" alt="" className="h-11 w-11 shrink-0 object-contain" />
             <span className="font-display text-2xl font-medium">Clippr</span>
           </Link>
-          <AccountButton />
+          <div className="flex items-center gap-2">
+            {user && !esEmbajador && <ProfileWwwButton userId={user.id} />}
+            <AccountButton />
+          </div>
         </div>
       }
     >
