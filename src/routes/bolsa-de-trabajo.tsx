@@ -317,7 +317,7 @@ function BolsaPublicaPage() {
   }
 
   async function apply(p: Posting) {
-    await send(p.id, () => (supabase as any).rpc("apply_to_posting", { p_posting: p.id }), `Solicitud enviada a ${p.business_name}`);
+    await send(p.id, () => (supabase as any).rpc("apply_to_posting", { p_posting: p.id }), `Postulación enviada a ${p.business_name}`);
   }
 
   async function applyRental(p: Posting) {
@@ -428,7 +428,7 @@ function BolsaPublicaPage() {
                     showAction
                     disabled={sent || busy === p.id}
                     askText="para postularte"
-                    label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Solicitud enviada" : busy === p.id ? "Enviando…" : "Postularme"}
+                    label={p.request_status === "accepted" ? "Ya sos parte" : sent ? "Postulación enviada" : busy === p.id ? "Enviando…" : "Postularme"}
                     onSend={() => (isPro ? void apply(p) : toast.info("Para postularte necesitás una cuenta de profesional."))}
                   />
                   </div>

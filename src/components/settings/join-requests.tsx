@@ -97,9 +97,10 @@ function yearsSince(date: string | null): number | null {
 }
 
 // Panel "Postulaciones" de la Bolsa de trabajo: quienes se postularon o aceptaron una solicitud.
-type RentalReq = { id: string; posting_title: string; status: string; user_id: string; full_name: string; avatar_url: string | null; whatsapp: string | null; reviews_count: number; reviews_avg: number | null };
+type RentalReq = { id: string; posting_title: string; status: string; user_id: string; full_name: string; avatar_url: string | null; whatsapp: string | null; instagram?: string | null; reviews_count: number; reviews_avg: number | null };
 
 function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolean; onDecide?: (id: string, a: "accept" | "reject") => void }) {
+  const { businessId } = useAuth();
   return (
     <>
       {rows.map((r) => (
@@ -121,7 +122,13 @@ function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolea
                 <MessageCircle className="h-5 w-5" />
               </a>
             )}
+            {r.instagram && (
+              <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer" aria-label="Instagram" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-fuchsia-400/30">
+                <Instagram className="h-5 w-5" />
+              </a>
+            )}
           </div>
+          {!onDecide && businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
           {onDecide && (
             <div className="mt-3 flex gap-2">
               <button type="button" disabled={busy} onClick={() => onDecide(r.id, "accept")} className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">Aceptar</button>
@@ -307,6 +314,7 @@ export function PostulacionesPanel({
                           </a>
                         )}
                       </div>
+                      {r.initiated_by === "business" && businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -371,6 +379,11 @@ export function PostulacionesPanel({
                     {r.whatsapp && (
                       <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" aria-label="WhatsApp" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/30">
                         <MessageCircle className="h-5 w-5" />
+                      </a>
+                    )}
+                    {r.instagram && (
+                      <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer" aria-label="Instagram" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-fuchsia-400/30">
+                        <Instagram className="h-5 w-5" />
                       </a>
                     )}
                   </div>

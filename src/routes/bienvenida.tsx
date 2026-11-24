@@ -8,7 +8,7 @@ import { ProfileWwwButton } from "@/components/auth/profile-www-button";
 import { ProfessionalProfileForm } from "@/components/auth/professional-profile-form";
 import { ProfessionalJoin } from "@/components/auth/professional-join";
 import { ProfessionalResenas } from "@/components/auth/professional-resenas";
-import { ProfessionalBolsa } from "@/components/auth/professional-bolsa";
+import { ProfessionalActividad } from "@/components/auth/professional-actividad";
 
 export const Route = createFileRoute("/bienvenida")({
   head: () => ({ meta: [{ title: "Bienvenido — Clippr" }] }),
@@ -66,7 +66,7 @@ function BienvenidaPage() {
                 ["perfil", "Mi perfil", UserRound, "text-cyan-300"],
                 ["unirme", "Unirme", KeyRound, "text-sky-300"],
                 ["resenas", "Reseñas", Star, "text-amber-300"],
-                ["bolsa", "Mi bolsa", Building2, "text-violet-300"],
+                ["bolsa", "Mi actividad", Building2, "text-violet-300"],
               ] as const
             ).map(([id, label, Icon, tint]) => (
               <button
@@ -91,7 +91,7 @@ function BienvenidaPage() {
             )}
             {tab === "unirme" && <ProfessionalJoin />}
             {tab === "resenas" && <ProfessionalResenas />}
-            {tab === "bolsa" && <ProfessionalBolsa />}
+            {tab === "bolsa" && <ProfessionalActividad />}
           </div>
         </>
       )}

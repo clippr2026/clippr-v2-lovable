@@ -37,7 +37,7 @@ export function ProfessionalJoin() {
     if (error) return toast.error(errorText(error.message ?? ""));
     toast.success(`Solicitud enviada a ${(data as { business_name?: string })?.business_name ?? "la barbería"}`);
     setCode("");
-    toast.info("Tus solicitudes enviadas se ven en la pestaña Mi bolsa.");
+    toast.info("Tus solicitudes enviadas se ven en la pestaña Mi actividad.");
   }
 
   return (
