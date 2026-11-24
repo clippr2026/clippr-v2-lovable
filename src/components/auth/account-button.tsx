@@ -48,7 +48,7 @@ export function AccountButton() {
   if (!session) {
     return (
       <div className="flex items-center gap-3">
-        <Link to="/login" className="whitespace-nowrap text-[15px] font-medium text-white/65 transition hover:text-white">
+        <Link to="/login" search={{ volver: "/bolsa-de-trabajo" } as never} className="whitespace-nowrap text-[15px] font-medium text-white/65 transition hover:text-white">
           Iniciar sesión
         </Link>
         <Link

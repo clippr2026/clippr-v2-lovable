@@ -94,7 +94,12 @@ function LoginPage() {
     const tipo = (user?.user_metadata as { account_type?: string } | undefined)?.account_type;
     // Profesional/embajador sin negocio todavía: pantalla de bienvenida en vez del panel.
     if (!businessId && (tipo === "profesional" || tipo === "embajador")) navigate({ to: "/bienvenida", replace: true });
-    else navigate({ to: "/dashboard", replace: true });
+    else {
+      // Si llegó desde otra pantalla (ej. la bolsa de trabajo) vuelve ahí; solo rutas internas.
+      const volver = new URLSearchParams(window.location.search).get("volver");
+      if (volver && volver.startsWith("/") && !volver.startsWith("//")) window.location.replace(volver);
+      else navigate({ to: "/dashboard", replace: true });
+    }
   }, [loading, session, businessId, user, navigate]);
 
   async function onSubmit(e: React.FormEvent) {

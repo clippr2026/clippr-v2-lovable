@@ -175,7 +175,7 @@ function PostingFooter({
               </div>
               <div className="mt-5 flex flex-col gap-2">
                 <Link to="/empezar" className="inline-flex h-12 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">Crear cuenta</Link>
-                <Link to="/login" className="inline-flex h-12 items-center justify-center rounded-full bg-white/5 text-base font-semibold text-white/85 ring-1 ring-white/10">Iniciar sesión</Link>
+                <Link to="/login" search={{ volver: "/bolsa-de-trabajo" } as never} className="inline-flex h-12 items-center justify-center rounded-full bg-white/5 text-base font-semibold text-white/85 ring-1 ring-white/10">Iniciar sesión</Link>
               </div>
             </div>
           </div>,
