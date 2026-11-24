@@ -1,5 +1,6 @@
 import * as React from "react";
 import { fmtRating } from "@/lib/rating";
+import { RefItem } from "@/components/auth/reference-item";
 import { createPortal } from "react-dom";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
@@ -29,6 +30,7 @@ type Pro = {
   user_id?: string; full_name: string; avatar_url: string | null; zone: string | null; experience_since: string | null;
   specialties: string[] | null; bio: string | null; instagram: string | null; nationality: string | null;
   photos: string[] | null; reviews_count: number; reviews_avg: number | null; whatsapp?: string | null; distKm?: number | null;
+  refs?: Array<{ n: string; l: string | null; f: string | null; t: string | null }> | null;
 };
 
 const TYPES: Record<string, string> = { tiempo_completo: "Tiempo completo", medio_tiempo: "Medio tiempo", por_turnos: "Por turnos" };
@@ -514,7 +516,7 @@ function BolsaPublicaPage() {
                     }
                     onSend={() => (isOwner ? void invite(r) : toast.info("Para invitar necesitás una cuenta de dueño de negocio."))}
                     expanded={
-                      r.specialties?.length || r.bio ? (
+                      r.specialties?.length || r.bio || r.refs?.length ? (
                         <>
                           {r.specialties && r.specialties.length > 0 && (
                             <div>
@@ -530,6 +532,14 @@ function BolsaPublicaPage() {
                               <div className="rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
                                 <p className="whitespace-pre-line text-base font-semibold text-white/90">{r.bio}</p>
                               </div>
+                            </div>
+                          )}
+                          {r.refs && r.refs.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="text-base font-semibold text-white/85">Referencias</div>
+                              {r.refs.map((x, i) => (
+                                <RefItem key={`${x.n}-${i}`} x={{ id: String(i), place_name: x.n, locality: x.l, from_date: x.f, to_date: x.t, instagram: null, whatsapp: null }} />
+                              ))}
                             </div>
                           )}
                         </>
