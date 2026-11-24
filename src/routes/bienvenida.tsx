@@ -34,10 +34,12 @@ function BienvenidaPage() {
   return (
     <StartShell
       header={
-        <div className="flex items-center justify-between gap-3">
-          <Link to="/" aria-label="Inicio" className="flex shrink-0 items-center gap-2">
-            <img src="/clippr-logo-login.webp" alt="" className="h-11 w-11 shrink-0 object-contain" />
-            <span className="font-display text-2xl font-medium">Clippr</span>
+        <div className="-mx-5 -mt-6 flex items-center justify-between gap-3 border-b border-white/10 bg-black/70 px-4 py-3 backdrop-blur">
+          <Link to="/" aria-label="Inicio" className="flex shrink-0 items-center gap-2.5">
+            <span className="grid h-10 w-10 place-items-center rounded-full ring-1 ring-white/10">
+              <img src="/clippr-logo-login.webp" alt="" className="h-8 w-8 object-contain" />
+            </span>
+            <span className="font-display text-xl font-medium">Clippr</span>
           </Link>
           <div className="flex items-center gap-2">
             {user && !esEmbajador && <ProfileWwwButton userId={user.id} />}
@@ -56,25 +58,25 @@ function BienvenidaPage() {
         </>
       ) : (
         <>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-4 gap-2 pb-1">
             {(
               [
-                ["perfil", "Mi perfil", UserRound],
-                ["unirme", "Unirme", KeyRound],
-                ["resenas", "Reseñas", Star],
-                ["bolsa", "Mi bolsa", Building2],
+                ["perfil", "Mi perfil", UserRound, "text-cyan-300"],
+                ["unirme", "Unirme", KeyRound, "text-sky-300"],
+                ["resenas", "Reseñas", Star, "text-amber-300"],
+                ["bolsa", "Mi bolsa", Building2, "text-violet-300"],
               ] as const
-            ).map(([id, label, Icon]) => (
+            ).map(([id, label, Icon, tint]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-base font-semibold transition ${
-                  tab === id ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white" : "bg-white/[0.06] text-white/65"
+                className={`glass flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-1 py-4 transition-all ${
+                  tab === id ? "bg-white/[0.04] shadow-[0_0_30px_-10px_var(--neon-blue)] ring-1 ring-primary/40" : "hover:bg-white/[0.04]"
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {label}
+                <Icon className={`h-5 w-5 ${tab === id ? tint : "text-muted-foreground"}`} />
+                <span className={`max-w-full truncate text-[13px] font-medium ${tab === id ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
               </button>
             ))}
           </div>

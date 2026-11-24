@@ -76,9 +76,11 @@ export function AccountButton() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Mi cuenta"
         aria-expanded={open}
-        className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-lg font-bold text-white ring-2 ring-violet-300/40"
+        className="grid h-10 w-10 place-items-center rounded-xl glass glass-hover transition active:scale-[0.96]"
       >
-        {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (name[0] || "A").toUpperCase()}
+        <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-xs font-bold text-white">
+          {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (name[0] || "A").toUpperCase()}
+        </span>
       </button>
       {open && (
         <>

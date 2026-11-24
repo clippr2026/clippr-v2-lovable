@@ -69,9 +69,9 @@ export function ProfileWwwButton({ userId }: { userId: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button aria-label="Mostrar mi perfil" className="inline-flex h-11 items-center rounded-xl glass glass-hover px-3 text-white/85 transition active:scale-[0.96] hover:text-white">
-          <span className="relative grid h-6 w-6 place-items-center">
-            <Globe className="h-5 w-5" />
+        <button aria-label="Mostrar mi perfil" className="inline-flex h-10 items-center rounded-xl glass glass-hover px-2.5 text-white/85 transition active:scale-[0.96] hover:text-white">
+          <span className="relative grid h-5 w-5 place-items-center">
+            <Globe className="h-[18px] w-[18px]" />
             <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-black bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white">WWW</span>
           </span>
         </button>
