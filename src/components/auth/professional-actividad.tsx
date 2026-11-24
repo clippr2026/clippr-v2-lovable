@@ -19,7 +19,7 @@ type Row = Local & {
 
 const MOTIVE: Record<Row["motive"], { label: string; cls: string }> = {
   oferta: { label: "Te postulaste", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
-  alquiler: { label: "Alquiler de puesto", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
+  alquiler: { label: "Solicitaste", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
   invitacion: { label: "Te invitaron", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
 };
 
@@ -198,9 +198,9 @@ export function ProfessionalActividad() {
             footer={
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {r.motive !== "alquiler" && (
-                    <span className="inline-flex rounded-full bg-violet-400/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-300/40">Oportunidad laboral</span>
-                  )}
+                  <span className="inline-flex rounded-full bg-violet-400/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-300/40">
+                    {r.motive === "alquiler" ? "Alquiler de puesto" : "Oportunidad laboral"}
+                  </span>
                   <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 ${m.cls}`}>{m.label}</span>
                 </div>
 
