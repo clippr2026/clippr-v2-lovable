@@ -16027,10 +16027,13 @@ export function NuevaVentaTab({
   }, [data.promotions, cartItems, employeeId]);
 
   React.useEffect(() => {
-    if (promotionId && !validPromotions.some((p) => p.id === promotionId)) {
+    // Con el carrito vacío validPromotions siempre es [] (todavía no se cargó el servicio del
+    // turno): limpiar acá borraba la promo precargada del turno antes de que el servicio entrara
+    // al carrito, y el cobro salía a precio de lista. Solo se valida cuando ya hay ítems.
+    if (promotionId && cartItems.length > 0 && !validPromotions.some((p) => p.id === promotionId)) {
       setPromotionId("");
     }
-  }, [promotionId, validPromotions]);
+  }, [promotionId, validPromotions, cartItems.length]);
 
   const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
   const promoAppliesToItem = (svc: (typeof cartItems)[number]["svc"]) =>
