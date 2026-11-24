@@ -18,8 +18,8 @@ type Row = Local & {
 };
 
 const MOTIVE: Record<Row["motive"], { label: string; cls: string }> = {
-  oferta: { label: "Te postulaste", cls: "bg-sky-400/15 text-sky-200 ring-sky-300/30" },
-  alquiler: { label: "Alquiler de puesto", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" },
+  oferta: { label: "Te postulaste", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
+  alquiler: { label: "Alquiler de puesto", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
   invitacion: { label: "Te invitaron", cls: "bg-violet-400/20 text-violet-100 ring-violet-300/40" },
 };
 
@@ -115,7 +115,7 @@ export function ProfessionalActividad() {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {r.motive !== "alquiler" && (
-                    <span className="inline-flex rounded-full bg-sky-400/15 px-3 py-1 text-sm font-semibold text-sky-200 ring-1 ring-sky-300/30">Oportunidad laboral</span>
+                    <span className="inline-flex rounded-full bg-violet-400/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-300/40">Oportunidad laboral</span>
                   )}
                   <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 ${m.cls}`}>{m.label}</span>
                 </div>
@@ -138,9 +138,9 @@ export function ProfessionalActividad() {
 
                 {r.state === "enviada" && (
                   <div className="space-y-3">
-                    <span className="inline-flex rounded-full bg-amber-400/15 px-3 py-1 text-sm font-semibold text-amber-200 ring-1 ring-amber-300/30">Pendiente de respuesta</span>
+                    <span className="inline-flex rounded-full bg-violet-400/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-300/40">Pendiente de respuesta</span>
                     <div className="flex justify-center">
-                      <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-10 w-4/5 rounded-full bg-rose-500 px-6 text-sm font-semibold text-white shadow-[0_0_16px_-4px_rgba(244,63,94,0.7)] disabled:opacity-60">
+                      <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-10 w-4/5 rounded-full bg-rose-500/15 px-6 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
                         Cancelar solicitud
                       </button>
                     </div>
