@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ArrowRight, ArrowUpRight, Briefcase, LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -99,13 +99,6 @@ export function AccountButton() {
                 <Link to={panelTo} onClick={() => setOpen(false)} className="flex h-12 items-center gap-3 rounded-xl px-2 text-base font-semibold text-white/90">
                   {businessId ? <LayoutDashboard className="h-5 w-5 text-violet-300" /> : <UserRound className="h-5 w-5 text-violet-300" />}
                   <span className="flex-1">{businessId ? "Ir a mi panel" : "Mi perfil"}</span>
-                  <ArrowUpRight className="h-5 w-5 text-white/40" />
-                </Link>
-              )}
-              {pathname !== "/bolsa-de-trabajo" && (
-                <Link to="/bolsa-de-trabajo" onClick={() => setOpen(false)} className="flex h-12 items-center gap-3 rounded-xl px-2 text-base font-semibold text-white/90">
-                  <Briefcase className="h-5 w-5 text-violet-300" />
-                  <span className="flex-1">Ir a bolsa de trabajo</span>
                   <ArrowUpRight className="h-5 w-5 text-white/40" />
                 </Link>
               )}

@@ -84,7 +84,7 @@ function BienvenidaPage() {
             )}
             {tab === "unirme" && <ProfessionalJoin />}
             {tab === "resenas" && <ProfessionalResenas />}
-            {user && tab === "bolsa" && <ProfessionalBolsa userId={user.id} />}
+            {tab === "bolsa" && <ProfessionalBolsa />}
           </div>
         </>
       )}

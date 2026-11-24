@@ -1,18 +1,15 @@
 import * as React from "react";
-import { Briefcase, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { FaInstagram, FaWhatsapp } from "react-icons/fa";
 import { LocalCard, type Local } from "@/components/auth/local-card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Toggle } from "@/components/settings/shared";
 import { startCardCls, startCardStyle } from "@/components/auth/start-shell";
 import { MyRequestsList } from "@/components/auth/professional-join";
 
-// Pestaña "Bolsa de trabajo": el profesional decide si su perfil se muestra a las barberías.
-export function ProfessionalBolsa({ userId }: { userId: string }) {
-  const [loading, setLoading] = React.useState(true);
-  const [hasProfile, setHasProfile] = React.useState(false);
-  const [listed, setListed] = React.useState(false);
+// Pestaña "Mi bolsa": barberías que le enviaron una solicitud y las que envió él. Mostrar u ocultar el perfil se hace
+// desde el botón WWW de arriba.
+export function ProfessionalBolsa() {
   const [invites, setInvites] = React.useState<Array<Local & { id: string; status: string; whatsapp: string | null }>>([]);
 
   const loadInvites = React.useCallback(async () => {
@@ -31,53 +28,8 @@ export function ProfessionalBolsa({ userId }: { userId: string }) {
     void loadInvites();
   }
 
-  React.useEffect(() => {
-    const onChange = (e: Event) => setListed(Boolean((e as CustomEvent<boolean>).detail));
-    window.addEventListener("clippr:perfil-visible-cambio", onChange);
-    return () => window.removeEventListener("clippr:perfil-visible-cambio", onChange);
-  }, []);
-
-  React.useEffect(() => {
-    void (async () => {
-      const { data } = await (supabase as any).from("professional_profiles").select("is_listed").eq("user_id", userId).maybeSingle();
-      setHasProfile(Boolean(data));
-      setListed(Boolean((data as { is_listed?: boolean } | null)?.is_listed));
-      setLoading(false);
-    })();
-  }, [userId]);
-
-  async function toggle(next: boolean) {
-    setListed(next);
-    const { error } = await (supabase as any).from("professional_profiles").update({ is_listed: next }).eq("user_id", userId);
-    if (error) {
-      setListed(!next);
-      toast.error("No se pudo cambiar. Probá de nuevo.");
-      return;
-    }
-    window.dispatchEvent(new CustomEvent("clippr:perfil-visible-cambio", { detail: next }));
-  }
-
-  if (loading) return <div className="py-10 text-center text-white/60">Cargando…</div>;
-
   return (
     <div className="space-y-4">
-      <div className={`${startCardCls} p-4`} style={startCardStyle}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3 text-xl font-semibold">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-violet-300">
-              <Briefcase className="h-5 w-5" />
-            </span>
-            Mostrar mi perfil
-          </div>
-          <Toggle on={listed} onChange={(v) => void toggle(v)} />
-        </div>
-        <p className="mt-3 text-base text-white/60">
-          {hasProfile
-            ? "Tu perfil se muestra en la bolsa de trabajo pública: cualquier persona puede verlo, con tu WhatsApp para que te contacten. Tu fecha de nacimiento y tu correo no se muestran."
-            : "Primero guardá tu perfil para poder mostrarlo."}
-        </p>
-      </div>
-
       <div className="space-y-3">
         <div className="text-lg font-semibold text-white/85">Barberías que te solicitaron</div>
         {invites.length === 0 && (
