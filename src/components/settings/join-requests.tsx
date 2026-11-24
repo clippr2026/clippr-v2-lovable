@@ -1,7 +1,7 @@
 import * as React from "react";
 import { fmtRating } from "@/lib/rating";
 import { createPortal } from "react-dom";
-import { Cake, Copy, Info, Instagram, KeyRound, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
+import { Cake, Copy, Info, Instagram, KeyRound, Lock, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -39,6 +39,40 @@ function monthLabel(d: string | null): string {
   return `${names[Number(m) - 1] ?? ""} ${y}`;
 }
 
+function RefItem({ x }: { x: RefRow }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="rounded-xl bg-black/25 p-3 ring-1 ring-white/10">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 truncate text-base font-semibold">{x.place_name}</div>
+        <button type="button" onClick={() => setOpen((v) => !v)} className="shrink-0 text-sm font-semibold text-violet-200">
+          {open ? "Ver menos" : "Ver más"}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {x.locality && <div className="text-sm text-white/70">{x.locality}</div>}
+          <div className="text-sm text-white/60">
+            Desde {x.from_date ? monthLabel(x.from_date) : "—"} · Hasta {x.to_date ? monthLabel(x.to_date) : "Actualidad"}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {x.whatsapp && (
+              <a href={`https://wa.me/${x.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </a>
+            )}
+            {x.instagram && (
+              <a href={`https://instagram.com/${x.instagram}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-fuchsia-500/15 px-3 text-sm font-semibold text-fuchsia-200 ring-1 ring-fuchsia-400/30">
+                <Instagram className="h-4 w-4" /> @{x.instagram}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Referencias laborales de una persona ya aceptada (la base solo las entrega si ambos aceptaron).
 function AcceptedReferences({ businessId, userId }: { businessId: string; userId: string }) {
   const [open, setOpen] = React.useState(false);
@@ -59,26 +93,7 @@ function AcceptedReferences({ businessId, userId }: { businessId: string; userId
         <div className="mt-2 space-y-2">
           {rows === null && <div className="text-base text-white/60">Cargando…</div>}
           {rows?.length === 0 && <div className="text-base text-white/60">No cargó referencias.</div>}
-          {rows?.map((x) => (
-            <div key={x.id} className="rounded-xl bg-black/25 p-3 ring-1 ring-white/10">
-              <div className="text-base font-semibold">{x.place_name}{x.locality ? ` · ${x.locality}` : ""}</div>
-              <div className="text-sm text-white/60">
-                {x.from_date ? monthLabel(x.from_date) : "—"} → {x.to_date ? monthLabel(x.to_date) : "Actualidad"}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {x.whatsapp && (
-                  <a href={`https://wa.me/${x.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
-                    <MessageCircle className="h-4 w-4" /> WhatsApp
-                  </a>
-                )}
-                {x.instagram && (
-                  <a href={`https://instagram.com/${x.instagram}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-fuchsia-500/15 px-3 text-sm font-semibold text-fuchsia-200 ring-1 ring-fuchsia-400/30">
-                    <Instagram className="h-4 w-4" /> @{x.instagram}
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
+          {rows?.map((x) => <RefItem key={x.id} x={x} />)}
         </div>
       )}
     </div>
@@ -94,6 +109,133 @@ function yearsSince(date: string | null): number | null {
   if (!date) return null;
   const years = (Date.now() - new Date(date).getTime()) / (365.25 * 24 * 3600 * 1000);
   return years >= 0 ? Math.floor(years) : null;
+}
+
+
+// Solicitud recibida: vista previa corta y "Ver más" con el resto. Los datos de contacto y las referencias solo se
+// muestran cuando ambas partes ya aceptaron (cuando la persona aceptó una invitación del negocio).
+function PendingCard({ r, busy, businessId, onAccept, onDecide }: { r: JoinRequest; busy: boolean; businessId: string | null; onAccept: () => void; onDecide: (a: "reject" | "block") => void }) {
+  const [more, setMore] = React.useState(false);
+  const [askCancel, setAskCancel] = React.useState(false);
+  const years = yearsSince(r.experience_since);
+  const age = yearsSince(r.birth_date);
+  const bothAccepted = r.initiated_by === "business";
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={cardStyle}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
+          {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xl font-semibold">{r.full_name}</div>
+          <div className="flex items-center gap-1 text-base text-white/60">
+            <Star className="h-4 w-4 text-amber-300" />
+            {r.reviews_count > 0 ? `${fmtRating(r.reviews_avg)} (${r.reviews_count} reseñas)` : "Sin reseñas todavía"}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
+        {r.zone && (
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-violet-300" />
+            {r.zone}
+          </span>
+        )}
+        {age !== null && (
+          <span className="inline-flex items-center gap-1.5">
+            <Cake className="h-4 w-4 text-violet-300" />
+            {age} años
+          </span>
+        )}
+        {years !== null && <span>{years} años en el rubro</span>}
+        {r.nationality && <span>{r.nationality}</span>}
+      </div>
+
+      {!more && (
+        <button type="button" onClick={() => setMore(true)} className="text-base font-semibold text-violet-200">
+          Ver más
+        </button>
+      )}
+
+      {more && (
+        <>
+          {r.specialties && r.specialties.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {r.specialties.map((sp) => (
+                <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">
+                  {sp}
+                </span>
+              ))}
+            </div>
+          )}
+          {r.bio && <p className="text-base text-white/75">{r.bio}</p>}
+          {r.photos && r.photos.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              {r.photos.map((u) => (
+                <img key={u} src={u} alt="Trabajo" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />
+              ))}
+            </div>
+          )}
+
+          {bothAccepted ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {r.whatsapp && (
+                  <a href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-emerald-500/15 px-4 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/30">
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
+                  </a>
+                )}
+                {r.instagram && (
+                  <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-white/5 px-4 text-sm font-semibold text-white/80 ring-1 ring-white/10">
+                    <Instagram className="h-4 w-4" />@{r.instagram}
+                  </a>
+                )}
+              </div>
+              {businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
+            </>
+          ) : (
+            <div className="flex items-center gap-2 rounded-xl bg-black/25 p-3 text-sm text-white/65 ring-1 ring-white/10">
+              <Lock className="h-4 w-4 shrink-0" /> Si aceptás, se podrán contactar y ver sus referencias.
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={onAccept} className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white disabled:opacity-50">
+              Aceptar
+            </button>
+            <button type="button" disabled={busy} onClick={() => setAskCancel(true)} className="h-12 flex-1 rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50">
+              Cancelar
+            </button>
+          </div>
+          <button type="button" onClick={() => setMore(false)} className="text-base font-semibold text-violet-200">
+            Ver menos
+          </button>
+        </>
+      )}
+
+      {askCancel &&
+        createPortal(
+          <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-5" onClick={() => setAskCancel(false)}>
+            <div className="w-full max-w-sm space-y-3 rounded-2xl border border-violet-400/30 p-5 shadow-2xl" style={{ ...cardStyle, backgroundColor: "#0b0818" }} onClick={(e) => e.stopPropagation()}>
+              <div className="text-xl font-semibold">{r.full_name}</div>
+              <p className="text-base text-white/70">¿Qué querés hacer con esta solicitud?</p>
+              <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide("reject"); }} className="h-12 w-full rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white disabled:opacity-60">
+                Eliminar solicitud
+              </button>
+              <button type="button" disabled={busy} onClick={() => { setAskCancel(false); onDecide("block"); }} className="h-12 w-full rounded-full bg-rose-500/15 text-base font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
+                Eliminar y bloquear
+              </button>
+              <p className="text-xs text-white/45">Si bloqueás, no va a poder volver a pedir unirse.</p>
+              <button type="button" onClick={() => setAskCancel(false)} className="h-12 w-full rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10">
+                Salir
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
 }
 
 // Panel "Postulaciones" de la Bolsa de trabajo: quienes se postularon o aceptaron una solicitud.
@@ -187,7 +329,6 @@ export function PostulacionesPanel({
   }
 
   async function decide(id: string, action: "reject" | "block" | "unblock") {
-    if (action === "block" && !window.confirm("¿Bloquear a esta persona? No va a poder volver a pedir unirse.")) return;
     setBusy(true);
     const { error } = await (supabase as any).rpc("decide_join_request", { p_id: id, p_action: action });
     setBusy(false);
@@ -241,112 +382,9 @@ export function PostulacionesPanel({
                 {filter === "recibidas" && pending.length === 0 && rentalPending.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía nadie te envió una solicitud.</div>}
                 {filter === "enviadas" && invited.length === 0 && <div className="py-10 text-center text-lg text-white/60">No tenés solicitudes enviadas esperando respuesta.</div>}
                 {filter === "aceptadas" && accepted.length === 0 && rentalAccepted.length === 0 && <div className="py-10 text-center text-lg text-white/60">Todavía no aceptaste a nadie.</div>}
-                {filter === "recibidas" && pending.map((r) => {
-                  const years = yearsSince(r.experience_since);
-                  const age = yearsSince(r.birth_date);
-                  return (
-                    <div key={r.id} className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={cardStyle}>
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
-                          {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-xl font-semibold">{r.full_name}</div>
-                          <div className="flex items-center gap-1 text-base text-white/60">
-                            <Star className="h-4 w-4 text-amber-300" />
-                            {r.reviews_count > 0 ? `${fmtRating(r.reviews_avg)} (${r.reviews_count} reseñas)` : "Sin reseñas todavía"}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-base text-white/70">
-                        {r.zone && (
-                          <span className="inline-flex items-center gap-1.5">
-                            <MapPin className="h-4 w-4 text-violet-300" />
-                            {r.zone}
-                          </span>
-                        )}
-                        {age !== null && (
-                          <span className="inline-flex items-center gap-1.5">
-                            <Cake className="h-4 w-4 text-violet-300" />
-                            {age} años
-                          </span>
-                        )}
-                        {years !== null && <span>{years} años en el rubro</span>}
-                        {r.nationality && <span>{r.nationality}</span>}
-                      </div>
-                      {r.specialties && r.specialties.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {r.specialties.map((s) => (
-                            <span key={s} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {r.bio && <p className="text-base text-white/75">{r.bio}</p>}
-                      {r.photos && r.photos.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2">
-                          {r.photos.map((u) => (
-                            <img key={u} src={u} alt="Trabajo" className="aspect-square w-full rounded-xl object-cover ring-1 ring-white/15" />
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        {r.whatsapp && (
-                          <a
-                            href={`https://wa.me/${r.whatsapp.replace(/\D/g, "")}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-10 items-center gap-2 rounded-full bg-emerald-500/15 px-4 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-400/30"
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                            WhatsApp
-                          </a>
-                        )}
-                        {r.instagram && (
-                          <a
-                            href={`https://instagram.com/${r.instagram}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-10 items-center gap-2 rounded-full bg-white/5 px-4 text-sm font-semibold text-white/80 ring-1 ring-white/10"
-                          >
-                            <Instagram className="h-4 w-4" />@{r.instagram}
-                          </a>
-                        )}
-                      </div>
-                      {r.initiated_by === "business" && businessId && <AcceptedReferences businessId={businessId} userId={r.user_id} />}
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            setOpen(false);
-                            onAccept(r);
-                          }}
-                          className="h-12 flex-1 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 text-base font-bold text-white shadow-[0_6px_22px_-4px_rgba(124,92,255,0.9)] transition active:scale-95 disabled:opacity-50"
-                        >
-                          Aceptar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void decide(r.id, "reject")}
-                          className="h-12 rounded-2xl bg-white/5 px-4 text-base font-semibold text-white/80 ring-1 ring-white/10 disabled:opacity-50"
-                        >
-                          Eliminar
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void decide(r.id, "block")}
-                          className="h-12 rounded-2xl border border-red-400/50 bg-red-500/25 px-4 text-base font-bold text-red-100 disabled:opacity-50"
-                        >
-                          Bloquear
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {filter === "recibidas" && pending.map((r) => (
+                  <PendingCard key={r.id} r={r} busy={busy} businessId={businessId} onAccept={() => onAccept(r)} onDecide={(action) => void decide(r.id, action)} />
+                ))}
 
                 {filter === "enviadas" && invited.length > 0 && (
                   <div className="pt-2">
