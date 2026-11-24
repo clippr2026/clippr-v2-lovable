@@ -553,19 +553,22 @@ function BolsaPublicaPage() {
             {prosView?.map((r, i) => {
               const y = years(r.experience_since);
               return (
-                <div key={r.user_id ?? `${r.full_name}-${i}`} className={`${startCardCls} space-y-3 p-4`} style={startCardStyle}>
-                  <div className="flex items-center gap-3">
+                <div key={r.user_id ?? `${r.full_name}-${i}`} className={`${startCardCls} relative space-y-3 p-4`} style={startCardStyle}>
+                  <div className="absolute right-3 top-3">
+                    <Badge />
+                  </div>
+                  <div className="flex items-start gap-3">
                     <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
                       {r.avatar_url ? <img src={r.avatar_url} alt={r.full_name} className="h-full w-full object-cover" /> : (r.full_name[0] || "?").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="break-words text-xl font-semibold leading-tight">{r.full_name}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
-                          <Star className="h-4 w-4 shrink-0 text-amber-300" />
-                          {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
-                        </span>
-                        <Badge />
+                      <div className="break-words text-lg font-semibold leading-tight">
+                        <span className="float-right h-10 w-32" aria-hidden="true" />
+                        {r.full_name}
+                      </div>
+                      <div className="mt-1 clear-right inline-flex items-center gap-1 whitespace-nowrap text-base text-white/60">
+                        <Star className="h-4 w-4 shrink-0 text-amber-300" />
+                        {r.reviews_count > 0 ? `${String(r.reviews_avg).replace(".", ",")} (${r.reviews_count} reseñas)` : "Sin reseñas"}
                       </div>
                     </div>
                   </div>
