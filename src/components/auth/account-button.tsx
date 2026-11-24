@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { ArrowRight, Briefcase, LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -97,6 +97,10 @@ export function AccountButton() {
               <Link to={panelTo} className="flex h-12 items-center gap-3 rounded-xl px-2 text-base font-semibold text-white/90">
                 {businessId ? <LayoutDashboard className="h-5 w-5 text-violet-300" /> : <UserRound className="h-5 w-5 text-violet-300" />}
                 {businessId ? "Ir a mi panel" : "Mi perfil"}
+              </Link>
+              <Link to="/bolsa-de-trabajo" className="flex h-12 items-center gap-3 rounded-xl px-2 text-base font-semibold text-white/90">
+                <Briefcase className="h-5 w-5 text-violet-300" />
+                Ir a bolsa de trabajo
               </Link>
               <button type="button" onClick={() => void signOut().then(() => setOpen(false))} className="flex h-12 w-full items-center gap-3 rounded-xl px-2 text-left text-base font-semibold text-red-400">
                 <LogOut className="h-5 w-5" />
