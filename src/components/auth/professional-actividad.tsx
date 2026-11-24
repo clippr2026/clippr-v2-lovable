@@ -138,7 +138,6 @@ export function ProfessionalActividad() {
 
                 {r.state === "enviada" && (
                   <div className="space-y-3">
-                    <span className="inline-flex rounded-full bg-violet-400/20 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-300/40">Pendiente de respuesta</span>
                     <div className="flex justify-center">
                       <button type="button" disabled={busy} onClick={() => void cancel(r)} className="h-10 w-4/5 rounded-full bg-rose-500/15 px-6 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/40 disabled:opacity-60">
                         Cancelar solicitud
