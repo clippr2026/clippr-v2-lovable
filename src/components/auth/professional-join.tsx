@@ -72,14 +72,14 @@ export function ProfessionalJoin() {
   );
 }
 
-// Solicitudes que envió la persona (por código o desde una oferta) y cómo van. Las invitaciones de los negocios
-// (estado "invited") se responden aparte, en la tarjeta "Barberías que te solicitaron".
+// Solicitudes que envió la persona (por código o desde una oferta) y cómo van. Las invitaciones de los locales se
+// responden aparte, en "Barberías que te solicitaron".
 export function MyRequestsList() {
   const [rows, setRows] = React.useState<MyRequest[]>([]);
   React.useEffect(() => {
     void (async () => {
       const { data } = await (supabase as any).rpc("my_join_requests");
-      setRows(((data as MyRequest[] | null) ?? []).filter((r) => r.status !== "invited"));
+      setRows(((data as MyRequest[] | null) ?? []).filter((r) => r.initiated_by !== "business"));
     })();
   }, []);
   if (rows.length === 0) return null;
