@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Briefcase, Building2, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
+import { Briefcase, Building2, Pencil, Cake, Camera, Star, Flag, Image as ImageIcon, Instagram, MapPin, MessageCircle, Plus, Tag, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarCropper } from "@/components/settings/avatar-cropper";
@@ -45,55 +45,87 @@ type RefDraft = { key: string; place: string; locality: string; from: string; to
 const MAX_REFS = 10;
 
 function ReferencesEditor({ refs, setRefs }: { refs: RefDraft[]; setRefs: React.Dispatch<React.SetStateAction<RefDraft[]>> }) {
-  const set = (key: string, patch: Partial<RefDraft>) => setRefs((cur) => cur.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const mini = "h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
+  // Se edita una referencia por vez en un borrador; recién al tocar "Agregar"/"Listo" pasa a la lista.
+  const [draft, setDraft] = React.useState<RefDraft | null>(null);
+  const mini = "h-12 w-full min-w-0 rounded-2xl border border-white/10 bg-black/30 px-4 text-lg font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
+  const patch = (p: Partial<RefDraft>) => setDraft((d) => (d ? { ...d, ...p } : d));
+  const isEditing = draft !== null && refs.some((r) => r.key === draft.key);
+
+  function confirm() {
+    if (!draft) return;
+    if (!draft.place.trim()) return toast.error("Escribí el nombre del lugar");
+    setRefs((cur) => (cur.some((r) => r.key === draft.key) ? cur.map((r) => (r.key === draft.key ? draft : r)) : [...cur, draft]));
+    setDraft(null);
+  }
+
   return (
     <div>
       <Label icon={Building2} extra={<span className="text-sm font-medium text-white/50">{refs.length}/{MAX_REFS}</span>}>
         Referencias
       </Label>
-      <p className="mb-3 text-base text-white/55">
-        Lugares donde trabajaste. Solo las ve el dueño de un negocio cuando los dos aceptan.
-      </p>
-      <div className="space-y-3">
+      <p className="mb-3 text-base text-white/55">Lugares donde trabajaste.</p>
+      <div className="space-y-2">
         {refs.map((r) => (
-          <div key={r.key} className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-            <div className="flex gap-2">
-              <input value={r.place} onChange={(e) => set(r.key, { place: e.target.value.slice(0, 60) })} placeholder="Nombre del lugar" className={mini} />
-              <button
-                type="button"
-                aria-label="Quitar referencia"
-                onClick={() => setRefs((cur) => cur.filter((x) => x.key !== r.key))}
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/5 text-white/70 ring-1 ring-white/10"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <input value={r.locality} onChange={(e) => set(r.key, { locality: e.target.value.slice(0, 60) })} placeholder="Localidad" className={mini} />
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-white/55">Desde</span>
-                <input type="month" value={r.from} onChange={(e) => set(r.key, { from: e.target.value })} className={mini} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-white/55">Hasta</span>
-                <input type="month" value={r.to} onChange={(e) => set(r.key, { to: e.target.value })} className={mini} />
-              </label>
-            </div>
-            <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value.slice(0, 30) })} placeholder="Instagram del lugar" className={mini} />
-            <input
-              inputMode="tel"
-              value={r.whatsapp}
-              onChange={(e) => set(r.key, { whatsapp: e.target.value.replace(/[^\d+]/g, "").slice(0, 20) })}
-              placeholder="WhatsApp del lugar"
-              className={mini}
-            />
+          <div key={r.key} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] py-2 pl-4 pr-2">
+            <span className="min-w-0 flex-1 truncate text-lg font-semibold">{r.place}</span>
+            <button
+              type="button"
+              aria-label="Editar referencia"
+              onClick={() => setDraft({ ...r })}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-200 ring-1 ring-violet-400/30"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Quitar referencia"
+              onClick={() => setRefs((cur) => cur.filter((x) => x.key !== r.key))}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-white/70 ring-1 ring-white/10"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         ))}
-        {refs.length < MAX_REFS && (
+
+        {draft && (
+          <div className="space-y-3 rounded-2xl border border-violet-400/30 bg-white/[0.03] p-3">
+            <input autoFocus value={draft.place} onChange={(e) => patch({ place: e.target.value.slice(0, 60) })} placeholder="Nombre del lugar" className={mini} />
+            <input value={draft.locality} onChange={(e) => patch({ locality: e.target.value.slice(0, 60) })} placeholder="Localidad" className={mini} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block min-w-0">
+                <span className="mb-1 block text-sm font-medium text-white/55">Desde</span>
+                <input type="month" value={draft.from} onChange={(e) => patch({ from: e.target.value })} className={`${mini} px-3 text-base`} />
+              </label>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-sm font-medium text-white/55">Hasta</span>
+                <input type="month" value={draft.to} onChange={(e) => patch({ to: e.target.value })} className={`${mini} px-3 text-base`} />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input value={draft.instagram} onChange={(e) => patch({ instagram: e.target.value.slice(0, 30) })} placeholder="Instagram" className={`${mini} px-3 text-base`} />
+              <input
+                inputMode="tel"
+                value={draft.whatsapp}
+                onChange={(e) => patch({ whatsapp: e.target.value.replace(/[^\d+]/g, "").slice(0, 20) })}
+                placeholder="WhatsApp"
+                className={`${mini} px-3 text-base`}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setDraft(null)} className="h-12 flex-1 rounded-full bg-white/5 text-base font-semibold text-white/80 ring-1 ring-white/10">
+                Cancelar
+              </button>
+              <button type="button" onClick={confirm} className="h-12 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-base font-semibold text-white">
+                {isEditing ? "Listo" : "Agregar"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!draft && refs.length < MAX_REFS && (
           <button
             type="button"
-            onClick={() => setRefs((cur) => [...cur, { key: Math.random().toString(36).slice(2), place: "", locality: "", from: "", to: "", instagram: "", whatsapp: "" }])}
+            onClick={() => setDraft({ key: Math.random().toString(36).slice(2), place: "", locality: "", from: "", to: "", instagram: "", whatsapp: "" })}
             className="inline-flex h-11 items-center gap-1.5 rounded-full border border-dashed border-violet-400/50 px-4 text-base font-semibold text-violet-200"
           >
             <Plus className="h-4 w-4" /> Agregar referencia
