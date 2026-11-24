@@ -113,6 +113,7 @@ export function ProfessionalActividad() {
             l={r}
             footer={
               <div className="space-y-3">
+                {r.motive !== "alquiler" && <div className="text-lg font-semibold text-white">Oportunidad laboral</div>}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1 ${m.cls}`}>{m.label}</span>
                 </div>
