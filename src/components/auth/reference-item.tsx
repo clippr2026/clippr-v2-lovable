@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Instagram, MessageCircle } from "lucide-react";
+import { Instagram, MapPin, MessageCircle } from "lucide-react";
 
 export type RefRow = { id: string; place_name: string; locality: string | null; from_date: string | null; to_date: string | null; instagram: string | null; whatsapp: string | null };
 
@@ -22,7 +22,12 @@ export function RefItem({ x }: { x: RefRow }) {
       </div>
       {open && (
         <div className="mt-2 space-y-2">
-          {x.locality && <div className="text-sm text-white/70">{x.locality}</div>}
+          {x.locality && (
+            <div className="flex items-center gap-1.5 text-sm text-white/70">
+              <MapPin className="h-4 w-4 shrink-0 text-violet-300" />
+              {x.locality}
+            </div>
+          )}
           <div className="text-sm text-white/60">
             Desde {x.from_date ? monthLabel(x.from_date) : "—"} · Hasta {x.to_date ? monthLabel(x.to_date) : "Actualidad"}
           </div>
