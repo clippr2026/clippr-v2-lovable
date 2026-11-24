@@ -106,7 +106,7 @@ export function ProfileWwwButton({ userId }: { userId: string }) {
           {!hasProfile
             ? "Primero guardá tu perfil para poder mostrarlo."
             : listed
-              ? "Tu perfil se mostrará en la bolsa de trabajo pública, con tu WhatsApp para que te contacten."
+              ? "Tu perfil se mostrará en la bolsa de trabajo pública para que te contacten."
               : "Tu perfil no se muestra en la bolsa de trabajo pública."}
         </div>
 
