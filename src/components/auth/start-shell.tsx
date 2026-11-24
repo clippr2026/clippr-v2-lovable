@@ -18,12 +18,12 @@ export function StartShell({
     <div className="relative min-h-screen w-full overflow-hidden bg-[#05040b] text-white">
       <div className="pointer-events-none absolute inset-0">
         <div
-          className="absolute -top-[30%] -left-[18%] h-[780px] w-[780px] rounded-full opacity-35 blur-[130px]"
-          style={{ background: "radial-gradient(circle, oklch(0.52 0.22 260 / 0.58), transparent 66%)" }}
+          className="absolute -top-[30%] -left-[18%] h-[780px] w-[780px] rounded-full opacity-35"
+          style={{ background: "radial-gradient(circle, oklch(0.52 0.22 260 / 0.58), transparent 70%)" }}
         />
         <div
-          className="absolute -bottom-[32%] -right-[18%] h-[760px] w-[760px] rounded-full opacity-30 blur-[130px]"
-          style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 66%)" }}
+          className="absolute -bottom-[32%] -right-[18%] h-[760px] w-[760px] rounded-full opacity-30"
+          style={{ background: "radial-gradient(circle, oklch(0.58 0.24 310 / 0.48), transparent 70%)" }}
         />
       </div>
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-6">
