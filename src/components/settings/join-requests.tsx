@@ -1,13 +1,14 @@
 import * as React from "react";
 import { fmtRating } from "@/lib/rating";
 import { createPortal } from "react-dom";
-import { Cake, Copy, Info, Instagram, KeyRound, Lock, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
+import { Briefcase, Cake, Copy, Info, Instagram, KeyRound, Lock, MapPin, MessageCircle, RefreshCw, Star, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { RefItem, monthLabel, type RefRow } from "@/components/auth/reference-item";
 import { SectionTitle } from "@/components/auth/section-title";
+import { countryFlag } from "@/lib/countries";
 import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
 export type JoinRequest = {
@@ -145,8 +146,18 @@ function PendingCard({
             {age} años
           </span>
         )}
-        {years !== null && <span>{years} años en el rubro</span>}
-        {r.nationality && <span>{r.nationality}</span>}
+        {years !== null && (
+          <span className="inline-flex items-center gap-1.5">
+            <Briefcase className="h-4 w-4 text-violet-300" />
+            {years} años en el rubro
+          </span>
+        )}
+        {r.nationality && (
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden>{countryFlag(r.nationality)}</span>
+            {r.nationality}
+          </span>
+        )}
       </div>
 
       {!more && (

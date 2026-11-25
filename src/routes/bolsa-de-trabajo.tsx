@@ -2,6 +2,7 @@ import * as React from "react";
 import { fmtRating } from "@/lib/rating";
 import { RefItem } from "@/components/auth/reference-item";
 import { SectionTitle } from "@/components/auth/section-title";
+import { countryFlag } from "@/lib/countries";
 import { createPortal } from "react-dom";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
@@ -490,7 +491,18 @@ function BolsaPublicaPage() {
                         <span>{r.zone}{r.distKm != null ? ` · ${formatKm(r.distKm)}` : ""}</span>
                       </div>
                     )}
-                    {y !== null && <div className="font-bold text-white/90">{y} años en el rubro</div>}
+                    {y !== null && (
+                      <div className="flex items-center gap-2 font-bold text-white/90">
+                        <Briefcase className="h-4 w-4 shrink-0 text-violet-300" />
+                        {y} años en el rubro
+                      </div>
+                    )}
+                    {r.nationality && (
+                      <div className="flex items-center gap-2 text-white/80">
+                        <span aria-hidden>{countryFlag(r.nationality)}</span>
+                        {r.nationality}
+                      </div>
+                    )}
                   </div>
                   {r.photos && r.photos.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
