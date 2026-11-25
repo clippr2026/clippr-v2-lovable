@@ -388,7 +388,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
           <input
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder={conAsesor ? "Escribile al asesor..." : "Preguntale a Clippi..."}
+            placeholder={!conAsesor ? "Preguntale a Clippi..." : consulta?.respuestas.length ? "Escribile al asesor..." : "Sumá un detalle (opcional)..."}
             enterKeyHint="send"
             maxLength={conAsesor ? 1000 : 200}
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/40"
