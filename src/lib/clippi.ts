@@ -1,86 +1,12 @@
-// Clippi, el asistente de Clippr. Responde con una guía fija (sin inteligencia artificial ni costo):
-// busca palabras clave en la pregunta y ofrece un botón que lleva a la pantalla correspondiente.
+// Clippi, el asistente de Clippr. No usa inteligencia artificial (ni tiene costo): compara lo que
+// escribe la persona con las preguntas de clippi-respuestas.ts y elige la más parecida.
 import type { PermKey } from "@/hooks/use-auth";
+import { CLIPPI_TEMAS, type ClippiTema } from "./clippi-respuestas";
 
-export type ClippiDestino = { to: string; search?: Record<string, string> };
+export { CLIPPI_TEMAS };
+export type { ClippiTema, ClippiDestino } from "./clippi-respuestas";
 
-export type ClippiTema = {
-  id: string;
-  /** Texto del atajo y de la pregunta cuando se toca. */
-  titulo: string;
-  /** Palabras o frases (sin tildes) que identifican el tema. */
-  claves: string[];
-  respuesta: string;
-  boton: string;
-  destino: ClippiDestino;
-  /** Permiso necesario para ver la pantalla; sin él, el tema no se ofrece. */
-  permiso: PermKey;
-};
-
-export const CLIPPI_TEMAS: ClippiTema[] = [
-  { id: "servicio", titulo: "Crear un servicio", permiso: "configuracion",
-    claves: ["servicio", "precio", "duracion", "corte", "barba"],
-    respuesta: "En Configuración → Servicios podés crear un servicio nuevo y cambiar su precio o duración.",
-    boton: "Ir a Servicios", destino: { to: "/settings", search: { section: "servicios" } } },
-  { id: "reservas", titulo: "Revisar señas", permiso: "configuracion",
-    claves: ["sena", "deposito", "anticipo", "regla de reserva", "configurar reservas"],
-    respuesta: "Las señas y las reglas de reserva se configuran en Configuración → Reservas. Las señas por revisar te aparecen como aviso en Inicio y en Caja.",
-    boton: "Ir a Reservas", destino: { to: "/settings", search: { section: "senas" } } },
-  { id: "turno", titulo: "Agendar un turno", permiso: "agenda",
-    claves: ["turno", "agenda", "agendar", "reprogramar", "cancelar", "bloquear", "dia cerrado", "horario especial", "franco"],
-    respuesta: "En la Agenda podés agregar un turno, o tocar uno para verlo, cambiarlo o cancelarlo. Desde ahí también cargás un horario especial o un día cerrado.",
-    boton: "Abrir la Agenda", destino: { to: "/agenda" } },
-  { id: "horarios", titulo: "Cambiar los horarios", permiso: "configuracion",
-    claves: ["horario del local", "horarios", "apertura", "hora de cierre", "abrimos", "descanso"],
-    respuesta: "Los horarios del local están en Configuración → Página de reservas.",
-    boton: "Ir a Página de reservas", destino: { to: "/settings", search: { section: "branding" } } },
-  { id: "pagina", titulo: "Editar mi página", permiso: "configuracion",
-    claves: ["pagina", "web", "link", "enlace", "portada", "banner", "logo", "foto del local", "color", "reservas online"],
-    respuesta: "En Configuración → Página de reservas cambiás la portada, el logo y los colores. El link para compartir está en el botón WWW de arriba.",
-    boton: "Ir a Página de reservas", destino: { to: "/settings", search: { section: "branding" } } },
-  { id: "cobrar", titulo: "Cobrar o cargar un gasto", permiso: "caja",
-    claves: ["cobrar", "cobro", "venta", "gasto", "caja", "efectivo", "transferencia", "propina"],
-    respuesta: "En Caja registrás ventas y gastos y ves cuánto hay en efectivo y en el banco. Para cobrar tenés que haber fichado y tener la caja abierta.",
-    boton: "Abrir Caja", destino: { to: "/cash-register", search: { tab: "resumen" } } },
-  { id: "cierres", titulo: "Ver cierres de caja", permiso: "caja",
-    claves: ["cierre", "cerrar caja", "arqueo", "historial"],
-    respuesta: "Los cierres están en Caja → Cierres. Ahí revisás los días pendientes y el historial.",
-    boton: "Ver cierres", destino: { to: "/cash-register", search: { tab: "cierres" } } },
-  { id: "liquidaciones", titulo: "Pagar al equipo", permiso: "caja",
-    claves: ["liquid", "comision", "sueldo", "pagar al equipo", "adelanto", "pago a barbero"],
-    respuesta: "En Caja → Liquidaciones ves comisiones, propinas y adelantos de cada profesional antes de pagar.",
-    boton: "Ir a Liquidaciones", destino: { to: "/cash-register", search: { tab: "profesionales" } } },
-  { id: "inventario", titulo: "Revisar el stock", permiso: "caja",
-    claves: ["stock", "inventario", "producto", "mercaderia"],
-    respuesta: "En Caja → Inventario consultás el stock y registrás entradas y retiros.",
-    boton: "Ir a Inventario", destino: { to: "/cash-register", search: { tab: "inventario" } } },
-  { id: "equipo", titulo: "Sumar un barbero", permiso: "configuracion",
-    claves: ["barbero", "equipo", "profesional", "empleado", "permiso", "acceso", "invitar"],
-    respuesta: "En Configuración → Equipo sumás profesionales, cambiás sus fotos y definís qué puede ver cada uno.",
-    boton: "Ir a Equipo", destino: { to: "/settings", search: { section: "equipo" } } },
-  { id: "tardanza", titulo: "Fichaje y tardanzas", permiso: "configuracion",
-    claves: ["fichaje", "fichar", "asistencia", "tardanza", "llegada tarde", "presentismo", "qr"],
-    respuesta: "Quién fichó se ve en Inicio, en «Fichaje de hoy», donde también está el QR. Las reglas de tardanza se cambian en Configuración.",
-    boton: "Ir a Reglas de tardanza", destino: { to: "/settings", search: { section: "tardanza" } } },
-  { id: "clientes", titulo: "Buscar un cliente", permiso: "clientes",
-    claves: ["cliente", "contactar", "whatsapp", "perdido", "volver"],
-    respuesta: "En Clientes podés buscar a cualquiera, ver su historial y encontrar a quienes dejaron de venir para contactarlos.",
-    boton: "Ir a Clientes", destino: { to: "/clients" } },
-  { id: "resenas", titulo: "Ver las reseñas", permiso: "configuracion",
-    claves: ["resena", "opinion", "estrella", "calificacion"],
-    respuesta: "En Configuración → Reseñas ves las opiniones y elegís cuáles destacar en tu página.",
-    boton: "Ir a Reseñas", destino: { to: "/settings", search: { section: "resenas" } } },
-  { id: "sucursales", titulo: "Sucursales", permiso: "configuracion",
-    claves: ["sucursal", "direccion", "ubicacion", "otro local"],
-    respuesta: "En Configuración → Sucursales administrás tus locales. Para cambiar de sucursal usá el selector de arriba.",
-    boton: "Ir a Sucursales", destino: { to: "/settings", search: { section: "sucursales" } } },
-  { id: "asesor", titulo: "¿Cómo va mi negocio?", permiso: "asesor_ia",
-    claves: ["como va", "ganancia", "facturacion", "reporte", "estadistica", "ocupacion", "rendimiento", "cuanto gane", "asesor"],
-    respuesta: "El Asesor IA te muestra ventas, clientes y ocupación para saber cómo va el negocio.",
-    boton: "Abrir el Asesor", destino: { to: "/advisor" } },
-];
-
-export type ClippiRespuesta = { texto: string; tema?: ClippiTema };
+export type ClippiRespuesta = { texto: string; tema?: ClippiTema; sugerencias?: ClippiTema[] };
 
 export function normalizar(texto: string): string {
   return texto
@@ -91,26 +17,104 @@ export function normalizar(texto: string): string {
     .trim();
 }
 
-export function responderClippi(pregunta: string, puede: (permiso: PermKey) => boolean): ClippiRespuesta {
-  const texto = ` ${normalizar(pregunta)}`;
-  // Cada clave vale su largo: una frase ("cerrar caja") pesa más que una palabra suelta ("caja").
-  // Se compara desde el comienzo de palabra, así "turnos" o "liquidar" también cuentan.
-  let mejor: ClippiTema | undefined;
-  let puntos = 0;
-  for (const tema of CLIPPI_TEMAS) {
-    const exacto = normalizar(tema.titulo) === texto.trim() ? 1000 : 0;
-    const p = exacto + tema.claves.reduce((s, c) => (texto.includes(` ${c}`) ? s + c.length : s), 0);
-    if (p > puntos) {
-      mejor = tema;
-      puntos = p;
-    }
+// Palabras que no ayudan a distinguir una pregunta de otra.
+const VACIAS = new Set(
+  ("a al algo alguien como con cual de del desde donde el ella en es esa ese eso esta este esto ha hace hacer hago hay la las le les lo los me mi mis muy " +
+    "necesito no o para pero por porque puedo puede pueden que quiero quiere se ser si sin sobre su sus te tengo tiene tu un una uno unos y ya yo " +
+    "app clippr deja dejar favor saber ver veo voy va").split(" "),
+);
+
+// Distintas formas de decir lo mismo.
+const SINONIMOS: [RegExp, string][] = [
+  [/^(turnos?|citas?)$/, "turno"],
+  [/^(cobr)/, "cobrar"],
+  [/^(vent|vend)/, "venta"],
+  [/^(anul)/, "anular"],
+  [/^(correg|corrij|correccion|equivoq|equivoc|edit)/, "corregir"],
+  [/^(cancel)/, "cancelar"],
+  [/^(muev|mover|movi(?!mient)|cambi|modific|actualiz|reprogram)/, "cambiar"],
+  [/^(agreg|agrego|crea|creo|crear|sumar|sumo|carg|anot|pongo|poner|registr|nuev|alta)/, "crear"],
+  [/^(elimin|borr|quit|sac[aoq])/, "borrar"],
+  [/^(barber[os]*$|profesional|emplead|peluquer)/, "barbero"],
+  [/^(plata|dinero|guita)/, "plata"],
+  [/^(precio|cuesta|vale$|valor)/, "precio"],
+  [/^(contrasen|clave|password)/, "clave"],
+  [/^(foto|imagen)/, "foto"],
+  [/^(horario)/, "horario"],
+  [/^(liquid)/, "liquidar"],
+  [/^(comision)/, "comision"],
+  [/^(cierr|cerr)/, "cerrar"],
+  [/^(reabr)/, "reabrir"],
+  [/^(fich)/, "fichar"],
+  [/^(gast|egreso)/, "gasto"],
+  [/^(se[nñ]as?$|deposito|anticipo)/, "sena"],
+  [/^(avis|notific)/, "aviso"],
+  [/^(web|pagina|sitio)/, "pagina"],
+  [/^(link|enlace)/, "link"],
+  [/^(descuent|promo|ofert|rebaj)/, "promo"],
+  [/^(confirm)/, "confirmar"],
+  [/^(bloque)/, "bloquear"],
+];
+
+export function palabras(texto: string): string[] {
+  const salida = new Set<string>();
+  for (const p of normalizar(texto).split(" ")) {
+    if (!p || VACIAS.has(p)) continue;
+    const sinonimo = SINONIMOS.find(([patron]) => patron.test(p))?.[1];
+    // Sin plural: "servicios" y "servicio" cuentan igual.
+    salida.add(sinonimo ?? (p.length > 3 ? p.replace(/s$/, "") : p));
   }
-  if (mejor) {
-    return puede(mejor.permiso)
-      ? { texto: mejor.respuesta, tema: mejor }
+  return [...salida];
+}
+
+const INDICE = CLIPPI_TEMAS.map((tema) => ({
+  tema,
+  frases: [tema.titulo, ...tema.preguntas].map((f) => ({ texto: normalizar(f), palabras: palabras(f) })),
+}));
+
+// Una palabra que aparece en pocos temas ("propina") dice más que una que está en muchos ("cambiar").
+const USOS = new Map<string, number>();
+for (const { frases } of INDICE) {
+  for (const p of new Set(frases.flatMap((f) => f.palabras))) USOS.set(p, (USOS.get(p) ?? 0) + 1);
+}
+const peso = (p: string) => Math.log(1 + INDICE.length / (USOS.get(p) ?? 1));
+const sumar = (lista: string[]) => lista.reduce((s, p) => s + peso(p), 0);
+
+const SEGURO = 0.5;
+const DUDOSO = 0.22;
+
+export function responderClippi(pregunta: string, puede: (permiso: PermKey) => boolean): ClippiRespuesta {
+  const texto = normalizar(pregunta);
+  const mias = palabras(pregunta);
+  const candidatos = INDICE.map(({ tema, frases }) => {
+    let puntos = 0;
+    const propias = new Set(frases.flatMap((f) => f.palabras));
+    // Cuánto de lo que escribió la persona está en el tema…
+    const cubierto = mias.length ? sumar(mias.filter((p) => propias.has(p))) / sumar(mias) : 0;
+    for (const f of frases) {
+      if (f.texto === texto) return { tema, puntos: 2 };
+      const comunes = sumar(mias.filter((p) => f.palabras.includes(p)));
+      if (!comunes) continue;
+      // …y cuánto se parece a una de sus preguntas en particular.
+      const parecido = (2 * comunes) / (sumar(mias) + sumar(f.palabras));
+      puntos = Math.max(puntos, 0.7 * parecido + 0.3 * cubierto);
+    }
+    return { tema, puntos };
+  })
+    .filter((c) => c.puntos >= DUDOSO)
+    .sort((a, b) => b.puntos - a.puntos);
+
+  const [primero, segundo] = candidatos;
+  const permitido = (t: ClippiTema) => !t.permiso || puede(t.permiso);
+
+  if (primero && (primero.puntos >= SEGURO && (!segundo || primero.puntos - segundo.puntos >= 0.04 || primero.puntos >= 0.8))) {
+    return permitido(primero.tema)
+      ? { texto: primero.tema.respuesta, tema: primero.tema }
       : { texto: "Tu cuenta no tiene acceso a esa parte. Pedíselo al dueño o a quien administra el local." };
   }
-  if (/ (hola|buenas|buen dia|que tal)/.test(texto)) return { texto: "¡Hola! Contame qué querés hacer en Clippr." };
-  if (/ (gracias|genial|listo|perfecto)/.test(texto)) return { texto: "¡De nada! Acá estoy si necesitás otra cosa." };
-  return { texto: "Todavía no sé responder eso. Probá con otras palabras (por ejemplo «turno», «caja» o «servicio») o elegí uno de los atajos." };
+  const sugerencias = candidatos.map((c) => c.tema).filter(permitido).slice(0, 3);
+  if (sugerencias.length) return { texto: "¿Te referís a alguna de estas?", sugerencias };
+  return {
+    texto: "Todavía no sé responder eso. Contame en qué parte de la app estás (Agenda, Caja, Clientes, Configuración…) y qué querés hacer.",
+  };
 }

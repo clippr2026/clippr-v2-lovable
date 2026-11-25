@@ -10,7 +10,7 @@ const FOTO = "/clippi.webp";
 const SIN_BURBUJA = /^\/(cash-register|settings|fichaje-kiosco|fichar)(\/|$)/;
 const ATAJOS = 4;
 
-type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema };
+type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema; sugerencias?: ClippiTema[] };
 
 // La conversación se conserva al cambiar de pantalla (hasta recargar), separada por cuenta.
 let historial: { cuenta: string; mensajes: Mensaje[] } = { cuenta: "", mensajes: [] };
@@ -68,7 +68,8 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => (historial.cuenta === cuenta ? historial.mensajes : []));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
-  const atajos = CLIPPI_TEMAS.filter((t) => puede(t.permiso)).slice(0, ATAJOS);
+  // Si la última respuesta ofrece opciones, los atajos generales no se muestran.
+  const atajos = mensajes.at(-1)?.sugerencias ? [] : CLIPPI_TEMAS.filter((t) => !t.permiso || puede(t.permiso)).slice(0, ATAJOS);
 
   React.useEffect(() => {
     historial = { cuenta, mensajes };
@@ -85,7 +86,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     const limpia = pregunta.trim();
     if (!limpia) return;
     const r = responderClippi(limpia, puede);
-    setMensajes((m) => [...m, { de: "yo", texto: limpia }, { de: "clippi", texto: r.texto, tema: r.tema }]);
+    setMensajes((m) => [...m, { de: "yo", texto: limpia }, { de: "clippi", texto: r.texto, tema: r.tema, sugerencias: r.sugerencias }]);
     setTexto("");
   }
 
@@ -131,11 +132,25 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             ) : (
               <div key={i} className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm leading-relaxed">
                 {m.texto}
-                {m.tema && (
+                {m.sugerencias && (
+                  <div className="mt-2.5 flex flex-col items-start gap-2">
+                    {m.sugerencias.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => preguntar(s.titulo)}
+                        className="rounded-full border border-violet-400/70 bg-violet-500/20 px-4 py-2 text-left text-sm font-semibold"
+                      >
+                        {s.titulo}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {m.tema?.destino && (
                   <button
                     type="button"
                     onClick={() => {
-                      const { to, search } = m.tema!.destino;
+                      const { to, search } = m.tema!.destino!;
                       onClose();
                       void navigate({ to, search } as never);
                     }}
