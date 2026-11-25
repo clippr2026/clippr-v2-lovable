@@ -3,7 +3,7 @@ import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowUp, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { bandeja, cerrarConsulta, mensajesDe, responder, type ConsultaBandeja, type ConsultaEstado, type ConsultaMensaje } from "@/lib/soporte";
+import { bandeja, cerrarConsulta, esPedidoDeAsesor, mensajesDe, responder, type ConsultaBandeja, type ConsultaEstado, type ConsultaMensaje } from "@/lib/soporte";
 
 export const Route = createFileRoute("/clippr")({
   head: () => ({ meta: [{ title: "Clippr — Panel" }] }),
@@ -125,13 +125,14 @@ function Conversacion({ consulta, volver }: { consulta: ConsultaBandeja; volver:
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
         <div className="text-base font-semibold text-white">{consulta.negocio || "Local sin nombre"}</div>
         <div className="break-words text-sm text-white/60">{[consulta.usuario, consulta.email].filter(Boolean).join(" · ")}</div>
-        {consulta.pantalla && <div className="text-xs text-white/45">Escribió desde {consulta.pantalla}</div>}
+        {/* Sucursal y equipo. Las consultas más viejas guardaban la dirección de la pantalla: no se muestra. */}
+        {consulta.pantalla && !consulta.pantalla.startsWith("/") && <div className="mt-0.5 text-xs text-white/45">{consulta.pantalla}</div>}
       </div>
       {error && <p className="text-sm text-rose-300">No se pudo cargar la conversación.</p>}
       {dato?.map((m) => (
         <div key={m.id} className={`w-fit max-w-[88%] whitespace-pre-line break-words rounded-2xl px-3.5 py-2.5 text-sm text-white ${m.autor === "asesor" ? "ml-auto bg-gradient-to-r from-sky-500 to-violet-500" : "border border-white/10 bg-white/[0.06]"}`}>
           <span className="mb-0.5 block text-[11px] font-bold uppercase tracking-wide text-white/60">
-            {m.autor === "asesor" ? "Vos" : m.autor === "clippi" ? "Clippi" : "Cliente"} · {cuando(m.creado_en)}
+            {m.autor === "asesor" ? "Vos" : m.autor === "clippi" && !esPedidoDeAsesor(m.texto) ? "Clippi" : "Cliente"} · {cuando(m.creado_en)}
           </span>
           {m.texto}
         </div>

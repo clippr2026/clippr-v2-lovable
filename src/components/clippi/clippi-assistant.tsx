@@ -5,7 +5,9 @@ import { ArrowRight, ArrowUp, Trash2, X } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
-import { escribirAsesor, marcarLeida, miConsulta, pedirAsesor, type MiConsulta } from "@/lib/soporte";
+import {
+  PIDE_ASESOR, PIDE_TRAS_PROBAR, describirEquipo, escribirAsesor, marcarLeida, miConsulta, pedirAsesor, type MiConsulta,
+} from "@/lib/soporte";
 
 const FOTO = "/clippi-v3.webp";
 // Pantallas con botones fijos abajo (Cobrar, Guardar): ahí la burbuja los taparía.
@@ -131,6 +133,7 @@ function useAreaVisible() {
 function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) => boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const area = useAreaVisible();
+  const { branches, activeBranchId } = useAuth();
   const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => leerChat(cuenta));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
@@ -188,14 +191,31 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     return () => window.clearInterval(reloj);
   }, [traerRespuestas]);
 
-  async function hablarConAsesor() {
+  async function hablarConAsesor(pedido: string) {
     if (consultando) return;
+    const yaAbierta = Boolean(consulta && consulta.estado !== "cerrada");
+    const previos = leerChat(cuenta).map((m) => ({ autor: m.de === "yo" ? ("usuario" as const) : ("clippi" as const), texto: m.texto }));
+    const confirmacion = "Listo, le pasé tu consulta a un asesor.";
+    agregar({ de: "yo", texto: pedido });
     setConsultando(true);
     try {
-      const previos = leerChat(cuenta).map((m) => ({ autor: m.de === "yo" ? ("usuario" as const) : ("clippi" as const), texto: m.texto }));
-      await pedirAsesor(previos.length ? previos : [{ autor: "usuario", texto: "Necesito ayuda" }], window.location.pathname);
+      const sucursal = branches.find((b) => b.id === activeBranchId)?.name;
+      const instalada =
+        window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+      const equipo = describirEquipo(navigator.userAgent, instalada, navigator.maxTouchPoints > 1);
+      const id = await pedirAsesor(
+        [
+          ...previos,
+          // Si todavía no había escrito nada, el pedido es su único mensaje.
+          { autor: previos.some((m) => m.autor === "usuario") ? "clippi" : "usuario", texto: pedido },
+          { autor: "clippi", texto: confirmacion },
+        ],
+        [sucursal, equipo].filter(Boolean).join(" · "),
+      );
+      // Con una consulta ya abierta la base no vuelve a copiar el chat: se avisa con un mensaje.
+      if (yaAbierta) await escribirAsesor(id, pedido);
       setConClippi(false);
-      agregar({ de: "clippi", texto: "Listo, le pasé tu consulta a un asesor." });
+      agregar({ de: "clippi", texto: confirmacion });
       await traerRespuestas().catch(() => {});
     } catch (e) {
       const limite = (e as Error).message.includes("limite");
@@ -330,16 +350,16 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             <div className="flex flex-wrap items-center gap-2">
               <span className="w-full text-sm font-semibold">¿Se resolvió?</span>
               <button type="button" onClick={resuelto} className="rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold">Sí</button>
-              <button type="button" onClick={() => void hablarConAsesor()} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">No, hablar con un asesor</button>
+              <button type="button" onClick={() => void hablarConAsesor(PIDE_TRAS_PROBAR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">No, hablar con un asesor</button>
             </div>
           )}
           {!consultando && !conAsesor && mensajes.at(-1)?.de === "clippi" && !mensajes.at(-1)?.derivar && (
-            <button type="button" onClick={() => void hablarConAsesor()} className="block text-sm font-semibold text-violet-300 underline underline-offset-4">
+            <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="block text-sm font-semibold text-violet-300 underline underline-offset-4">
               ¿No te sirvió? Hablar con un asesor
             </button>
           )}
           {!consultando && !conAsesor && mensajes.at(-1)?.derivar === "asesor" && (
-            <button type="button" onClick={() => void hablarConAsesor()} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">
+            <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">
               Hablar con un asesor
             </button>
           )}

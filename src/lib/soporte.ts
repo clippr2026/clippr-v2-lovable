@@ -15,8 +15,44 @@ async function llamar<T>(funcion: string, args?: Record<string, unknown>): Promi
   return data as T;
 }
 
-export const pedirAsesor = (mensajes: { autor: "usuario" | "clippi"; texto: string }[], pantalla: string) =>
-  llamar<string>("soporte_pedir_asesor", { p_mensajes: mensajes.slice(-20), p_pantalla: pantalla });
+// Lo que "dice" la persona al tocar el botón del asesor. Al crear la consulta se guarda como mensaje
+// de Clippi para que la lista del panel siga mostrando el problema; el panel lo muestra como del cliente.
+export const PIDE_TRAS_PROBAR = "No se resolvió, quiero hablar con un asesor";
+export const PIDE_ASESOR = "Quiero hablar con un asesor";
+export const esPedidoDeAsesor = (texto: string) => texto === PIDE_TRAS_PROBAR || texto === PIDE_ASESOR;
+
+/** "iPhone · Safari", "Android · app instalada": desde qué aparato escriben. */
+export function describirEquipo(agente: string, instalada: boolean, tactil = false): string {
+  const aparato = /iPhone/.test(agente)
+    ? "iPhone"
+    : /iPad/.test(agente) || (tactil && /Macintosh/.test(agente))
+      ? "iPad"
+      : /Android/.test(agente)
+        ? "Android"
+        : /Macintosh/.test(agente)
+          ? "Mac"
+          : /Windows/.test(agente)
+            ? "Windows"
+            : "Computadora";
+  const navegador = /Instagram/.test(agente)
+    ? "dentro de Instagram"
+    : /Edg(A|iOS)?\//.test(agente)
+      ? "Edge"
+      : /SamsungBrowser/.test(agente)
+        ? "Navegador Samsung"
+        : /Firefox|FxiOS/.test(agente)
+          ? "Firefox"
+          : /Chrome|CriOS/.test(agente)
+            ? "Chrome"
+            : /Safari/.test(agente)
+              ? "Safari"
+              : "navegador";
+  return `${aparato} · ${instalada ? "app instalada" : navegador}`;
+}
+
+// "origen" (sucursal y equipo) viaja en el campo que la base llama p_pantalla.
+export const pedirAsesor = (mensajes: { autor: "usuario" | "clippi"; texto: string }[], origen: string) =>
+  llamar<string>("soporte_pedir_asesor", { p_mensajes: mensajes.slice(-20), p_pantalla: origen.slice(0, 100) });
 export const escribirAsesor = (consulta: string, texto: string) => llamar<void>("soporte_escribir", { p_consulta: consulta, p_texto: texto });
 export const miConsulta = () => llamar<MiConsulta | null>("soporte_mi_consulta");
 export const marcarLeida = (consulta: string) => llamar<void>("soporte_marcar_leida", { p_consulta: consulta });
