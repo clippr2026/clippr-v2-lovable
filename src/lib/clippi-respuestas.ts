@@ -200,7 +200,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("problema", "Algo anda mal", ["algo anda mal", "no funciona", "tengo un problema", "hay un error", "se rompio", "la app falla", "necesito ayuda", "no entiendo nada"],
     "Contame qué está fallando y en qué parte de la app (Agenda, Caja, Clientes, Configuración…). Por ejemplo: «no me deja cobrar» o «no aparece un barbero en la web»."),
   t("lenta", "La app va lenta o no carga", ["se queda cargando", "la app esta lenta", "pantalla en blanco", "no carga la agenda", "se trabo"],
-    "Probá recargar la página y revisá tu conexión. Si usás la app instalada, cerrala del todo y volvé a abrirla. Si sigue igual, anotá en qué pantalla pasa."),
+    "Probá recargar la página y revisá tu conexión. Si usás la app instalada, cerrala del todo y volvé a abrirla."),
   t("persona", "Hablar con una persona", ["quiero hablar con alguien", "soporte", "contactar a clippr", "necesito un humano"],
     "Puedo pasarle tu consulta a un asesor. Te responde por este mismo chat."),
   t("quien", "¿Quién sos?", ["quien sos", "que podes hacer", "para que servis", "sos un robot"],

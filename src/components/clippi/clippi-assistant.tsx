@@ -195,7 +195,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       const previos = leerChat(cuenta).map((m) => ({ autor: m.de === "yo" ? ("usuario" as const) : ("clippi" as const), texto: m.texto }));
       await pedirAsesor(previos.length ? previos : [{ autor: "usuario", texto: "Necesito ayuda" }], window.location.pathname);
       setConClippi(false);
-      agregar({ de: "clippi", texto: "Listo, le pasé tu consulta a un asesor. Te va a responder por este chat. Si querés, sumá más detalles." });
+      agregar({ de: "clippi", texto: "Listo, le pasé tu consulta a un asesor." });
       await traerRespuestas().catch(() => {});
     } catch (e) {
       const limite = (e as Error).message.includes("limite");

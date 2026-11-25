@@ -138,7 +138,7 @@ function respuestaDeFalla(texto: string, puede: (permiso: PermKey) => boolean): 
       ? { id: "falla", titulo: "", preguntas: [], respuesta: "", boton: "Volver a probar", destino: { to: pantalla.destino } }
       : undefined;
   return {
-    texto: `Si falla ${donde}, probá esto:\n1. Recargá la página (en la app instalada, cerrala del todo y abrila de nuevo).\n2. Revisá tu conexión: probá con wifi o con datos.\n3. Si sigue igual, anotá la hora y qué tocaste justo antes.`,
+    texto: `Si falla ${donde}, probá esto:\n1. Recargá la página (en la app instalada, cerrala del todo y abrila de nuevo).\n2. Revisá tu conexión: probá con wifi o con datos.`,
     tema,
     derivar: "resolvio",
   };
