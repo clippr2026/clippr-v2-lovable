@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
+import { Brain, Briefcase, Calendar, Clock, HandCoins, Package, Star, Users, Wallet, type LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 // Carrusel de Inicio para descubrir qué se puede hacer en la app. Se desliza con el dedo (no avanza solo). Todos ven
@@ -8,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 type Modulo = {
   id: string;
   nombre: string;
+  icono: LucideIcon;
   titulo: string;
   descripcion: string;
   // Color en el que termina el degradado de la tarjeta (arranca casi negro).
@@ -17,16 +19,16 @@ type Modulo = {
 };
 
 const MODULOS: Modulo[] = [
-  { id: "agenda", nombre: "Agenda", titulo: "Reservas online", descripcion: "Recibí turnos desde tu página y organizá la agenda de tu equipo.", color: "#b52f7d", to: "/agenda" },
-  { id: "caja", nombre: "Caja", titulo: "Control de caja", descripcion: "Registrá ventas y gastos, y revisá tus cierres diarios.", color: "#e0345c", to: "/cash-register", search: { tab: "resumen" } },
-  { id: "liquidaciones", nombre: "Liquidaciones", titulo: "Pagos al equipo", descripcion: "Revisá comisiones, propinas y adelantos antes de liquidar.", color: "#1763c9", to: "/cash-register", search: { tab: "profesionales" } },
-  { id: "clientes", nombre: "Clientes", titulo: "Hacé que vuelvan", descripcion: "Identificá a quienes dejaron de venir y contactalos.", color: "#c0267a", to: "/clients" },
-  { id: "inventario", nombre: "Inventario", titulo: "Stock al día", descripcion: "Consultá tu stock y registrá entradas y retiros.", color: "#b4560c", to: "/cash-register", search: { tab: "inventario" } },
-  { id: "asesor", nombre: "Asesor IA", titulo: "Análisis diario", descripcion: "Revisá tus ventas, clientes y ocupación para saber cómo va tu negocio.", color: "#0e7f9e", to: "/advisor" },
-  { id: "bolsa", nombre: "Bolsa de trabajo", titulo: "Conectá con profesionales", descripcion: "Publicá ofertas de trabajo o puestos en alquiler y recibí solicitudes.", color: "#7c3aed", to: "/settings", search: { section: "bolsa" } },
-  { id: "resenas", nombre: "Reseñas", titulo: "Opiniones de tus clientes", descripcion: "Revisá las reseñas que recibís y elegí cuáles destacar en tu página.", color: "#a86a08", to: "/settings", search: { section: "resenas" } },
+  { id: "agenda", nombre: "Agenda", icono: Calendar, titulo: "Reservas online", descripcion: "Recibí turnos desde tu página y organizá la agenda de tu equipo.", color: "#b52f7d", to: "/agenda" },
+  { id: "caja", nombre: "Caja", icono: Wallet, titulo: "Control de caja", descripcion: "Registrá ventas y gastos, y revisá tus cierres diarios.", color: "#e0345c", to: "/cash-register", search: { tab: "resumen" } },
+  { id: "liquidaciones", nombre: "Liquidaciones", icono: HandCoins, titulo: "Pagos al equipo", descripcion: "Revisá comisiones, propinas y adelantos antes de liquidar.", color: "#1763c9", to: "/cash-register", search: { tab: "profesionales" } },
+  { id: "clientes", nombre: "Clientes", icono: Users, titulo: "Hacé que vuelvan", descripcion: "Identificá a quienes dejaron de venir y contactalos.", color: "#c0267a", to: "/clients" },
+  { id: "inventario", nombre: "Inventario", icono: Package, titulo: "Stock al día", descripcion: "Consultá tu stock y registrá entradas y retiros.", color: "#b4560c", to: "/cash-register", search: { tab: "inventario" } },
+  { id: "asesor", nombre: "Asesor IA", icono: Brain, titulo: "Análisis diario", descripcion: "Revisá tus ventas, clientes y ocupación para saber cómo va tu negocio.", color: "#0e7f9e", to: "/advisor" },
+  { id: "bolsa", nombre: "Bolsa de trabajo", icono: Briefcase, titulo: "Conectá con profesionales", descripcion: "Publicá ofertas de trabajo o puestos en alquiler y recibí solicitudes.", color: "#7c3aed", to: "/settings", search: { section: "bolsa" } },
+  { id: "resenas", nombre: "Reseñas", icono: Star, titulo: "Opiniones de tus clientes", descripcion: "Revisá las reseñas que recibís y elegí cuáles destacar en tu página.", color: "#a86a08", to: "/settings", search: { section: "resenas" } },
   // Sin destino fijo: abre el listado de asistencia del día (o la configuración de fichaje si todavía no se puede).
-  { id: "fichaje", nombre: "Fichaje", titulo: "Asistencia del equipo", descripcion: "Registrá entradas y salidas, y consultá quién ya fichó.", color: "#0d8578" },
+  { id: "fichaje", nombre: "Fichaje", icono: Clock, titulo: "Asistencia del equipo", descripcion: "Registrá entradas y salidas, y consultá quién ya fichó.", color: "#0d8578" },
 ];
 
 export const EVENTO_VER_ASISTENCIA = "clippr:ver-asistencia";
@@ -34,7 +36,8 @@ export const EVENTO_VER_ASISTENCIA = "clippr:ver-asistencia";
 function Contenido({ m }: { m: Modulo }) {
   return (
     <>
-      <span className="inline-flex rounded-full bg-black/35 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-black/35 py-1 pl-2 pr-2.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
+        <m.icono aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
         {m.nombre}
       </span>
       <span className="mt-1.5 block text-[19px] font-extrabold leading-tight text-white">{m.titulo}</span>
