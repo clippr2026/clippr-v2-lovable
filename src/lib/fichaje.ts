@@ -1,5 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
-import { DAY_KEYS, normalizeEmployeeSchedule, parseTimeStrict } from "@/lib/availability";
+import {
+  DAY_KEYS,
+  normalizeDaySchedule,
+  normalizeEmployeeSchedule,
+  normalizeSchedule,
+  parseTimeStrict,
+  resolveDaySchedule,
+  type EmployeeSpecialDateMap,
+  type ScheduleMap,
+  type SpecialDateMap,
+} from "@/lib/availability";
 import { getJornadaRecepcionMap, jornadaEmailKey } from "@/lib/jornada-recepcion";
 
 // Fichaje de jornada — kiosco QR/código por sucursal, entrada/salida desde
@@ -147,7 +157,45 @@ export type FichajeHoySummary = {
   pendientes: number;
   fichadosDetalle: FichajeHoyPersona[];
   pendientesNames: string[];
+  // Personas con jornada hoy (más quien haya fichado sin tenerla): base del "N de M ficharon" y del listado del día.
+  total: number;
+  roster: Array<{ id: string; name: string; session: FichajeHoyPersona | null }>;
 };
+
+// IDs de profesionales que HOY no tienen jornada (día libre propio, excepción puntual o negocio cerrado). Mismo
+// criterio que Agenda (resolveDaySchedule); si no hay ningún horario configurado, se los considera con jornada.
+async function profesionalesSinJornadaHoy(businessId: string, ids: string[]): Promise<Set<string>> {
+  const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+  const raw = ((data?.schedule ?? {}) as Record<string, any>) || {};
+  const biz = normalizeSchedule(raw);
+  const empSchedules: Record<string, ScheduleMap> = {};
+  for (const [id, value] of Object.entries((raw._employeeSchedules ?? {}) as Record<string, unknown>)) {
+    const n = normalizeEmployeeSchedule(value);
+    if (n) empSchedules[id] = n;
+  }
+  const bizSpecial: SpecialDateMap = {};
+  for (const [k, v] of Object.entries((raw._specialDates ?? {}) as Record<string, unknown>)) {
+    const n = normalizeDaySchedule(v);
+    if (n) bizSpecial[k] = n;
+  }
+  const empSpecial: EmployeeSpecialDateMap = {};
+  for (const [id, byDate] of Object.entries((raw._employeeSpecialDates ?? {}) as Record<string, Record<string, unknown>>)) {
+    if (!byDate || typeof byDate !== "object") continue;
+    const map: SpecialDateMap = {};
+    for (const [k, v] of Object.entries(byDate)) {
+      const n = normalizeDaySchedule(v);
+      if (n) map[k] = n;
+    }
+    empSpecial[id] = map;
+  }
+  const now = new Date();
+  const off = new Set<string>();
+  for (const id of ids) {
+    const day = resolveDaySchedule(biz, empSchedules, bizSpecial, empSpecial, id, now);
+    if (day && day.enabled === false) off.add(id);
+  }
+  return off;
+}
 
 // Resumen para la tarjeta "Fichaje de jornada" de Inicio — cuántos
 // profesionales de esta sucursal ya ficharon hoy vs cuántos todavía no
@@ -218,11 +266,18 @@ export async function getTodayFichajeSummary(
     if (m.branch_id && m.branch_id !== branchId) continue;
     activos.push({ id: m.auth_user_id, full_name: m.full_name || "Recepción" });
   }
+  const sinJornada = await profesionalesSinJornadaHoy(
+    businessId,
+    ((employees ?? []) as { id: string }[]).map((e) => e.id),
+  );
   const fichadosDetalle: FichajeHoyPersona[] = [];
   const pendientesNames: string[] = [];
+  const roster: FichajeHoySummary["roster"] = [];
 
   for (const e of activos) {
     const s = latestByEmployee.get(e.id);
+    // Sin jornada hoy y sin fichar: no cuenta ni como pendiente.
+    if (!s && sinJornada.has(e.id)) continue;
     if (s) {
       fichadosDetalle.push({
         id: e.id,
@@ -235,8 +290,10 @@ export async function getTodayFichajeSummary(
         inSelfiePath: s.clock_in_selfie_path ?? null,
         outSelfiePath: s.clock_out_selfie_path ?? null,
       });
+      roster.push({ id: e.id, name: e.full_name ?? "Profesional", session: fichadosDetalle[fichadosDetalle.length - 1] });
     } else {
       pendientesNames.push(e.full_name ?? "Profesional");
+      roster.push({ id: e.id, name: e.full_name ?? "Profesional", session: null });
     }
   }
 
@@ -255,6 +312,8 @@ export async function getTodayFichajeSummary(
     pendientes: pendientesNames.length,
     fichadosDetalle,
     pendientesNames,
+    total: roster.length,
+    roster,
   };
 }
 

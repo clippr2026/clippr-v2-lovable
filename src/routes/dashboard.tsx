@@ -12,14 +12,12 @@ import {
 import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
-import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
+import { FichajeHoyCard } from "@/components/dashboard/fichaje-hoy-card";
 import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { NegocioHero } from "@/components/dashboard/negocio-hero";
-import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
-import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
   TrendingUp,
@@ -171,16 +169,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         activeBranches={activeBranches}
         branchesLoading={branchesLoading}
       />
-      {/* Clientes con saldo pendiente y demás avisos, arriba de "Caja de hoy" (van dentro de CajaHoyCard). */}
       <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
       <SenasExtensionBanner businessId={businessId} branchId={activeBranchId} onClosed={() => void cajaHoy.refresh()} />
       <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
 
-      {/* Próximos turnos + Actividad reciente */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <ProximosTurnosCard widgets={inicioWidgets} />
-        <ActividadRecienteCard widgets={inicioWidgets} />
-      </section>
+      {/* Próximos turnos */}
+      <ProximosTurnosCard widgets={inicioWidgets} />
     </div>
   );
 }
@@ -316,8 +310,6 @@ function CajaHoyCard({
         </div>
       ) : null}
 
-      <DeudaClientesBanner />
-
       <SenasCajaCard businessId={bizId} branchId={activeBranchId} onChanged={() => void caja.refresh()} variant="avisos" />
       </div>
 
@@ -436,247 +428,6 @@ function diaYHoraCorta(iso: string) {
   return `${diaLabel} · ${horaCorta(iso)}`;
 }
 
-function FichajeHoyCard({
-  fichaje,
-  branchId,
-  activeBranches,
-  branchesLoading,
-}: {
-  fichaje: ReturnType<typeof useFichajeHoy>;
-  branchId: string | null;
-  activeBranches: Branch[];
-  branchesLoading: boolean;
-}) {
-  const { setActiveBranchId } = useAuth();
-  const [qrOpen, setQrOpen] = React.useState(false);
-  const branchName = activeBranches.find((b) => b.id === branchId)?.name ?? "";
-  // Selector propio (no <BranchSelector/>, que incluye inactivas): fichar
-  // en una sucursal desactivada no tiene sentido, así que acá solo se
-  // eligen entre las activas. Con 0 o 1 nunca se muestra — ver abajo.
-  const needsPicker = activeBranches.length >= 2;
-
-  // Un solo placeholder a la vez, en orden de prioridad — nunca "Elegí una
-  // sucursal" mientras todavía no se sabe cuántas hay (branchesLoading) ni
-  // cuando hay 0 o 1 (ahí no hay nada para elegir).
-  const placeholder = branchesLoading
-    ? "Cargando…"
-    : activeBranches.length === 0
-      ? "No hay sucursales activas. Activá una en Configuración → Sucursales para poder fichar."
-      : needsPicker && !branchId
-        ? "Elegí una sucursal."
-        : fichaje.loading || !fichaje.summary || !branchId
-          ? "Cargando…"
-          : null;
-
-  return (
-    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <ScanLine className="h-4 w-4 text-emerald-300" />
-          Fichaje de jornada
-        </div>
-        {needsPicker && !branchId && (
-          <select
-            value={branchId ?? ""}
-            onChange={(e) => setActiveBranchId(e.target.value)}
-            className="h-8 min-w-0 appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-xs font-semibold text-white outline-none transition hover:border-white/20 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/15"
-          >
-            {activeBranches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      {placeholder === "Cargando…" ? (
-        <FichajeHoyCardSkeleton />
-      ) : placeholder || !fichaje.summary || !branchId ? (
-        <div className="mt-3 text-sm text-muted-foreground">{placeholder ?? "Cargando…"}</div>
-      ) : (
-        <div className="mt-3 flex flex-row gap-3 sm:gap-4">
-          {/* QR + código — angosto a propósito, nunca ocupa la tarjeta
-              entera: el espacio real es para la lista de la derecha. Click
-              opcional para ampliarlo (útil en una tablet/mostrador). */}
-          <div className="flex w-[86px] shrink-0 flex-col items-center gap-1.5 sm:w-[110px]">
-            <button
-              type="button"
-              onClick={() => setQrOpen(true)}
-              className="group"
-              aria-label="Ampliar QR de fichaje"
-            >
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
-                  `${typeof window !== "undefined" ? window.location.origin : ""}/fichar/${branchId}?code=${fichaje.summary.code}`,
-                )}`}
-                alt="Código QR de fichaje"
-                width={78}
-                height={78}
-                className="rounded-xl border border-white/10 bg-white p-1.5 transition group-hover:brightness-95 sm:h-[94px] sm:w-[94px]"
-              />
-            </button>
-            <div className="text-center">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                Código
-              </div>
-              <div className="mt-0.5 font-mono text-sm font-bold tracking-[0.15em] text-foreground sm:text-base">
-                {fichaje.summary.code.slice(0, 3)} {fichaje.summary.code.slice(3)}
-              </div>
-            </div>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-              Hoy ficharon ({fichaje.summary.fichados})
-            </div>
-
-            {fichaje.summary.fichadosDetalle.length > 0 ? (
-              <div className="mt-1.5 flex items-stretch gap-2.5 overflow-x-auto pb-1.5 pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {fichaje.summary.fichadosDetalle.map((p) => (
-                  <FichajePersonaChip key={p.id} persona={p} />
-                ))}
-              </div>
-            ) : (
-              <div className="mt-1.5 text-xs text-muted-foreground">Todavía nadie fichó hoy.</div>
-            )}
-
-            {fichaje.summary.pendientesNames.length > 0 && (
-              <div className="mt-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                  Pendientes ({fichaje.summary.pendientes})
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {fichaje.summary.pendientesNames.map((name) => (
-                    <span key={name} className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-white/10">
-                      {name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {qrOpen && fichaje.summary && branchId && (
-        <FichajeQrModal
-          branchName={branchName}
-          code={fichaje.summary.code}
-          branchId={branchId}
-          onClose={() => setQrOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-// Silueta de la tarjeta mientras carga: misma estructura, mismas clases y
-// mismos tamaños que la tarjeta cargada (el texto va transparente sobre una
-// barra, así ocupa exactamente la misma altura), para que al llegar los datos
-// no se mueva nada — antes solo decía "Cargando…" en una franja baja y al
-// terminar la tarjeta crecía y empujaba todo lo de abajo.
-function FichajeHoyCardSkeleton() {
-  const bar = "w-fit rounded bg-white/10 text-transparent";
-  return (
-    <div role="status" aria-label="Cargando fichaje" className="mt-3 flex flex-row gap-3 animate-pulse sm:gap-4">
-      <div className="flex w-[86px] shrink-0 flex-col items-center gap-1.5 sm:w-[110px]">
-        <div className="h-[78px] w-[78px] rounded-xl border border-white/10 bg-white/[0.06] sm:h-[94px] sm:w-[94px]" />
-        <div className="text-center">
-          <div className={`mx-auto text-[9px] uppercase tracking-[0.18em] ${bar}`}>Código</div>
-          <div className={`mx-auto mt-0.5 font-mono text-sm font-bold tracking-[0.15em] sm:text-base ${bar}`}>ABC DEF</div>
-        </div>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className={`text-[10px] uppercase tracking-[0.18em] ${bar}`}>Hoy ficharon (0)</div>
-        <div className={`mt-1.5 text-xs ${bar}`}>Todavía nadie fichó hoy.</div>
-        <div className="mt-2.5">
-          <div className={`text-[10px] uppercase tracking-wider ${bar}`}>Pendientes (0)</div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {[64, 52, 72, 60].map((w) => (
-              <span key={w} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-transparent ring-1 ring-white/10" style={{ width: w }}>
-                .
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Solo 2 estados acá — "Temprano" se fusionó en "A tiempo" (llegar antes o
-// justo a horario nunca es un estado aparte). "Ausente"/"Pendiente" no
-// corresponden a esta chip (son los profesionales que SÍ ficharon); esos
-// dos viven en la sección "Pendientes" de más abajo.
-type Puntualidad = "a_tiempo" | "tarde";
-
-const PUNTUALIDAD_LABEL: Record<Puntualidad, string> = {
-  a_tiempo: "A tiempo",
-  tarde: "Tarde",
-};
-
-const PUNTUALIDAD_CLASS: Record<Puntualidad, string> = {
-  a_tiempo: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/25",
-  tarde: "bg-rose-400/10 text-rose-300 ring-rose-400/25",
-};
-
-// Mismo criterio exacto que clockIn (ver lib/fichaje.ts): sin tolerancia,
-// antes o justo a horario es "A tiempo", cualquier minuto después es
-// "Tarde". Comparación sobre la hora real, nunca sobre late_minutes
-// guardado (ese ya viene recortado a >= 0, no sirve para esta distinción).
-function puntualidadDe(persona: FichajeHoyPersona): Puntualidad | null {
-  if (!persona.expectedStartAt) return null;
-  const diffMin = Math.round(
-    (new Date(persona.clockInAt).getTime() - new Date(persona.expectedStartAt).getTime()) / 60000,
-  );
-  return diffMin <= 0 ? "a_tiempo" : "tarde";
-}
-
-function inicialAvatar(name: string) {
-  return (name.trim()[0] ?? "?").toUpperCase();
-}
-
-// Mini tarjeta de "Hoy ficharon" — una hilera horizontal con scroll propio
-// (ver contenedor en FichajeCard), cada persona separada visualmente con su
-// propio fondo/borde para que no se mezclen entre sí aunque fichen muchos.
-// Ancho fijo más generoso que antes (232px, no 186px) y en dos filas en vez
-// de una sola: con todo (nombre + programada + real + estado) apretado en
-// una línea, "En curso" quedaba cortado como "En…" — acá nunca se trunca,
-// cada dato tiene su propia etiqueta corta (Entrada/Salida).
-function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
-  const enCurso = persona.clockOutAt === null;
-  const puntualidad = puntualidadDe(persona);
-
-  return (
-    <div className="flex w-[232px] shrink-0 flex-col gap-1.5 rounded-xl bg-white/[0.035] px-3 py-2.5 ring-1 ring-white/10">
-      <div className="flex items-center gap-2">
-        <div className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/25 text-[11px] font-bold text-white ring-1 ring-white/10">
-          {inicialAvatar(persona.name)}
-        </div>
-        <div className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{persona.name}</div>
-        {puntualidad && (
-          <span
-            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
-          >
-            {PUNTUALIDAD_LABEL[puntualidad]}
-          </span>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
-        <span>
-          Entrada <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockInAt)}</span>
-        </span>
-        {enCurso ? (
-          <span className="font-medium text-emerald-300">En curso</span>
-        ) : (
-          <span>
-            Salida <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockOutAt as string)}</span>
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioWidgets> }) {
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
@@ -710,55 +461,6 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
               <div className="shrink-0 text-xs font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</div>
             </div>
           ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActividadRecienteCard({ widgets }: { widgets: ReturnType<typeof useInicioWidgets> }) {
-  function describe(item: ActividadItem) {
-    if (item.kind === "cobro") {
-      return {
-        icon: Receipt,
-        title: `Cobro a ${item.client_name ?? "cliente"}`,
-        detail: [fmtAR(item.total), item.service_name, item.employee_name].filter(Boolean).join(" · "),
-      };
-    }
-    return {
-      icon: CalendarClock,
-      title: `Turno: ${item.client_name ?? "cliente"}`,
-      detail: [diaYHoraCorta(item.starts_at), item.service_name, item.employee_name && `con ${item.employee_name}`]
-        .filter(Boolean)
-        .join(" · "),
-    };
-  }
-
-  return (
-    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
-      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Activity className="h-4 w-4 text-sky-300" />
-        Actividad reciente
-      </div>
-      <div className="mt-3 space-y-2">
-        {widgets.loading ? (
-          <div className="text-sm text-muted-foreground">Cargando…</div>
-        ) : widgets.actividad.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Sin actividad reciente.</div>
-        ) : (
-          widgets.actividad.map((item) => {
-            const { icon: Icon, title, detail } = describe(item);
-            return (
-              <div key={`${item.kind}-${item.id}`} className="flex items-start gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
-                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="break-words text-sm font-medium leading-snug text-foreground">{title}</div>
-                  {detail && <div className="break-words text-xs leading-snug text-muted-foreground">{detail}</div>}
-                </div>
-                <div className="shrink-0 pt-0.5 text-xs text-muted-foreground">{cuandoCorto(item.at)}</div>
-              </div>
-            );
-          })
         )}
       </div>
     </div>

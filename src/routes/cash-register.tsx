@@ -3,6 +3,7 @@ import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { CajaHoyBloque } from "@/components/caja/caja-hoy-bloque";
+import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
@@ -13554,6 +13555,9 @@ function FacturacionPanel({
       <div className="flex flex-col gap-3 empty:hidden">
         <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} variant="avisos" />
       </div>
+
+      {/* Clientes con saldo pendiente, arriba de "Caja de hoy". */}
+      <DeudaClientesBanner />
 
       <CajaHoyBloque
         ingresos={data.revHoy}
