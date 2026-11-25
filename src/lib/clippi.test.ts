@@ -84,6 +84,13 @@ describe("responderClippi", () => {
     expect(tema("no me deja cobrar")).toBe("no-puedo-cobrar");
     expect(tema("como cierro la caja")).toBe("cerrar-caja");
   });
+  it("ofrece un asesor cuando no puede resolver", () => {
+    expect(responderClippi("el asesor se tilda", todo).derivar).toBe("resolvio");
+    expect(responderClippi("no me deja cobrar", todo).derivar).toBe("resolvio");
+    expect(responderClippi("quiero hablar con una persona", todo).derivar).toBe("asesor");
+    expect(responderClippi("xyz qwerty", todo).derivar).toBe("asesor");
+    expect(responderClippi("como cierro la caja", todo).derivar).toBeUndefined();
+  });
   it("tolera errores de tipeo", () => {
     expect(tema("como cancelo un turmo")).toBe("turno-cancelar");
     expect(tema("quiero anluar una venta")).toBe("anular");

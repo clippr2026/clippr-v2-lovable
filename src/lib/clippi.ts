@@ -12,7 +12,13 @@ export const CLIPPI_TEMAS: ClippiTema[] = [...BASE, ...CLIPPI_TEMAS_EXTRA].map((
 }));
 export type { ClippiTema, ClippiDestino } from "./clippi-respuestas";
 
-export type ClippiRespuesta = { texto: string; tema?: ClippiTema; sugerencias?: ClippiTema[] };
+export type ClippiRespuesta = {
+  texto: string;
+  tema?: ClippiTema;
+  sugerencias?: ClippiTema[];
+  /** "resolvio": preguntar si se resolvió. "asesor": ofrecer hablar con un asesor. */
+  derivar?: "resolvio" | "asesor";
+};
 
 export function normalizar(texto: string): string {
   return texto
@@ -132,8 +138,9 @@ function respuestaDeFalla(texto: string, puede: (permiso: PermKey) => boolean): 
       ? { id: "falla", titulo: "", preguntas: [], respuesta: "", boton: "Volver a probar", destino: { to: pantalla.destino } }
       : undefined;
   return {
-    texto: `Si falla ${donde}, probá esto:\n1. Recargá la página (en la app instalada, cerrala del todo y abrila de nuevo).\n2. Revisá tu conexión: probá con wifi o con datos.\n3. Si sigue igual, anotá la hora y qué tocaste justo antes, y avisale a quien administra Clippr.`,
+    texto: `Si falla ${donde}, probá esto:\n1. Recargá la página (en la app instalada, cerrala del todo y abrila de nuevo).\n2. Revisá tu conexión: probá con wifi o con datos.\n3. Si sigue igual, anotá la hora y qué tocaste justo antes.`,
     tema,
+    derivar: "resolvio",
   };
 }
 
@@ -169,12 +176,17 @@ export function responderClippi(pregunta: string, puede: (permiso: PermKey) => b
 
   if (primero && (primero.puntos >= SEGURO && (!segundo || primero.puntos - segundo.puntos >= 0.04 || primero.puntos >= 0.8))) {
     return permitido(primero.tema)
-      ? { texto: primero.tema.respuesta, tema: primero.tema }
+      ? {
+          texto: primero.tema.respuesta,
+          tema: primero.tema,
+          derivar: primero.tema.id === "persona" || primero.tema.id === "insulto" ? "asesor" : TEMAS_DE_FALLA.has(primero.tema.id) || primero.tema.id === "lenta" ? "resolvio" : undefined,
+        }
       : { texto: "Tu cuenta no tiene acceso a esa parte. Pedíselo al dueño o a quien administra el local." };
   }
   const sugerencias = candidatos.map((c) => c.tema).filter(permitido).slice(0, 3);
   if (sugerencias.length) return { texto: "¿Te referís a alguna de estas?", sugerencias };
   return {
-    texto: "Todavía no sé responder eso. Contame en qué parte de la app estás (Agenda, Caja, Clientes, Configuración…) y qué querés hacer.",
+    texto: "Todavía no sé responder eso. Contame en qué parte de la app estás (Agenda, Caja, Clientes, Configuración…) y qué querés hacer, o hablá con un asesor.",
+    derivar: "asesor",
   };
 }

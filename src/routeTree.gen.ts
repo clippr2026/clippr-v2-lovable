@@ -20,6 +20,7 @@ import { Route as BolsaDeTrabajoRouteImport } from './routes/bolsa-de-trabajo'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
 import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as ClipprRouteImport } from './routes/clippr'
 import { Route as CrearCuentaRouteImport } from './routes/crear-cuenta'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EmpezarRouteImport } from './routes/empezar'
@@ -101,6 +102,11 @@ const CashRegisterLiquidacionesCompactoRoute =
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClipprRoute = ClipprRouteImport.update({
+  id: '/clippr',
+  path: '/clippr',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrearCuentaRoute = CrearCuentaRouteImport.update({
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/clippr': typeof ClipprRoute
   '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
   '/empezar': typeof EmpezarRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/clippr': typeof ClipprRoute
   '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
   '/empezar': typeof EmpezarRoute
@@ -326,6 +334,7 @@ export interface FileRoutesById {
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
+  '/clippr': typeof ClipprRoute
   '/crear-cuenta': typeof CrearCuentaRoute
   '/dashboard': typeof DashboardRoute
   '/empezar': typeof EmpezarRoute
@@ -367,6 +376,7 @@ export interface FileRouteTypes {
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/clippr'
     | '/crear-cuenta'
     | '/dashboard'
     | '/empezar'
@@ -406,6 +416,7 @@ export interface FileRouteTypes {
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/clippr'
     | '/crear-cuenta'
     | '/dashboard'
     | '/empezar'
@@ -445,6 +456,7 @@ export interface FileRouteTypes {
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
+    | '/clippr'
     | '/crear-cuenta'
     | '/dashboard'
     | '/empezar'
@@ -485,6 +497,7 @@ export interface RootRouteChildren {
   CashRegisterRoute: typeof CashRegisterRoute
   CashRegisterLiquidacionesCompactoRoute: typeof CashRegisterLiquidacionesCompactoRoute
   ClientsRoute: typeof ClientsRoute
+  ClipprRoute: typeof ClipprRoute
   CrearCuentaRoute: typeof CrearCuentaRoute
   DashboardRoute: typeof DashboardRoute
   EmpezarRoute: typeof EmpezarRoute
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clippr': {
+      id: '/clippr'
+      path: '/clippr'
+      fullPath: '/clippr'
+      preLoaderRoute: typeof ClipprRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crear-cuenta': {
@@ -790,6 +810,7 @@ const rootRouteChildren: RootRouteChildren = {
   CashRegisterLiquidacionesCompactoRoute:
     CashRegisterLiquidacionesCompactoRoute,
   ClientsRoute: ClientsRoute,
+  ClipprRoute: ClipprRoute,
   CrearCuentaRoute: CrearCuentaRoute,
   DashboardRoute: DashboardRoute,
   EmpezarRoute: EmpezarRoute,

@@ -27,7 +27,7 @@ export function AppShell({
   // scrolleable desde el pixel uno, sea cual sea el contenido.
   containedScroll?: boolean;
 }) {
-  const { loading, session } = useAuth();
+  const { loading, session, profile } = useAuth();
   const { loading: navLoading, visible: hasBottomNav } = useMobileNavItems();
   const navigate = useNavigate();
 
@@ -55,6 +55,12 @@ export function AppShell({
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
+
+  // La cuenta de la plataforma Clippr no tiene local: va siempre a su panel.
+  const esPlataforma = profile?.role === "plataforma";
+  React.useEffect(() => {
+    if (!loading && session && esPlataforma) navigate({ to: "/clippr", replace: true });
+  }, [loading, session, esPlataforma, navigate]);
 
   if ((loading || !session) && !hasSessionRef.current) {
     return (
@@ -122,7 +128,7 @@ export function AppShell({
   // Sesión real cerrada (logout) después de haber estado autenticado: el
   // efecto de arriba ya está redirigiendo a /login. No volvemos a mostrar
   // el shell viejo con datos stale mientras eso ocurre.
-  if (!session) return null;
+  if (!session || esPlataforma) return null;
 
   return (
     <div className={containedScroll ? "flex flex-col h-dvh w-full overflow-hidden" : "flex flex-col min-h-dvh w-full"}>

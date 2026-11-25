@@ -202,7 +202,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("lenta", "La app va lenta o no carga", ["se queda cargando", "la app esta lenta", "pantalla en blanco", "no carga la agenda", "se trabo"],
     "Probá recargar la página y revisá tu conexión. Si usás la app instalada, cerrala del todo y volvé a abrirla. Si sigue igual, anotá en qué pantalla pasa."),
   t("persona", "Hablar con una persona", ["quiero hablar con alguien", "soporte", "contactar a clippr", "necesito un humano"],
-    "Todavía no puedo derivarte desde este chat. Comunicate con quien administra Clippr en tu local y contale qué pasó."),
+    "Puedo pasarle tu consulta a un asesor. Te responde por este mismo chat."),
   t("quien", "¿Quién sos?", ["quien sos", "que podes hacer", "para que servis", "sos un robot"],
     "Soy Clippi, el asistente virtual de Clippr. Te explico cómo usar la app y te llevo a la pantalla que necesitás. No veo ni cambio los datos de tu negocio."),
   t("hola", "Hola", ["hola", "buenas", "buen dia", "buenas tardes", "buenas noches", "que tal"],

@@ -148,7 +148,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
       return null;
     }
   };
-  const [profRes, byUidRes, byEmailRes, ownerIdRes, ownerEmailRes, userIdRes] = await Promise.all([
+  const [profRes, byUidRes, byEmailRes, ownerIdRes, ownerEmailRes, userIdRes, plataformaRes] = await Promise.all([
     settle(supabase.from("profiles").select("*").eq("id", uid).maybeSingle()),
     settle(supabase.from("team_members").select(TM_COLS_PRE).eq("auth_user_id", uid).maybeSingle()),
     email
@@ -157,7 +157,18 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     settle(supabase.from("businesses").select("id").eq("owner_id", uid).maybeSingle()),
     email ? settle(supabase.from("businesses").select("id").eq("owner_email", email).maybeSingle()) : Promise.resolve(null),
     settle(supabase.from("businesses").select("id").eq("user_id", uid).maybeSingle()),
+    // ¿Es la cuenta dueña de la plataforma Clippr? (si la función todavía no existe, no lo es)
+    settle(supabase.rpc("es_dueno_clippr" as never)),
   ]);
+
+  // La cuenta de la plataforma no tiene local: no se le crea ninguno ni se busca equipo.
+  if ((plataformaRes?.data as unknown) === true) {
+    return {
+      businessId: null,
+      profile: { id: uid, full_name: "Clippr", role: "plataforma", email, business_id: null, employee_id: null },
+      teamPermissions: { ...ALL_FALSE_PERMS },
+    };
+  }
 
   let profile: Profile | null = (profRes?.data as Profile | null) ?? null;
   if (!profRes) console.warn("[AUTH] profile fetch: sin respuesta");
