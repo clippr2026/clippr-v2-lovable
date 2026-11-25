@@ -161,8 +161,10 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
     );
 
   const font = getPublicFont(data.fontKey);
+  // En Inicio el logo es chico y está contra el borde: el globo arranca en el logo y crece hacia la derecha.
+  const posicionGlobo = { className: "!left-0 !translate-x-0", tailClassName: "left-9 sm:left-11" };
   const bubble = text ? (
-    <AnnouncementBubble>
+    <AnnouncementBubble {...posicionGlobo}>
       {canEdit ? (
         <button type="button" onClick={openEditor} className="cursor-pointer text-center" title="Editar anuncio">
           {text}
@@ -172,7 +174,7 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
       )}
     </AnnouncementBubble>
   ) : canEdit ? (
-    <AnnouncementBubble>
+    <AnnouncementBubble {...posicionGlobo}>
       <button type="button" onClick={openEditor} className="flex cursor-pointer items-center justify-center gap-1.5 text-center" title="Escribir anuncio">
         <Megaphone className="h-3.5 w-3.5 shrink-0 text-violet-600" />
         <span>

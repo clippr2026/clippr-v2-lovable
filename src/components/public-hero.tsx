@@ -54,7 +54,16 @@ const HERO_CSS = `
 `;
 
 // Globo del anuncio: siempre con letra normal (legible), aunque el negocio use otra tipografía.
-export function AnnouncementBubble({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+export function AnnouncementBubble({
+  children,
+  className = "",
+  tailClassName = "left-1/2",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** Dónde va la puntita (debe quedar sobre el logo). */
+  tailClassName?: string;
+}) {
   return (
     <div
       className={
@@ -64,7 +73,7 @@ export function AnnouncementBubble({ children, className = "" }: { children: Rea
       style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", letterSpacing: "normal", fontWeight: 600, color: "#111111" }}
     >
       <span className="block whitespace-pre-line break-words text-center [word-break:normal]">{children}</span>
-      <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
+      <span className={"absolute top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white " + tailClassName} />
     </div>
   );
 }
