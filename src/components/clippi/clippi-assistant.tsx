@@ -5,6 +5,7 @@ import { ArrowRight, ArrowUp, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
+import { nombreDePila, saludar } from "@/lib/clippi-saludo";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
 import {
@@ -272,7 +273,8 @@ function useAreaVisible() {
 function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) => boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const area = useAreaVisible();
-  const { branches, activeBranchId } = useAuth();
+  const { branches, activeBranchId, profile } = useAuth();
+  const nombre = nombreDePila(profile?.full_name, profile?.email);
   const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => leerChat(cuenta));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
@@ -412,7 +414,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       const [motor] = await Promise.all([cargarMotor(), new Promise((listo) => setTimeout(listo, PAUSA_MS))]);
       const r = motor.responderClippi(limpia, puede);
       setTemas(motor.CLIPPI_TEMAS);
-      agregar({ de: "clippi", texto: r.texto, tema: r.tema, sugerencias: r.sugerencias, derivar: r.derivar });
+      agregar({ de: "clippi", texto: r.tema?.id === "hola" ? saludar(r.texto, nombre) : r.texto, tema: r.tema, sugerencias: r.sugerencias, derivar: r.derivar });
     } catch {
       agregar({ de: "clippi", texto: "No pude consultar. Revisá tu conexión y recargá la página." });
     } finally {
@@ -455,8 +457,8 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">
           {mensajes.length === 0 && (
             <div className="pt-4">
-              <div className="text-2xl font-bold tracking-tight">Lo resolvemos juntos.</div>
-              <div className="mt-1 text-sm text-white/65">Contame qué querés hacer en Clippr.</div>
+              <div className="text-2xl font-bold tracking-tight">{saludar("¡Hola!", nombre)} Lo resolvemos juntos.</div>
+              <div className="mt-1 text-sm text-white/65">Puedo ayudarte con turnos, caja, clientes, tu equipo y tu página de reservas.</div>
             </div>
           )}
           {mensajes.map((m, i) =>
@@ -551,7 +553,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
         )}
 
         <form
-          className="m-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] py-1.5 pl-4 pr-1.5"
+          className="mx-3 mb-1.5 mt-3 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] py-1.5 pl-4 pr-1.5"
           onSubmit={(e) => {
             e.preventDefault();
             preguntar(texto);
@@ -570,6 +572,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             <ArrowUp className="h-5 w-5" />
           </button>
         </form>
+        <p className="pb-2 text-center text-xs text-white/50">Clippi puede contener errores.</p>
       </div>
     </div>
   );

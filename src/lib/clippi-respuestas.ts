@@ -206,7 +206,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("quien", "¿Quién sos?", ["quien sos", "que podes hacer", "para que servis", "sos un robot"],
     "Soy Clippi, el asistente virtual de Clippr. Te explico cómo usar la app y te llevo a la pantalla que necesitás. No veo ni cambio los datos de tu negocio."),
   t("hola", "Hola", ["hola", "buenas", "buen dia", "buenas tardes", "buenas noches", "que tal"],
-    "¡Hola! Contame qué querés hacer en Clippr."),
+    "¡Hola! Soy Clippi, el asistente de Clippr.\n\nPuedo ayudarte con:\n• Agenda y turnos\n• Caja y cobros\n• Clientes\n• Equipo, comisiones y liquidaciones\n• Tu página de reservas\n\nContame qué necesitás y lo vemos."),
   t("gracias", "Gracias", ["gracias", "muchas gracias", "genial", "perfecto", "listo gracias", "ok"],
     "¡De nada! Acá estoy si necesitás otra cosa."),
 ];
