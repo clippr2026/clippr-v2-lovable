@@ -497,7 +497,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("clippr:profile-link-updated", handler);
   }, []);
 
+  // Usuario cuyo perfil ya se resolvió.
+  const perfilDeRef = React.useRef<string | null>(null);
+
   const hydrate = React.useCallback(async (s: Session | null) => {
+    // Al entrar con otra cuenta se vuelve a "cargando" hasta conocer su perfil: si no, el ingreso
+    // redirige antes de saber quién es y se ve por un instante la pantalla equivocada.
+    if (s?.user && s.user.id !== perfilDeRef.current) setLoading(true);
     setSession(s);
     if (s?.user) {
       try {
@@ -511,10 +517,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(({ data }) => { if (data?.role_permissions) setRolePermissions(data.role_permissions as Record<string,Record<string,boolean>>); });
         }
         void loadBranches(biz);
+        perfilDeRef.current = s.user.id;
       } catch (e) {
         console.error("[AUTH] hydrate:", (e as Error).message);
       }
     } else {
+      perfilDeRef.current = null;
       setBusinessId(null);
       setProfile(null);
       setRolePermissions(null);
@@ -570,6 +578,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (!mounted) return;
       if (event === "SIGNED_OUT") {
+        perfilDeRef.current = null;
+        setRolePermissions(null);
         setSession(null);
         setProfile(null);
         setBusinessId(null);
