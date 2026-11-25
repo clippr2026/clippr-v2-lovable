@@ -6,7 +6,7 @@ import { useAuth, type PermKey } from "@/hooks/use-auth";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiTema } from "@/lib/clippi";
 
-const FOTO = "/clippi-v2.webp";
+const FOTO = "/clippi-v3.webp";
 // Pantallas con botones fijos abajo (Cobrar, Guardar): ahí la burbuja los taparía.
 const SIN_BURBUJA = /^\/(cash-register|settings|fichaje-kiosco|fichar)(\/|$)/;
 const ATAJOS = 4;
