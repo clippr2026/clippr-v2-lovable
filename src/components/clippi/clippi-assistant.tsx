@@ -2,7 +2,9 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, ArrowUp, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
+import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
 import {
@@ -75,13 +77,36 @@ function guardarChat(cuenta: string, mensajes: Mensaje[]) {
   }
 }
 
+// Clippi es solo para el dueño y el administrador general.
+export const usaClippi = (rol?: string | null) => !rol || rol === "owner" || rol === "admin_general";
+
 export function ClippiAssistant() {
   const { profile, user, loading } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [abierto, setAbierto] = React.useState(false);
 
-  // Clippi es solo para el dueño y el administrador general.
-  const dueno = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
+  const dueno = usaClippi(profile?.role);
+  const cuenta = user?.id;
+
+  const [burbuja, setBurbuja] = React.useState(() => leerBurbuja(cuenta ?? ""));
+  React.useEffect(() => setBurbuja(leerBurbuja(cuenta ?? "")), [cuenta]);
+  const cambiarBurbuja = React.useCallback(
+    (cambio: Partial<typeof burbuja>) => {
+      const nueva = { ...leerBurbuja(cuenta ?? ""), ...cambio };
+      guardarBurbuja(cuenta ?? "", nueva);
+      setBurbuja(nueva);
+    },
+    [cuenta],
+  );
+  // Desde Configuración: abre el chat y, si estaba en el basurero, vuelve la burbuja.
+  React.useEffect(
+    () =>
+      alPedirClippi(() => {
+        cambiarBurbuja({ guardada: false });
+        setAbierto(true);
+      }),
+    [cambiarBurbuja],
+  );
 
   // Punto rojo en la burbuja cuando el asesor respondió.
   const [sinLeer, setSinLeer] = React.useState(0);
@@ -98,28 +123,130 @@ export function ClippiAssistant() {
     };
   }, [revisar]);
 
-  if (loading || !user || !dueno || SIN_BURBUJA.test(pathname) || typeof document === "undefined") return null;
+  if (loading || !user || !dueno || typeof document === "undefined") return null;
 
   // Dueño y administrador general ven todas las pantallas.
   const puede = () => true;
 
   return createPortal(
     <>
-      {!abierto && (
-        // "no-invert": en modo claro Clippi se ve con sus colores.
-        <button
-          type="button"
-          onClick={() => setAbierto(true)}
-          aria-label={sinLeer ? "Abrir a Clippi: tenés una respuesta del asesor" : "Abrir a Clippi, tu asistente"}
-          className="no-invert fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 z-30 h-14 w-14 rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] transition active:scale-95 lg:bottom-6 lg:right-6"
-        >
-          <img src={FOTO} alt="" className="h-full w-full rounded-full object-cover" />
-          {sinLeer > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-black bg-rose-500" />}
-        </button>
+      {!abierto && !burbuja.guardada && !SIN_BURBUJA.test(pathname) && (
+        <BurbujaClippi
+          posicion={burbuja.posicion}
+          sinLeer={sinLeer}
+          onAbrir={() => setAbierto(true)}
+          onMover={(posicion) => cambiarBurbuja({ posicion })}
+          onGuardar={() => {
+            // Vuelve a aparecer en su lugar de siempre, no encima del basurero.
+            cambiarBurbuja({ guardada: true, posicion: null });
+            toast("Guardaste a Clippi. Lo encontrás en Configuración.");
+          }}
+        />
       )}
       {abierto && <Chat cuenta={user.id} puede={puede} onClose={() => setAbierto(false)} />}
     </>,
     document.body,
+  );
+}
+
+/** La cara de Clippi flotando: un toque abre el chat; arrastrando se mueve o se tira al basurero. */
+export function BurbujaClippi({
+  posicion,
+  sinLeer,
+  onAbrir,
+  onMover,
+  onGuardar,
+}: {
+  posicion: Punto | null;
+  sinLeer: number;
+  onAbrir: () => void;
+  onMover: (p: Punto) => void;
+  onGuardar: () => void;
+}) {
+  const gesto = React.useRef<{ id: number; dedo: Punto; esquina: Punto; movido: boolean } | null>(null);
+  const fueArrastre = React.useRef(false);
+  const basurero = React.useRef<HTMLDivElement>(null);
+  const [arrastre, setArrastre] = React.useState<{ en: Punto; sobre: boolean } | null>(null);
+
+  // Al girar el teléfono o cambiar el tamaño, se vuelve a acomodar dentro de la pantalla.
+  const [, setMedida] = React.useState(0);
+  React.useEffect(() => {
+    const medir = () => setMedida((n) => n + 1);
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, []);
+
+  function ubicar(e: React.PointerEvent) {
+    const g = gesto.current!;
+    const en = dentroDePantalla(
+      { x: g.esquina.x + e.clientX - g.dedo.x, y: g.esquina.y + e.clientY - g.dedo.y },
+      window.innerWidth,
+      window.innerHeight,
+    );
+    const caja = basurero.current?.getBoundingClientRect();
+    return { en, sobre: Boolean(caja) && sobreBasurero(en, { x: caja!.x + caja!.width / 2, y: caja!.y + caja!.height / 2 }) };
+  }
+
+  const lugar = arrastre?.en ?? (posicion && dentroDePantalla(posicion, window.innerWidth, window.innerHeight));
+
+  return (
+    <>
+      {arrastre && (
+        <div aria-hidden className="no-invert pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] z-[10010] flex justify-center">
+          <div
+            ref={basurero}
+            className={`grid h-16 w-16 place-items-center rounded-full border-2 text-white shadow-[0_10px_30px_-8px_rgba(0,0,0,0.9)] transition ${arrastre.sobre ? "scale-125 border-rose-200 bg-rose-500" : "border-white/40 bg-black/85"}`}
+          >
+            <Trash2 className="h-7 w-7" />
+          </div>
+        </div>
+      )}
+      {/* "no-invert": en modo claro Clippi se ve con sus colores. "touch-none": arrastrar no mueve la pantalla. */}
+      <button
+        type="button"
+        onPointerDown={(e) => {
+          if (e.button !== 0 || gesto.current) return;
+          const caja = e.currentTarget.getBoundingClientRect();
+          gesto.current = { id: e.pointerId, dedo: { x: e.clientX, y: e.clientY }, esquina: { x: caja.x, y: caja.y }, movido: false };
+          fueArrastre.current = false;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const g = gesto.current;
+          if (!g || g.id !== e.pointerId) return;
+          if (!g.movido && !seArrastro(g.dedo, { x: e.clientX, y: e.clientY })) return;
+          g.movido = true;
+          fueArrastre.current = true;
+          setArrastre(ubicar(e));
+        }}
+        onPointerUp={(e) => {
+          const g = gesto.current;
+          if (!g || g.id !== e.pointerId) return;
+          if (g.movido) {
+            const { en, sobre } = ubicar(e);
+            if (sobre) onGuardar();
+            else onMover(en);
+          }
+          gesto.current = null;
+          setArrastre(null);
+        }}
+        onPointerCancel={() => {
+          gesto.current = null;
+          setArrastre(null);
+        }}
+        // Soltar después de arrastrar también dispara un "click": ahí no se abre el chat.
+        onClick={(e) => {
+          if (e.detail === 0 || !fueArrastre.current) onAbrir();
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label={sinLeer ? "Abrir a Clippi: tenés una respuesta del asesor" : "Abrir a Clippi, tu asistente"}
+        style={lugar ? { left: lugar.x, top: lugar.y, right: "auto", bottom: "auto" } : undefined}
+        className={`no-invert fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 h-14 w-14 touch-none select-none rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] [-webkit-touch-callout:none] lg:bottom-6 lg:right-6 ${arrastre ? (arrastre.sobre ? "z-[10011] scale-75 opacity-30" : "z-[10011] scale-105") : "z-30 transition-transform active:scale-95"}`}
+      >
+        <img src={FOTO} alt="" draggable={false} className="pointer-events-none h-full w-full rounded-full object-cover" />
+        {sinLeer > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-black bg-rose-500" />}
+      </button>
+    </>
   );
 }
 
