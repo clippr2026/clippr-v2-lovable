@@ -109,6 +109,34 @@ const sumar = (lista: string[]) => lista.reduce((s, p) => s + peso(p), 0);
 const SEGURO = 0.5;
 const DUDOSO = 0.22;
 
+// "El asesor se tilda" es una falla, no una pregunta sobre cómo se usa el Asesor.
+const TRABADO = /\b(tild\w*|colg\w*|cuelga|traba\w*|congel\w*|lent[oa]|no (me )?(carga|abre)|queda cargando|pantalla (en )?(blanco|negra)|se cierra sol[ao])\b/;
+const FALLA = /\b(no (me )?(anda|funciona|responde)|falla\w*|error|se rompio|anda mal|funciona mal)\b/;
+// Temas que ya explican una falla concreta.
+const TEMAS_DE_FALLA = new Set(["no-puedo-cobrar", "no-liquidar", "cierre-requisitos", "web-no-disponible", "asesor-sin-datos", "fichar-codigo", "avisos"]);
+const PANTALLAS: { patron: RegExp; nombre: string; permiso: PermKey; destino: string }[] = [
+  { patron: /\basesor\b/, nombre: "el Asesor IA", permiso: "asesor_ia", destino: "/advisor" },
+  { patron: /\bagenda\b/, nombre: "la Agenda", permiso: "agenda", destino: "/agenda" },
+  { patron: /\bcaja\b/, nombre: "Caja", permiso: "caja", destino: "/cash-register" },
+  { patron: /\bclientes?\b/, nombre: "Clientes", permiso: "clientes", destino: "/clients" },
+  { patron: /\binicio\b/, nombre: "Inicio", permiso: "dashboard", destino: "/dashboard" },
+  { patron: /\bconfiguracion\b/, nombre: "Configuración", permiso: "configuracion", destino: "/settings" },
+  { patron: /\bmi panel\b/, nombre: "Mi Panel", permiso: "profesionales", destino: "/professionals" },
+];
+
+function respuestaDeFalla(texto: string, puede: (permiso: PermKey) => boolean): ClippiRespuesta {
+  const pantalla = PANTALLAS.find((p) => p.patron.test(texto));
+  const donde = pantalla?.nombre ?? "la app";
+  const tema: ClippiTema | undefined =
+    pantalla && puede(pantalla.permiso)
+      ? { id: "falla", titulo: "", preguntas: [], respuesta: "", boton: "Volver a probar", destino: { to: pantalla.destino } }
+      : undefined;
+  return {
+    texto: `Si falla ${donde}, probá esto:\n1. Recargá la página (en la app instalada, cerrala del todo y abrila de nuevo).\n2. Revisá tu conexión: probá con wifi o con datos.\n3. Si sigue igual, anotá la hora y qué tocaste justo antes, y avisale a quien administra Clippr.`,
+    tema,
+  };
+}
+
 export function responderClippi(pregunta: string, puede: (permiso: PermKey) => boolean): ClippiRespuesta {
   const texto = normalizar(pregunta);
   const mias = palabras(pregunta, corregirTipeo);
@@ -132,6 +160,12 @@ export function responderClippi(pregunta: string, puede: (permiso: PermKey) => b
 
   const [primero, segundo] = candidatos;
   const permitido = (t: ClippiTema) => !t.permiso || puede(t.permiso);
+
+  // Una falla se atiende como falla, salvo que la pregunta esté guardada tal cual o haya un tema para esa falla.
+  const exacta = primero?.puntos === 2;
+  const conocida = primero && primero.puntos >= SEGURO && TEMAS_DE_FALLA.has(primero.tema.id);
+  const nombraPantalla = PANTALLAS.some((p) => p.patron.test(texto));
+  if (!exacta && !conocida && (TRABADO.test(texto) || (FALLA.test(texto) && nombraPantalla))) return respuestaDeFalla(texto, puede);
 
   if (primero && (primero.puntos >= SEGURO && (!segundo || primero.puntos - segundo.puntos >= 0.04 || primero.puntos >= 0.8))) {
     return permitido(primero.tema)

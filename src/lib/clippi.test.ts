@@ -70,6 +70,20 @@ describe("responderClippi", () => {
     const ids = new Set(CLIPPI_TEMAS.map((t) => t.id));
     expect(Object.keys(CLIPPI_FRASES).filter((id) => !ids.has(id))).toEqual([]);
   });
+  it("atiende una falla como falla, nombrando la pantalla", () => {
+    for (const [q, donde] of [
+      ["El asesor IA se tilda", "el Asesor IA"],
+      ["la agenda no carga", "la Agenda"],
+      ["la caja anda muy lenta", "Caja"],
+      ["clientes no funciona", "Clientes"],
+      ["se me colgo todo", "la app"],
+    ]) {
+      expect(responderClippi(q, todo).texto).toContain(`Si falla ${donde}`);
+    }
+    // Las fallas con explicación propia la conservan.
+    expect(tema("no me deja cobrar")).toBe("no-puedo-cobrar");
+    expect(tema("como cierro la caja")).toBe("cerrar-caja");
+  });
   it("tolera errores de tipeo", () => {
     expect(tema("como cancelo un turmo")).toBe("turno-cancelar");
     expect(tema("quiero anluar una venta")).toBe("anular");

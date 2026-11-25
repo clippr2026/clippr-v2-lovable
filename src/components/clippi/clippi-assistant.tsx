@@ -160,7 +160,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
                 {m.texto}
               </div>
             ) : (
-              <div key={i} className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm leading-relaxed">
+              <div key={i} className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line">
                 {m.texto}
                 {m.sugerencias && (
                   <div className="mt-2.5 flex flex-col items-start gap-2">
