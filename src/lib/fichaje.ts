@@ -162,6 +162,20 @@ export type FichajeHoySummary = {
   roster: Array<{ id: string; name: string; session: FichajeHoyPersona | null }>;
 };
 
+// Fichas del dueño o del administrador general que además atienden como barberos: no fichan su jornada, así que no
+// figuran en el fichaje. Mismo criterio que el bloqueo de cobro (fichaje-cobro-gate): team_members y, para la propia
+// cuenta, profiles. Si una consulta falla no se excluye a nadie.
+export async function getFichasDeAdministradores(businessId: string): Promise<Set<string>> {
+  const [tm, prof] = await Promise.all([
+    supabase.from("team_members").select("professional_id").eq("business_id", businessId).in("role", ["admin_general", "owner"]),
+    supabase.from("profiles").select("employee_id").eq("business_id", businessId).in("role", ["admin_general", "owner"]),
+  ]);
+  const ids = new Set<string>();
+  for (const r of (tm.data ?? []) as { professional_id: string | null }[]) if (r.professional_id) ids.add(r.professional_id);
+  for (const r of (prof.data ?? []) as { employee_id: string | null }[]) if (r.employee_id) ids.add(r.employee_id);
+  return ids;
+}
+
 // IDs de profesionales que HOY no tienen jornada (día libre propio, excepción puntual o negocio cerrado). Mismo
 // criterio que Agenda (resolveDaySchedule); si no hay ningún horario configurado, se los considera con jornada.
 async function profesionalesSinJornadaHoy(businessId: string, ids: string[]): Promise<Set<string>> {
@@ -266,15 +280,19 @@ export async function getTodayFichajeSummary(
     if (m.branch_id && m.branch_id !== branchId) continue;
     activos.push({ id: m.auth_user_id, full_name: m.full_name || "Recepción" });
   }
-  const sinJornada = await profesionalesSinJornadaHoy(
-    businessId,
-    ((employees ?? []) as { id: string }[]).map((e) => e.id),
-  );
+  const [sinJornada, administradores] = await Promise.all([
+    profesionalesSinJornadaHoy(
+      businessId,
+      ((employees ?? []) as { id: string }[]).map((e) => e.id),
+    ),
+    getFichasDeAdministradores(businessId),
+  ]);
   const fichadosDetalle: FichajeHoyPersona[] = [];
   const pendientesNames: string[] = [];
   const roster: FichajeHoySummary["roster"] = [];
 
   for (const e of activos) {
+    if (administradores.has(e.id)) continue;
     const s = latestByEmployee.get(e.id);
     // Sin jornada hoy y sin fichar: no cuenta ni como pendiente.
     if (!s && sinJornada.has(e.id)) continue;

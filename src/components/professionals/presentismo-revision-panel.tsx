@@ -2,7 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Camera, Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
-import { getFichajesDeFecha, type FichajeHoyPersona } from "@/lib/fichaje";
+import { getFichasDeAdministradores, getFichajesDeFecha, type FichajeHoyPersona } from "@/lib/fichaje";
 import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { supabase } from "@/integrations/supabase/client";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
@@ -228,12 +228,15 @@ export function PresentismoRevisionPanel({
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [scheduled, confirmations, employeesRes, rulesRes] = await Promise.all([
+      const [programados, confirmations, employeesRes, rulesRes, administradores] = await Promise.all([
         getScheduledProfessionalsForDate(businessId, branchId, date),
         getAttendanceConfirmationsForDate(businessId, branchId, date),
         supabase.from("employees").select("id,full_name").eq("business_id", businessId).eq("branch_id", branchId),
         supabase.from("lateness_rules" as any).select("*").eq("branch_id", branchId),
+        getFichasDeAdministradores(businessId),
       ]);
+      // El dueño / administrador general no ficha: no aparece en la revisión.
+      const scheduled = programados.filter((x) => !administradores.has(x.employeeId));
       const nameById = new Map(
         ((employeesRes.data ?? []) as { id: string; full_name: string | null }[]).map((e) => [e.id, e.full_name ?? "Profesional"]),
       );
