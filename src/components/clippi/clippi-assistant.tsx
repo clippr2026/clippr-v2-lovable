@@ -52,17 +52,6 @@ function leerChat(cuenta: string): Mensaje[] {
   }
 }
 
-// Con quién está hablando. Por defecto con Clippi: tener una consulta abierta no alcanza para que
-// lo que se escribe le llegue al asesor.
-const claveModo = (cuenta: string) => `clippr_clippi_asesor_${cuenta}`;
-function leerModoAsesor(cuenta: string): boolean {
-  try {
-    return localStorage.getItem(claveModo(cuenta)) === "1";
-  } catch {
-    return false;
-  }
-}
-
 function guardarChat(cuenta: string, mensajes: Mensaje[]) {
   memoria.set(cuenta, mensajes);
   try {
@@ -282,19 +271,9 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [consultando, setConsultando] = React.useState(false);
   // Consulta con un asesor sin cerrar: mientras exista, lo que se escribe le llega a él.
   const [consulta, setConsulta] = React.useState<MiConsulta | null>(null);
-  // Pasa a ser con el asesor al pedirlo, al llegar una respuesta suya o al tocar "Ir al asesor".
-  const [modoAsesor, setModoAsesor] = React.useState(() => leerModoAsesor(cuenta));
-  const elegirAsesor = React.useCallback(
-    (activo: boolean) => {
-      setModoAsesor(activo);
-      try {
-        localStorage.setItem(claveModo(cuenta), activo ? "1" : "0");
-      } catch {
-        // Sin almacenamiento: la elección dura mientras el chat esté abierto.
-      }
-    },
-    [cuenta],
-  );
+  // El chat siempre abre con Clippi. Pasa a ser con el asesor al pedirlo, al llegar una respuesta
+  // suya o al tocar "Ir al asesor", y dura hasta cerrarlo.
+  const [modoAsesor, elegirAsesor] = React.useState(false);
   const conAsesor = Boolean(consulta && consulta.estado !== "cerrada") && modoAsesor;
   React.useEffect(() => {
     // Si falla, se reintenta al preguntar.
@@ -336,7 +315,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       elegirAsesor(true);
     }
     if (c.sin_leer > 0) await marcarLeida(c.id);
-  }, [cuenta, elegirAsesor]);
+  }, [cuenta]);
 
   React.useEffect(() => {
     const mirar = () => void traerRespuestas().catch(() => {});
