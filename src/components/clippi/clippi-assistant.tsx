@@ -20,14 +20,17 @@ type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema; sugerenc
 let historial: { cuenta: string; mensajes: Mensaje[] } = { cuenta: "", mensajes: [] };
 
 export function ClippiAssistant() {
-  const { profile, user, permissions, loading } = useAuth();
+  const { profile, user, loading } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [abierto, setAbierto] = React.useState(false);
 
-  if (loading || !user || SIN_BURBUJA.test(pathname) || typeof document === "undefined") return null;
-
+  // Clippi es solo para el dueño y el administrador general.
   const dueno = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
-  const puede = (permiso: PermKey) => dueno || permissions[permiso] === true;
+
+  if (loading || !user || !dueno || SIN_BURBUJA.test(pathname) || typeof document === "undefined") return null;
+
+  // Dueño y administrador general ven todas las pantallas.
+  const puede = () => true;
 
   return createPortal(
     <>
