@@ -630,7 +630,7 @@ type MobileNavEntry = {
 function MobileBottomNavSkeleton() {
   return (
     <nav
-      className="app-barra lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] backdrop-blur-2xl"
+      className="app-barra no-invert lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] backdrop-blur-2xl"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
       <div className="grid h-[58px] grid-cols-7">
@@ -711,7 +711,7 @@ function MobileBottomNav() {
   return (
     <MobileFixedBottom>
     <nav
-      className="app-barra lg:hidden fixed z-40 overflow-hidden rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 transition-[left,right,bottom] duration-300 ease-out"
+      className="app-barra no-invert lg:hidden fixed z-40 overflow-hidden rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 transition-[left,right,bottom] duration-300 ease-out"
       style={{
         position: "fixed",
         left: compact ? "7%" : "12px",
@@ -800,7 +800,7 @@ export function AppSidebar() {
   const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
   return (
     <>
-      <header className="app-encabezado sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
+      <header className="app-encabezado no-invert sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
         <div className="max-w-[1600px] mx-auto h-12 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
           <Brand />
 
@@ -837,7 +837,7 @@ export function AppSidebar() {
           offset para no superponerse (dos sticky con el mismo `top` se
           pisan, no se apilan solos). */}
       {hasBranchBar && (
-        <div className="app-encabezado lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
+        <div className="app-encabezado no-invert lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
           <BranchSelector />
         </div>
       )}

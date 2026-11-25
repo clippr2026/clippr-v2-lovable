@@ -792,15 +792,14 @@ html.modo-claro .no-invert :is(img, video, canvas, iframe, svg image, .no-invert
 
 /* ─────────────────────────────────────────────────────────────────────────
    Inicio en modo claro (clase "inicio-claro" en <html>). No invierte nada:
-   la foto, el logo y el carrusel quedan idénticos al modo oscuro; arriba se
-   mantiene el violeta y desde "Fichaje de hoy" hacia abajo todo es claro.
+   la foto, el logo y el carrusel quedan idénticos al modo oscuro; detrás del
+   banner hay violeta y desde "Fichaje de hoy" hacia abajo todo es claro.
    Las ventanas emergentes (portales) siguen oscuras.
    ───────────────────────────────────────────────────────────────────────── */
 .inicio-fondo { display: none; }
 html.inicio-claro,
 html.inicio-claro body { background-color: #f4f3f8; }
 html.inicio-claro body::before { display: none; }
-html.inicio-claro .app-encabezado { background: #2a0f5c; }
 html.inicio-claro .inicio-fondo {
   display: block;
   position: absolute;
@@ -855,14 +854,18 @@ html.inicio-claro .dashboard-premium-shell button[class*="ring-white/20"] {
 /* Sobre botones de color el texto sigue blanco. */
 html.inicio-claro .dashboard-premium-shell [class*="from-sky-400"] { --color-white: #fff; }
 
-/* Barra inferior clara. */
-html.inicio-claro .app-barra {
+/* En modo claro, en todas las pantallas: encabezado negro (como en oscuro) y barra inferior
+   clara con el botón de la sección actual en violeta. Ambos llevan "no-invert". */
+html:is(.inicio-claro, .modo-claro) .app-encabezado { background: #000; }
+html:is(.inicio-claro, .modo-claro) .app-barra {
   --color-white: #4b4563;
   border-color: #e4e0f0;
-  background-color: rgb(255 255 255 / 0.92);
+  background-color: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   box-shadow: 0 12px 30px -14px rgb(46 16 101 / 0.35);
 }
-html.inicio-claro .app-barra [class*="from-sky-400"] {
+html:is(.inicio-claro, .modo-claro) .app-barra [class*="from-sky-400"] {
   --color-white: #fff;
   background-image: linear-gradient(to bottom, #4f7dff, #8b5cf6);
 }

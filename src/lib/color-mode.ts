@@ -6,9 +6,8 @@ const CLASS = "modo-claro";
 const CLASS_INICIO = "inicio-claro";
 const PATH_INICIO = /^\/dashboard\/?$/;
 const THEME_DARK = "#0b0a14";
-const THEME_LIGHT = "#ffffff";
-// En Inicio el encabezado sigue violeta.
-const THEME_INICIO = "#2a0f5c";
+// El encabezado sigue negro también en modo claro.
+const THEME_LIGHT = "#000000";
 
 // Páginas para clientes: tienen su propio diseño (o tema claro/oscuro propio) y no se invierten.
 const PUBLIC_PATHS = /^\/(negocio|reservar|auro-stylo|gestion|bolsa-de-trabajo|landing-demo)(\/|$)/i;
@@ -32,7 +31,7 @@ export function applyColorMode(pathname: string) {
   document.documentElement.classList.toggle(CLASS_INICIO, inicio);
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", inicio ? THEME_INICIO : light ? THEME_LIGHT : THEME_DARK);
+    ?.setAttribute("content", light ? THEME_LIGHT : THEME_DARK);
 }
 
 export function setLightMode(light: boolean) {
