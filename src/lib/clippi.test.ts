@@ -88,6 +88,10 @@ describe("responderClippi", () => {
     expect(responderClippi("el asesor se tilda", todo).derivar).toBe("resolvio");
     expect(responderClippi("no me deja cobrar", todo).derivar).toBe("resolvio");
     expect(responderClippi("quiero hablar con una persona", todo).derivar).toBe("asesor");
+    const r = responderClippi("Holaa tengo un problema con asesor IA", todo);
+    expect(r.texto).toContain("Si falla el Asesor IA");
+    expect(r.derivar).toBe("resolvio");
+    expect(responderClippi("tengo un problema", todo).derivar).toBe("asesor");
     expect(responderClippi("xyz qwerty", todo).derivar).toBe("asesor");
     expect(responderClippi("como cierro la caja", todo).derivar).toBeUndefined();
   });

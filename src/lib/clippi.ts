@@ -117,7 +117,7 @@ const DUDOSO = 0.22;
 
 // "El asesor se tilda" es una falla, no una pregunta sobre cómo se usa el Asesor.
 const TRABADO = /\b(tild\w*|colg\w*|cuelga|traba\w*|congel\w*|lent[oa]|no (me )?(carga|abre)|queda cargando|pantalla (en )?(blanco|negra)|se cierra sol[ao])\b/;
-const FALLA = /\b(no (me )?(anda|funciona|responde)|falla\w*|error|se rompio|anda mal|funciona mal)\b/;
+const FALLA = /\b(no (me )?(anda|funciona|responde)|falla\w*|error(es)?|problemas?|inconvenientes?|se rompio|anda mal|funciona mal)\b/;
 // Temas que ya explican una falla concreta.
 const TEMAS_DE_FALLA = new Set(["no-puedo-cobrar", "no-liquidar", "cierre-requisitos", "web-no-disponible", "asesor-sin-datos", "fichar-codigo", "avisos"]);
 const PANTALLAS: { patron: RegExp; nombre: string; permiso: PermKey; destino: string }[] = [
@@ -179,7 +179,7 @@ export function responderClippi(pregunta: string, puede: (permiso: PermKey) => b
       ? {
           texto: primero.tema.respuesta,
           tema: primero.tema,
-          derivar: primero.tema.id === "persona" || primero.tema.id === "insulto" ? "asesor" : TEMAS_DE_FALLA.has(primero.tema.id) || primero.tema.id === "lenta" ? "resolvio" : undefined,
+          derivar: ["persona", "insulto", "problema"].includes(primero.tema.id) ? "asesor" : TEMAS_DE_FALLA.has(primero.tema.id) || primero.tema.id === "lenta" ? "resolvio" : undefined,
         }
       : { texto: "Tu cuenta no tiene acceso a esa parte. Pedíselo al dueño o a quien administra el local." };
   }
