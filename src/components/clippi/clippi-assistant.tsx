@@ -49,6 +49,17 @@ function leerChat(cuenta: string): Mensaje[] {
   }
 }
 
+// Con quién está hablando. Por defecto con Clippi: tener una consulta abierta no alcanza para que
+// lo que se escribe le llegue al asesor.
+const claveModo = (cuenta: string) => `clippr_clippi_asesor_${cuenta}`;
+function leerModoAsesor(cuenta: string): boolean {
+  try {
+    return localStorage.getItem(claveModo(cuenta)) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function guardarChat(cuenta: string, mensajes: Mensaje[]) {
   memoria.set(cuenta, mensajes);
   try {
@@ -141,8 +152,20 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [consultando, setConsultando] = React.useState(false);
   // Consulta con un asesor sin cerrar: mientras exista, lo que se escribe le llega a él.
   const [consulta, setConsulta] = React.useState<MiConsulta | null>(null);
-  const [conClippi, setConClippi] = React.useState(false);
-  const conAsesor = Boolean(consulta && consulta.estado !== "cerrada") && !conClippi;
+  // Pasa a ser con el asesor al pedirlo, al llegar una respuesta suya o al tocar "Ir al asesor".
+  const [modoAsesor, setModoAsesor] = React.useState(() => leerModoAsesor(cuenta));
+  const elegirAsesor = React.useCallback(
+    (activo: boolean) => {
+      setModoAsesor(activo);
+      try {
+        localStorage.setItem(claveModo(cuenta), activo ? "1" : "0");
+      } catch {
+        // Sin almacenamiento: la elección dura mientras el chat esté abierto.
+      }
+    },
+    [cuenta],
+  );
+  const conAsesor = Boolean(consulta && consulta.estado !== "cerrada") && modoAsesor;
   React.useEffect(() => {
     // Si falla, se reintenta al preguntar.
     cargarMotor().then((m) => setTemas(m.CLIPPI_TEMAS)).catch(() => {});
@@ -180,9 +203,10 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       const todos = [...actuales, ...pendientes.map((r) => ({ de: "asesor" as const, texto: r.texto, respuestaId: r.id }))].slice(-MAXIMO_MENSAJES);
       guardarChat(cuenta, todos);
       setMensajes(todos);
+      elegirAsesor(true);
     }
     if (c.sin_leer > 0) await marcarLeida(c.id);
-  }, [cuenta]);
+  }, [cuenta, elegirAsesor]);
 
   React.useEffect(() => {
     const mirar = () => void traerRespuestas().catch(() => {});
@@ -214,7 +238,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       );
       // Con una consulta ya abierta la base no vuelve a copiar el chat: se avisa con un mensaje.
       if (yaAbierta) await escribirAsesor(id, pedido);
-      setConClippi(false);
+      elegirAsesor(true);
       agregar({ de: "clippi", texto: confirmacion });
       await traerRespuestas().catch(() => {});
     } catch (e) {
@@ -233,6 +257,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   function borrarChat() {
     guardarChat(cuenta, []);
     setMensajes([]);
+    elegirAsesor(false);
   }
 
   async function preguntar(pregunta: string) {
@@ -391,7 +416,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
         {consulta && consulta.estado !== "cerrada" && (
           <div className="mx-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs">
             <span className="font-semibold text-emerald-200">{conAsesor ? "Estás escribiéndole a un asesor" : "Tenés una consulta con un asesor"}</span>
-            <button type="button" onClick={() => setConClippi((v) => !v)} className="shrink-0 font-semibold underline">
+            <button type="button" onClick={() => elegirAsesor(!conAsesor)} className="shrink-0 font-semibold underline">
               {conAsesor ? "Volver con Clippi" : "Ir al asesor"}
             </button>
           </div>
