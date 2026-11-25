@@ -1,10 +1,10 @@
-// Alan, el asistente de Clippr. Responde con una guía fija (sin inteligencia artificial ni costo):
+// Clippi, el asistente de Clippr. Responde con una guía fija (sin inteligencia artificial ni costo):
 // busca palabras clave en la pregunta y ofrece un botón que lleva a la pantalla correspondiente.
 import type { PermKey } from "@/hooks/use-auth";
 
-export type AlanDestino = { to: string; search?: Record<string, string> };
+export type ClippiDestino = { to: string; search?: Record<string, string> };
 
-export type AlanTema = {
+export type ClippiTema = {
   id: string;
   /** Texto del atajo y de la pregunta cuando se toca. */
   titulo: string;
@@ -12,12 +12,12 @@ export type AlanTema = {
   claves: string[];
   respuesta: string;
   boton: string;
-  destino: AlanDestino;
+  destino: ClippiDestino;
   /** Permiso necesario para ver la pantalla; sin él, el tema no se ofrece. */
   permiso: PermKey;
 };
 
-export const ALAN_TEMAS: AlanTema[] = [
+export const CLIPPI_TEMAS: ClippiTema[] = [
   { id: "servicio", titulo: "Crear un servicio", permiso: "configuracion",
     claves: ["servicio", "precio", "duracion", "corte", "barba"],
     respuesta: "En Configuración → Servicios podés crear un servicio nuevo y cambiar su precio o duración.",
@@ -80,7 +80,7 @@ export const ALAN_TEMAS: AlanTema[] = [
     boton: "Abrir el Asesor", destino: { to: "/advisor" } },
 ];
 
-export type AlanRespuesta = { texto: string; tema?: AlanTema };
+export type ClippiRespuesta = { texto: string; tema?: ClippiTema };
 
 export function normalizar(texto: string): string {
   return texto
@@ -91,13 +91,13 @@ export function normalizar(texto: string): string {
     .trim();
 }
 
-export function responderAlan(pregunta: string, puede: (permiso: PermKey) => boolean): AlanRespuesta {
+export function responderClippi(pregunta: string, puede: (permiso: PermKey) => boolean): ClippiRespuesta {
   const texto = ` ${normalizar(pregunta)}`;
   // Cada clave vale su largo: una frase ("cerrar caja") pesa más que una palabra suelta ("caja").
   // Se compara desde el comienzo de palabra, así "turnos" o "liquidar" también cuentan.
-  let mejor: AlanTema | undefined;
+  let mejor: ClippiTema | undefined;
   let puntos = 0;
-  for (const tema of ALAN_TEMAS) {
+  for (const tema of CLIPPI_TEMAS) {
     const exacto = normalizar(tema.titulo) === texto.trim() ? 1000 : 0;
     const p = exacto + tema.claves.reduce((s, c) => (texto.includes(` ${c}`) ? s + c.length : s), 0);
     if (p > puntos) {

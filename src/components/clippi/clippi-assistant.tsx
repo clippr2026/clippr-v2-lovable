@@ -3,19 +3,19 @@ import { createPortal } from "react-dom";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, ArrowUp, X } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
-import { ALAN_TEMAS, responderAlan, type AlanTema } from "@/lib/alan";
+import { CLIPPI_TEMAS, responderClippi, type ClippiTema } from "@/lib/clippi";
 
-const FOTO = "/alan-asistente.webp";
+const FOTO = "/clippi.webp";
 // Pantallas con botones fijos abajo (Cobrar, Guardar): ahí la burbuja los taparía.
 const SIN_BURBUJA = /^\/(cash-register|settings|fichaje-kiosco|fichar)(\/|$)/;
 const ATAJOS = 4;
 
-type Mensaje = { de: "yo" | "alan"; texto: string; tema?: AlanTema };
+type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema };
 
 // La conversación se conserva al cambiar de pantalla (hasta recargar), separada por cuenta.
 let historial: { cuenta: string; mensajes: Mensaje[] } = { cuenta: "", mensajes: [] };
 
-export function AlanAssistant() {
+export function ClippiAssistant() {
   const { profile, user, permissions, loading } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [abierto, setAbierto] = React.useState(false);
@@ -28,11 +28,11 @@ export function AlanAssistant() {
   return createPortal(
     <>
       {!abierto && (
-        // "no-invert": en modo claro Alan se ve con sus colores.
+        // "no-invert": en modo claro Clippi se ve con sus colores.
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          aria-label="Abrir a Alan, tu asistente"
+          aria-label="Abrir a Clippi, tu asistente"
           className="no-invert fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 z-30 h-14 w-14 overflow-hidden rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] transition active:scale-95 lg:bottom-6 lg:right-6"
         >
           <img src={FOTO} alt="" className="h-full w-full object-cover" />
@@ -68,7 +68,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => (historial.cuenta === cuenta ? historial.mensajes : []));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
-  const atajos = ALAN_TEMAS.filter((t) => puede(t.permiso)).slice(0, ATAJOS);
+  const atajos = CLIPPI_TEMAS.filter((t) => puede(t.permiso)).slice(0, ATAJOS);
 
   React.useEffect(() => {
     historial = { cuenta, mensajes };
@@ -84,8 +84,8 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   function preguntar(pregunta: string) {
     const limpia = pregunta.trim();
     if (!limpia) return;
-    const r = responderAlan(limpia, puede);
-    setMensajes((m) => [...m, { de: "yo", texto: limpia }, { de: "alan", texto: r.texto, tema: r.tema }]);
+    const r = responderClippi(limpia, puede);
+    setMensajes((m) => [...m, { de: "yo", texto: limpia }, { de: "clippi", texto: r.texto, tema: r.tema }]);
     setTexto("");
   }
 
@@ -98,7 +98,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Alan, asistente"
+        aria-label="Clippi, asistente"
         className="flex h-[88%] w-full max-w-md flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] text-white shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)] sm:h-[620px] sm:max-h-[88%]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -106,7 +106,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
           <img src={FOTO} alt="" className="h-12 w-12 shrink-0 rounded-full border border-violet-400/60 bg-white object-cover" />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold">Alan</span>
+              <span className="text-lg font-bold">Clippi</span>
               <span className="text-xs font-semibold text-white/60">Asistente</span>
             </div>
             <div className="text-sm text-white/60">Clippr</div>
@@ -173,7 +173,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
           <input
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="Preguntale a Alan..."
+            placeholder="Preguntale a Clippi..."
             enterKeyHint="send"
             maxLength={200}
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/40"

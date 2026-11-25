@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ALAN_TEMAS, responderAlan } from "./alan";
+import { CLIPPI_TEMAS, responderClippi } from "./clippi";
 
 const todo = () => true;
-const tema = (q: string) => responderAlan(q, todo).tema?.id;
+const tema = (q: string) => responderClippi(q, todo).tema?.id;
 
-describe("responderAlan", () => {
+describe("responderClippi", () => {
   it("reconoce cada atajo por su título", () => {
-    for (const t of ALAN_TEMAS) expect(tema(t.titulo)).toBe(t.id);
+    for (const t of CLIPPI_TEMAS) expect(tema(t.titulo)).toBe(t.id);
   });
   it("entiende preguntas escritas, con o sin tildes", () => {
     expect(tema("¿Cómo agrego un TURNO?")).toBe("turno");
@@ -15,11 +15,11 @@ describe("responderAlan", () => {
     expect(tema("revisar señas")).toBe("reservas");
   });
   it("no lleva a pantallas sin permiso", () => {
-    const r = responderAlan("cobrar", (p) => p !== "caja");
+    const r = responderClippi("cobrar", (p) => p !== "caja");
     expect(r.tema).toBeUndefined();
     expect(r.texto).toContain("no tiene acceso");
   });
   it("avisa cuando no sabe", () => {
-    expect(responderAlan("xyz", todo).tema).toBeUndefined();
+    expect(responderClippi("xyz", todo).tema).toBeUndefined();
   });
 });

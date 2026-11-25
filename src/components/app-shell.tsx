@@ -2,7 +2,7 @@ import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppSidebar, useMobileNavItems } from "./app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { AlanAssistant } from "./alan/alan-assistant";
+import { ClippiAssistant } from "./clippi/clippi-assistant";
 
 export function AppShell({
   children,
@@ -127,7 +127,7 @@ export function AppShell({
   return (
     <div className={containedScroll ? "flex flex-col h-dvh w-full overflow-hidden" : "flex flex-col min-h-dvh w-full"}>
       <AppSidebar />
-      <AlanAssistant />
+      <ClippiAssistant />
       <main
         data-app-scroll
         className={
