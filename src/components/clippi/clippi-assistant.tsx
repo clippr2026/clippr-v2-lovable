@@ -195,9 +195,9 @@ export function BurbujaClippi({
         <div aria-hidden className="no-invert pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] z-[10010] flex justify-center">
           <div
             ref={basurero}
-            className={`grid h-16 w-16 place-items-center rounded-full border-2 shadow-[0_0_28px_-4px_rgba(139,92,246,0.9),0_10px_30px_-8px_rgba(0,0,0,0.9)] transition ${arrastre.sobre ? "scale-125 border-white bg-rose-500 text-white" : "border-violet-400 bg-white text-slate-900"}`}
+            className={`grid h-16 w-16 place-items-center rounded-full border-2 text-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.6)] backdrop-blur-[3px] transition ${arrastre.sobre ? "scale-125 border-white bg-rose-500/70" : "border-white/70 bg-slate-400/30"}`}
           >
-            <Trash2 className="h-7 w-7" />
+            <Trash2 className="h-7 w-7 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           </div>
         </div>
       )}
