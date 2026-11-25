@@ -3,12 +3,16 @@ import { createPortal } from "react-dom";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, ArrowUp, X } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
-import { CLIPPI_TEMAS, responderClippi, type ClippiTema } from "@/lib/clippi";
+// Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
+import type { ClippiTema } from "@/lib/clippi";
 
 const FOTO = "/clippi.webp";
 // Pantallas con botones fijos abajo (Cobrar, Guardar): ahí la burbuja los taparía.
 const SIN_BURBUJA = /^\/(cash-register|settings|fichaje-kiosco|fichar)(\/|$)/;
 const ATAJOS = 4;
+// Pausa mínima con "Consultando…" para que la respuesta no aparezca de golpe.
+const PAUSA_MS = 700;
+const cargarMotor = () => import("@/lib/clippi");
 
 type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema; sugerencias?: ClippiTema[] };
 
@@ -68,13 +72,19 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => (historial.cuenta === cuenta ? historial.mensajes : []));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
+  const [temas, setTemas] = React.useState<ClippiTema[]>([]);
+  const [consultando, setConsultando] = React.useState(false);
+  React.useEffect(() => {
+    // Si falla, se reintenta al preguntar.
+    cargarMotor().then((m) => setTemas(m.CLIPPI_TEMAS)).catch(() => {});
+  }, []);
   // Si la última respuesta ofrece opciones, los atajos generales no se muestran.
-  const atajos = mensajes.at(-1)?.sugerencias ? [] : CLIPPI_TEMAS.filter((t) => !t.permiso || puede(t.permiso)).slice(0, ATAJOS);
+  const atajos =
+    consultando || mensajes.at(-1)?.sugerencias ? [] : temas.filter((t) => !t.permiso || puede(t.permiso)).slice(0, ATAJOS);
 
   React.useEffect(() => {
-    historial = { cuenta, mensajes };
     if (mensajes.length) finRef.current?.scrollIntoView({ block: "end" });
-  }, [cuenta, mensajes, area?.height]);
+  }, [mensajes, consultando, area?.height]);
 
   React.useEffect(() => {
     const tecla = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -82,12 +92,29 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     return () => window.removeEventListener("keydown", tecla);
   }, [onClose]);
 
-  function preguntar(pregunta: string) {
+  // Se guarda también en el historial: si se cierra el chat mientras consulta, la respuesta no se pierde.
+  function agregar(mensaje: Mensaje) {
+    const anteriores = historial.cuenta === cuenta ? historial.mensajes : [];
+    historial = { cuenta, mensajes: [...anteriores, mensaje] };
+    setMensajes(historial.mensajes);
+  }
+
+  async function preguntar(pregunta: string) {
     const limpia = pregunta.trim();
-    if (!limpia) return;
-    const r = responderClippi(limpia, puede);
-    setMensajes((m) => [...m, { de: "yo", texto: limpia }, { de: "clippi", texto: r.texto, tema: r.tema, sugerencias: r.sugerencias }]);
+    if (!limpia || consultando) return;
+    agregar({ de: "yo", texto: limpia });
     setTexto("");
+    setConsultando(true);
+    try {
+      const [motor] = await Promise.all([cargarMotor(), new Promise((listo) => setTimeout(listo, PAUSA_MS))]);
+      const r = motor.responderClippi(limpia, puede);
+      setTemas(motor.CLIPPI_TEMAS);
+      agregar({ de: "clippi", texto: r.texto, tema: r.tema, sugerencias: r.sugerencias });
+    } catch {
+      agregar({ de: "clippi", texto: "No pude consultar. Revisá tu conexión y recargá la página." });
+    } finally {
+      setConsultando(false);
+    }
   }
 
   return (
@@ -162,6 +189,16 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
               </div>
             ),
           )}
+          {consultando && (
+            <div role="status" className="flex w-fit items-center gap-2.5 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm text-white/70">
+              <span aria-hidden className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-300" style={{ animationDelay: `${i * 150}ms` }} />
+                ))}
+              </span>
+              Consultando…
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 pt-1">
             {atajos.map((t) => (
               <button
@@ -193,7 +230,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             maxLength={200}
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/40"
           />
-          <button type="submit" disabled={!texto.trim()} aria-label="Enviar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 disabled:opacity-40">
+          <button type="submit" disabled={!texto.trim() || consultando} aria-label="Enviar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 disabled:opacity-40">
             <ArrowUp className="h-5 w-5" />
           </button>
         </form>

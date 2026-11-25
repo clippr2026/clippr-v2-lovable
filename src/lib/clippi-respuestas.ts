@@ -17,15 +17,15 @@ export type ClippiTema = {
   permiso?: PermKey;
 };
 
-type Extra = Pick<ClippiTema, "boton" | "destino" | "permiso">;
+export type Extra = Pick<ClippiTema, "boton" | "destino" | "permiso">;
 
-const agenda: Extra = { permiso: "agenda", boton: "Abrir la Agenda", destino: { to: "/agenda" } };
-const caja = (tab: string, boton = "Abrir Caja"): Extra => ({ permiso: "caja", boton, destino: { to: "/cash-register", search: { tab } } });
-const config = (section: string, boton: string): Extra => ({ permiso: "configuracion", boton, destino: { to: "/settings", search: { section } } });
-const clientes: Extra = { permiso: "clientes", boton: "Ir a Clientes", destino: { to: "/clients" } };
-const inicio: Extra = { permiso: "dashboard", boton: "Ir a Inicio", destino: { to: "/dashboard" } };
-const panel: Extra = { permiso: "profesionales", boton: "Abrir Mi Panel", destino: { to: "/professionals" } };
-const asesor: Extra = { permiso: "asesor_ia", boton: "Abrir el Asesor", destino: { to: "/advisor" } };
+export const agenda: Extra = { permiso: "agenda", boton: "Abrir la Agenda", destino: { to: "/agenda" } };
+export const caja = (tab: string, boton = "Abrir Caja"): Extra => ({ permiso: "caja", boton, destino: { to: "/cash-register", search: { tab } } });
+export const config = (section: string, boton: string): Extra => ({ permiso: "configuracion", boton, destino: { to: "/settings", search: { section } } });
+export const clientes: Extra = { permiso: "clientes", boton: "Ir a Clientes", destino: { to: "/clients" } };
+export const inicio: Extra = { permiso: "dashboard", boton: "Ir a Inicio", destino: { to: "/dashboard" } };
+export const panel: Extra = { permiso: "profesionales", boton: "Abrir Mi Panel", destino: { to: "/professionals" } };
+export const asesor: Extra = { permiso: "asesor_ia", boton: "Abrir el Asesor", destino: { to: "/advisor" } };
 
 const t = (id: string, titulo: string, preguntas: string[], respuesta: string, extra: Extra = {}): ClippiTema => ({ id, titulo, preguntas, respuesta, ...extra });
 

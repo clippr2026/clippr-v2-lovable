@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CLIPPI_TEMAS, responderClippi } from "./clippi";
+import { CLIPPI_TEMAS, normalizar, responderClippi } from "./clippi";
+import { CLIPPI_FRASES } from "./clippi-frases";
 
 const todo = () => true;
 const tema = (q: string) => {
@@ -57,6 +58,21 @@ describe("responderClippi", () => {
   });
   it("entiende preguntas escritas de otra forma", () => {
     expect(CASOS.map(([q]) => [q, tema(q)])).toEqual(CASOS);
+  });
+  it("conoce al menos 150 respuestas y 1000 formas de preguntar", () => {
+    const frases = CLIPPI_TEMAS.flatMap((t) => t.preguntas);
+    expect(CLIPPI_TEMAS.length).toBeGreaterThanOrEqual(150);
+    expect(frases.length).toBeGreaterThanOrEqual(1000);
+  });
+  it("ninguna pregunta está en dos temas y no hay frases para temas inexistentes", () => {
+    const todas = CLIPPI_TEMAS.flatMap((t) => [...new Set([t.titulo, ...t.preguntas].map(normalizar))]);
+    expect(todas.filter((q, i) => todas.indexOf(q) !== i)).toEqual([]);
+    const ids = new Set(CLIPPI_TEMAS.map((t) => t.id));
+    expect(Object.keys(CLIPPI_FRASES).filter((id) => !ids.has(id))).toEqual([]);
+  });
+  it("tolera errores de tipeo", () => {
+    expect(tema("como cancelo un turmo")).toBe("turno-cancelar");
+    expect(tema("quiero anluar una venta")).toBe("anular");
   });
   it("no repite identificadores", () => {
     expect(new Set(CLIPPI_TEMAS.map((t) => t.id)).size).toBe(CLIPPI_TEMAS.length);
