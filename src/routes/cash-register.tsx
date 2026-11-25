@@ -925,7 +925,9 @@ function CashRegisterPage() {
       ? "nueva"
       : search.pendingDate || search.tab === "cierres"
         ? "cierres"
-        : "resumen",
+        : search.tab === "profesionales" || search.tab === "inventario"
+          ? search.tab
+          : "resumen",
   );
   const [pendingToCharge, setPendingToCharge] = useState<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null

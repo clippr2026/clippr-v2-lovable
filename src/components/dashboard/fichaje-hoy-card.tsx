@@ -1,10 +1,12 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { Clock, QrCode, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import type { FichajeHoyPersona } from "@/lib/fichaje";
+import { EVENTO_VER_ASISTENCIA } from "@/components/dashboard/modulos-carousel";
 
 type BranchOption = { id: string; name: string };
 
@@ -53,6 +55,19 @@ export function FichajeHoyCard({
         ? "Elegí una sucursal."
         : null;
   const cargando = !aviso && (branchesLoading || fichaje.loading || !summary || !branchId);
+
+  // Tarjeta "Fichaje" del carrusel: abre la asistencia del día; si todavía no se puede (sin sucursal o sin datos),
+  // lleva a la configuración de fichaje.
+  const navigate = useNavigate();
+  const puedeVer = Boolean(summary && branchId);
+  React.useEffect(() => {
+    const ver = () => {
+      if (puedeVer) setListOpen(true);
+      else void navigate({ to: "/settings", search: { section: "tardanza" } });
+    };
+    window.addEventListener(EVENTO_VER_ASISTENCIA, ver);
+    return () => window.removeEventListener(EVENTO_VER_ASISTENCIA, ver);
+  }, [puedeVer, navigate]);
 
   return (
     <div className="rounded-3xl border border-violet-400/35 bg-[#0b0914] p-4 shadow-[0_0_28px_-14px_rgba(139,92,246,0.8)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] sm:p-5">

@@ -17,6 +17,7 @@ import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-c
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { NegocioHero } from "@/components/dashboard/negocio-hero";
+import { ModulosCarousel } from "@/components/dashboard/modulos-carousel";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
@@ -72,6 +73,7 @@ function DashboardRoute() {
   return (
     <AppShell containedScroll>
       <NegocioHero businessId={businessId} />
+      <ModulosCarousel />
       <DashboardContent businessId={businessId} />
     </AppShell>
   );

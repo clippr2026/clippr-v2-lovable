@@ -274,6 +274,13 @@ function SettingsPage() {
   // aside y section siguen lado a lado, sin drill-down.
   const [mobileDrilledIn, setMobileDrilledIn] = useState(false);
 
+  const { section: sectionParam } = Route.useSearch();
+  useEffect(() => {
+    if (!sectionParam || !groups.some((g) => g.items.some((i) => i.id === sectionParam))) return;
+    setActive(sectionParam as SectionId);
+    setMobileDrilledIn(true);
+  }, [sectionParam]);
+
   function saveCurrentSection() {
     window.dispatchEvent(
       new CustomEvent("clippr:save-settings", {
@@ -516,4 +523,9 @@ function SettingsPage() {
   );
 }
 
-export const Route = createFileRoute("/settings")({ component: SettingsPage });
+export const Route = createFileRoute("/settings")({
+  // ?section=bolsa abre esa sección directo (lo usan las tarjetas de Inicio).
+  validateSearch: (search: Record<string, unknown>): { section?: string } =>
+    typeof search.section === "string" ? { section: search.section } : {},
+  component: SettingsPage,
+});
