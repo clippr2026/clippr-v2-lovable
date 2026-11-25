@@ -82,15 +82,6 @@ const ROLE_LABELS: Record<string, string> = {
   ...ROLE_LABEL_BY_ID,
 };
 
-function initialsOf(name?: string | null, email?: string | null) {
-  const src = (name || email || "").trim();
-  if (!src) return "··";
-  const parts = src.split(/[\s@._-]+/).filter(Boolean);
-  return (
-    ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || src.slice(0, 2).toUpperCase()
-  );
-}
-
 function Brand() {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
@@ -276,34 +267,48 @@ function NotificationsButton() {
   );
 }
 
-const AVATAR_GRADIENT = "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))";
+// Foto que se muestra cuando la cuenta no tiene una cargada.
+const AVATAR_PREDETERMINADO = "/avatar-barbero.webp";
 
 function UserMenu() {
-  const { profile, signOut } = useAuth();
-  const initials = initialsOf(profile?.full_name, profile?.email);
-  // Una cuenta de profesional muestra la foto de SU ficha de profesional en
-  // vez de las iniciales (si no tiene foto, quedan las iniciales de siempre).
-  const professionalEmployeeId =
-    profile?.role === "profesional" ? ((profile as { employee_id?: string | null }).employee_id ?? null) : null;
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
+  const { user, profile, signOut } = useAuth();
+  const userId = user?.id ?? null;
+  const employeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
+  // Foto de perfil: la de la ficha de barbero vinculada a la cuenta y, si no hay, la del perfil
+  // profesional. Sin ninguna, la imagen predeterminada. null = todavía averiguando.
+  const [foto, setFoto] = React.useState<string | null>(null);
   React.useEffect(() => {
     let cancelled = false;
-    if (!professionalEmployeeId) {
-      setAvatarUrl(null);
-      return;
-    }
-    supabase
-      .from("employees")
-      .select("avatar_url")
-      .eq("id", professionalEmployeeId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setAvatarUrl(((data as { avatar_url?: string | null } | null)?.avatar_url ?? null) || null);
-      });
+    setFoto(null);
+    if (!userId) return;
+    void (async () => {
+      let url: string | null = null;
+      if (employeeId) {
+        const { data } = await supabase.from("employees").select("avatar_url").eq("id", employeeId).maybeSingle();
+        url = (data as { avatar_url?: string | null } | null)?.avatar_url || null;
+      }
+      if (!url) {
+        const { data } = await (supabase as any).from("professional_profiles").select("avatar_url").eq("user_id", userId).maybeSingle();
+        url = (data as { avatar_url?: string | null } | null)?.avatar_url || null;
+      }
+      if (!cancelled) setFoto(url || AVATAR_PREDETERMINADO);
+    })();
     return () => {
       cancelled = true;
     };
-  }, [professionalEmployeeId]);
+  }, [userId, employeeId]);
+  const avatar = (className: string) =>
+    foto ? (
+      <img
+        src={foto}
+        alt=""
+        // Si la foto cargada no abre, queda la predeterminada.
+        onError={() => setFoto(AVATAR_PREDETERMINADO)}
+        className={cn("shrink-0 rounded-full object-cover ring-1 ring-white/15", className)}
+      />
+    ) : (
+      <span className={cn("shrink-0 rounded-full bg-white/10", className)} />
+    );
   const roleLabel = (profile?.role && ROLE_LABELS[profile.role]) || "Sin rol asignado";
 
   return (
@@ -313,16 +318,7 @@ function UserMenu() {
           aria-label="Cuenta"
           className="h-10 w-10 rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
         >
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/15" />
-          ) : (
-            <span
-              className="grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold text-white"
-              style={{ background: AVATAR_GRADIENT }}
-            >
-              {initials}
-            </span>
-          )}
+          {avatar("h-9 w-9")}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -331,16 +327,7 @@ function UserMenu() {
         className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         <div className="flex items-center gap-3 px-1 py-1.5">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/15" />
-          ) : (
-            <span
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
-              style={{ background: AVATAR_GRADIENT }}
-            >
-              {initials}
-            </span>
-          )}
+          {avatar("h-11 w-11")}
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-white">
               {profile?.full_name || "Usuario"}
@@ -511,11 +498,8 @@ function PublicSiteMenu() {
           aria-label="Reservas online"
           className="inline-flex h-10 items-center gap-2 rounded-xl glass glass-hover px-2.5 text-sm font-medium text-white/85 transition active:scale-[0.96] hover:text-white"
         >
-          <span className="relative grid h-5 w-5 place-items-center">
-            <Globe className="h-4.5 w-4.5" />
-            <span className="absolute -bottom-1 -left-1 rounded-full border-2 border-black bg-emerald-400 px-1 py-[1px] text-[6px] font-black leading-none tracking-[-0.02em] text-white">
-              WWW
-            </span>
+          <span className="rounded-full bg-emerald-400 px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white">
+            WWW
           </span>
         </button>
       </DropdownMenuTrigger>
