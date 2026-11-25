@@ -72,8 +72,9 @@ function DashboardRoute() {
 
   return (
     <AppShell containedScroll>
-      <NegocioHero businessId={businessId} />
-      <ModulosCarousel />
+      <NegocioHero businessId={businessId}>
+        <ModulosCarousel />
+      </NegocioHero>
       <DashboardContent businessId={businessId} />
     </AppShell>
   );

@@ -47,7 +47,7 @@ function yearsSince(raw: string | null | undefined): string {
 // Encabezado de Inicio: es el mismo encabezado de la página pública (portada, logo con neón,
 // nombre, estrellas, años, dibujos y colores del negocio). Además es el único lugar donde se
 // escribe el anuncio público: aparece en la página pública arriba del logo y dura 24 horas.
-export function NegocioHero({ businessId }: { businessId: string | null }) {
+export function NegocioHero({ businessId, children }: { businessId: string | null; children?: React.ReactNode }) {
   const { profile } = useAuth();
   const canEdit = profile?.role !== "profesional";
   const [data, setData] = React.useState<HeroData | null>(null);
@@ -152,7 +152,13 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
     setEditing(true);
   }
 
-  if (!data) return <div className="mb-3 h-44 animate-pulse rounded-3xl bg-white/[0.03]" />;
+  if (!data)
+    return (
+      <>
+        <div className="mb-3 h-44 animate-pulse rounded-3xl bg-white/[0.03]" />
+        {children}
+      </>
+    );
 
   const font = getPublicFont(data.fontKey);
   const bubble = text ? (
@@ -186,7 +192,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       <PublicHero
         compact
         small
-        background={data.light ? "#ffffff" : "#08070c"}
+        background={data.light ? "#ffffff" : "transparent"}
         name={data.name}
         coverUrl={data.coverUrl}
         avatarUrl={data.avatarUrl}
@@ -205,13 +211,18 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
         fontFamily={font?.family ?? null}
         years={data.years}
         bubble={bubble}
+        extension={
+          <>
+            {text ? (
+              <p className="mb-2 px-1 text-xs text-white/70">
+                Tu anuncio se ve en tu página pública y se borra solo en {formatRemaining(remaining)}.
+              </p>
+            ) : null}
+            {children}
+          </>
+        }
       />
       </div>
-      {text ? (
-        <p className="mt-2 px-1 text-xs text-white/55">
-          Tu anuncio se ve en tu página pública y se borra solo en {formatRemaining(remaining)}.
-        </p>
-      ) : null}
 
       {editing ? (
         <div className="fixed inset-0 z-[300] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setEditing(false)}>

@@ -70,10 +70,10 @@ export function FichajeHoyCard({
   }, [puedeVer, navigate]);
 
   return (
-    <div className="rounded-3xl border border-violet-400/35 bg-[#0b0914] p-4 shadow-[0_0_28px_-14px_rgba(139,92,246,0.8)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] sm:p-5">
+    <div className="rounded-3xl border border-violet-400/35 bg-[#0b0914] px-4 py-3 shadow-[0_0_28px_-14px_rgba(139,92,246,0.8)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] sm:px-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 text-base font-semibold text-white">
-          <Clock className="h-6 w-6 text-emerald-300" />
+          <Clock className="h-5 w-5 text-emerald-300" />
           Fichaje de hoy
         </div>
         {needsPicker && !branchId && (
@@ -98,32 +98,32 @@ export function FichajeHoyCard({
         <div className="mt-3 text-sm text-white/60">{aviso}</div>
       ) : cargando || !summary || !branchId ? (
         // Misma altura que la tarjeta cargada, para que al llegar los datos no se mueva nada.
-        <div role="status" aria-label="Cargando fichaje" className="mt-2 animate-pulse">
-          <div className="h-9 w-48 rounded bg-white/10" />
-          <div className="mt-2 h-5 w-64 max-w-full rounded bg-white/[0.07]" />
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            <div className="h-12 rounded-2xl bg-white/[0.06]" />
-            <div className="h-12 rounded-2xl bg-white/[0.06]" />
+        <div role="status" aria-label="Cargando fichaje" className="mt-1.5 animate-pulse">
+          <div className="h-7 w-40 rounded bg-white/10" />
+          <div className="mt-0.5 h-5 w-64 max-w-full rounded bg-white/[0.07]" />
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+            <div className="h-11 rounded-2xl bg-white/[0.06]" />
+            <div className="h-11 rounded-2xl bg-white/[0.06]" />
           </div>
         </div>
       ) : (
         <>
-          <div className="mt-2 text-3xl font-bold leading-9 tracking-tight text-white">
+          <div className="mt-1.5 text-2xl font-bold leading-7 tracking-tight text-white">
             {summary.fichados} de {summary.total} ficharon
           </div>
-          <div className="mt-1 truncate text-base leading-6 text-white/75">{lineaPorFichar(summary.pendientesNames, summary.total)}</div>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <div className="mt-0.5 truncate text-sm leading-5 text-white/75">{lineaPorFichar(summary.pendientesNames, summary.total)}</div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             <button
               type="button"
               onClick={() => setListOpen(true)}
-              className="h-12 rounded-2xl border border-violet-400/80 bg-violet-500/15 text-base font-semibold text-white transition active:scale-[0.98]"
+              className="h-11 rounded-2xl border border-violet-400/80 bg-violet-500/15 text-base font-semibold text-white transition active:scale-[0.98]"
             >
               Ver asistencia
             </button>
             <button
               type="button"
               onClick={() => setQrOpen(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/[0.03] text-base font-semibold text-white transition active:scale-[0.98]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/[0.03] text-base font-semibold text-white transition active:scale-[0.98]"
             >
               <QrCode className="h-5 w-5" /> Mostrar QR
             </button>

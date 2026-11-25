@@ -36,12 +36,15 @@ export type PublicHeroProps = {
   compact?: boolean;
   // Inicio: portada más baja y logo más chico, para que el resto de la pantalla suba.
   small?: boolean;
+  // Inicio: contenido que va debajo (el carrusel) con el fondo del banner extendido por detrás hasta cerca de su mitad.
+  extension?: React.ReactNode;
   // Contenido extra debajo de las estadísticas (selector de sucursal).
   children?: React.ReactNode;
 };
 
 const HERO_CSS = `
   .public-hero[data-theme="light"] [class*="text-white"] { color: #111827 !important; }
+  .public-hero[data-theme="light"] .hero-extension [class*="text-white"] { color: #ffffff !important; }
   .public-hero[data-theme="dark"]:not([data-decor="none"]) .hero-glow { color: #ffffff !important; font-weight: 700; text-shadow: 0 0 3px rgba(0,0,0,1), 0 0 5px rgba(0,0,0,1), 0 0 7px rgba(0,0,0,1), 0 0 9px rgba(0,0,0,1), 0 0 11px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.8); }
   .public-hero[data-theme="light"]:not([data-decor="none"]) .hero-glow { color: #000000 !important; font-weight: 700; text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 5px rgba(255,255,255,1), 0 0 7px rgba(255,255,255,1), 0 0 9px rgba(255,255,255,1), 0 0 11px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,0.9), 0 0 14px rgba(255,255,255,0.8); }
   .public-hero[data-theme="dark"]:not([data-decor="none"]) .hero-glow-icon { filter: drop-shadow(0 0 2px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,1)) drop-shadow(0 0 6px rgba(0,0,0,1)) drop-shadow(0 0 8px rgba(0,0,0,1)) drop-shadow(0 0 10px rgba(0,0,0,1)); }
@@ -88,15 +91,36 @@ export function PublicHero(p: PublicHeroProps) {
     >
       <style>{HERO_CSS}</style>
       <section className={"relative overflow-hidden " + (p.decor === "none" ? "border-b border-white/[0.06]" : "")}>
+        {/* Fondo del banner. Con extensión (Inicio) suma la portada difuminada, baja por detrás de las tarjetas y se
+            funde con el fondo de la app; funciona con cualquier imagen que cargue el negocio. */}
         <div
-          className="absolute inset-0"
-          style={{
-            background: p.flat
-              ? "none"
-              : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
-          }}
-        />
-        <PublicDecor decor={p.decor} primary={p.primary} secondary={p.secondary} accent={p.accent} light={p.light} />
+          className="absolute inset-x-0 top-0 overflow-hidden"
+          style={
+            p.extension
+              ? { bottom: 52, WebkitMaskImage: "linear-gradient(to bottom, #000 62%, transparent 100%)", maskImage: "linear-gradient(to bottom, #000 62%, transparent 100%)" }
+              : { bottom: 0 }
+          }
+        >
+          {p.extension && p.coverUrl ? (
+            <img
+              src={p.coverUrl}
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-45 blur-2xl saturate-150"
+              style={{ objectPosition: p.coverPosition }}
+              decoding="async"
+            />
+          ) : null}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: p.flat
+                ? "none"
+                : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
+            }}
+          />
+          <PublicDecor decor={p.decor} primary={p.primary} secondary={p.secondary} accent={p.accent} light={p.light} />
+        </div>
         <div className={"relative mx-auto max-w-6xl px-4 " + (p.small ? "py-2 sm:py-3" : p.compact ? "py-3 sm:py-4" : "py-5 sm:py-10")}>
           <div className="relative" key={`cover-${p.effectRun}`}>
             {bannerGlow ? (
@@ -188,6 +212,7 @@ export function PublicHero(p: PublicHeroProps) {
             )}
           </div>
         </div>
+        {p.extension ? <div className="hero-extension relative z-10 px-3 font-sans sm:px-5 lg:px-6">{p.extension}</div> : null}
       </section>
     </div>
   );
