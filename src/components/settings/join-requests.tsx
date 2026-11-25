@@ -119,7 +119,7 @@ function PendingCard({
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={cardStyle}>
       <div className="inline-flex rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/30">
-        {label ?? (bothAccepted ? "Aceptó tu invitación" : "Quiere trabajar")}
+        {label ?? (bothAccepted ? "Aceptó tu invitación" : "Postulación")}
       </div>
       <div className="flex items-center gap-3">
         <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-xl font-semibold ring-2 ring-violet-400/40">
@@ -289,7 +289,7 @@ function RentalCards({ rows, busy, onDecide }: { rows: RentalReq[]; busy: boolea
           }}
           busy={busy}
           businessId={businessId}
-          label="Quiere alquilar"
+          label="Solicitud de alquiler"
           accepted={!onDecide}
           canBlock={false}
           hideActions={!onDecide}
@@ -385,7 +385,7 @@ export function PostulacionesPanel({
               </div>
               <BolsaTabs active="postulaciones" onSelect={onSelectTab} pending={pending.length} />
               <div className="flex shrink-0 gap-1.5 px-4 pb-3">
-                {([["recibidas", "Recibidas", pending.length + rentalPending.length], ["enviadas", "Enviadas", invited.length], ["aceptadas", "Aceptadas", accepted.length + rentalAccepted.length]] as const).map(([id, label, n]) => (
+                {([["recibidas", "Pendientes", pending.length + rentalPending.length], ["enviadas", "Enviadas", invited.length], ["aceptadas", "Aceptadas", accepted.length + rentalAccepted.length]] as const).map(([id, label, n]) => (
                   <button
                     key={id}
                     type="button"

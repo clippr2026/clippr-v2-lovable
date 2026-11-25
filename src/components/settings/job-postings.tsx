@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
+import { Clock, ExternalLink, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -55,6 +55,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
   const [askKind, setAskKind] = React.useState(false);
+  const [infoId, setInfoId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
@@ -225,33 +226,60 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                     </>
                     )}
                   </div>
-                ) : loading ? (
-                  <div className="py-10 text-center text-white/60">Cargando…</div>
-                ) : rows.length === 0 ? (
-                  <div className="py-10 text-center text-lg text-white/60">Todavía no publicaste avisos.</div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(null)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-base font-bold text-white shadow-[0_6px_22px_-6px_rgba(124,92,255,0.9)] transition active:scale-95"
+                      >
+                        <Plus className="h-5 w-5" /> Nuevo aviso
+                      </button>
+                      <a href="/bolsa-de-trabajo" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-base font-semibold text-violet-200">
+                        Ver página pública <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                    {loading && <div className="py-8 text-center text-white/60">Cargando…</div>}
+                    {!loading && rows.length === 0 && <div className="py-8 text-center text-lg text-white/60">Todavía no publicaste avisos.</div>}
                     {rows.map((p) => (
-                      <div key={p.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.03] p-4", !p.is_active && "opacity-60")} style={cardStyle}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 space-y-2">
-                            <span
-                              className={cn(
-                                "inline-flex rounded-full px-3 py-1 text-sm font-semibold ring-1",
-                                p.kind === "alquiler" ? "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" : "bg-violet-500/20 text-violet-100 ring-violet-400/40",
-                              )}
-                            >
-                              {p.kind === "alquiler" ? "Alquiler" : "Personal"}
-                            </span>
-                            <div className="text-xl font-semibold">{p.title}</div>
+                      <div key={p.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3" style={cardStyle}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full px-3 py-0.5 text-sm font-semibold ring-1",
+                              p.kind === "alquiler" ? "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" : "bg-violet-500/20 text-violet-100 ring-violet-400/40",
+                            )}
+                          >
+                            {p.kind === "alquiler" ? "Alquiler" : "Empleo"}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Toggle on={p.is_active} onChange={(v) => void toggleActive(p, v)} />
+                            <span className={cn("text-base font-semibold", p.is_active ? "text-white" : "text-white/55")}>{p.is_active ? "Publicado" : "Pausado"}</span>
+                            {p.is_active && (
+                              <button
+                                type="button"
+                                aria-label="Más información sobre el estado"
+                                aria-expanded={infoId === p.id}
+                                onClick={() => setInfoId(infoId === p.id ? null : p.id)}
+                                className="grid h-7 w-7 place-items-center rounded-full text-violet-200"
+                              >
+                                <Info className="h-5 w-5" />
+                              </button>
+                            )}
                           </div>
-                          <Toggle on={p.is_active} onChange={(v) => void toggleActive(p, v)} />
                         </div>
-                        <div className="mt-3 flex gap-2">
-                          <button type="button" onClick={() => startEdit(p)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 text-base font-semibold text-violet-100">
+                        {p.is_active && infoId === p.id && (
+                          <div className="mt-2 rounded-xl bg-black/30 px-3 py-2 text-sm text-white/75 ring-1 ring-white/10">
+                            Este aviso está publicado y visible en la página pública.
+                          </div>
+                        )}
+                        <div className={cn("mt-2 text-lg font-semibold leading-tight", !p.is_active && "text-white/60")}>{p.title}</div>
+                        <div className="mt-2.5 flex gap-2">
+                          <button type="button" onClick={() => startEdit(p)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 text-base font-semibold text-violet-100">
                             <Pencil className="h-4 w-4" /> Editar
                           </button>
-                          <button type="button" onClick={() => void remove(p)} aria-label="Borrar aviso" className="grid h-11 w-11 place-items-center rounded-full border border-red-400/40 bg-red-500/15 text-red-100">
+                          <button type="button" onClick={() => void remove(p)} aria-label="Borrar aviso" className="grid h-10 w-11 place-items-center rounded-full border border-red-400/30 bg-red-500/10 text-red-300">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -261,7 +289,7 @@ export function JobPostingsButton({ open = false, onClose = () => {}, onSelectTa
                 )}
               </div>
 
-              <div className={cn("shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3", editing && askKind ? "hidden" : "flex")}>
+              <div className={cn("shrink-0 items-center gap-2 border-t border-white/10 px-4 pb-1.5 pt-3", !editing || askKind ? "hidden" : "flex")}>
                 {editing ? (
                   <button
                     type="button"
