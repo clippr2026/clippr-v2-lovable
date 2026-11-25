@@ -164,15 +164,17 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
 
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
-      <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
-      <SenasExtensionBanner businessId={businessId} branchId={activeBranchId} onClosed={() => void cajaHoy.refresh()} />
-      <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
+      {/* Fichaje de jornada, justo debajo del banner. */}
       <FichajeHoyCard
         fichaje={fichajeHoy}
         branchId={fichajeBranchId}
         activeBranches={activeBranches}
         branchesLoading={branchesLoading}
       />
+      {/* Clientes con saldo pendiente y demás avisos, arriba de "Caja de hoy" (van dentro de CajaHoyCard). */}
+      <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
+      <SenasExtensionBanner businessId={businessId} branchId={activeBranchId} onClosed={() => void cajaHoy.refresh()} />
+      <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
 
       {/* Próximos turnos + Actividad reciente */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">

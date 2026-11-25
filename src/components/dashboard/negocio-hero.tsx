@@ -152,7 +152,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
     setEditing(true);
   }
 
-  if (!data) return <div className="mb-5 h-72 animate-pulse rounded-3xl bg-white/[0.03]" />;
+  if (!data) return <div className="mb-3 h-44 animate-pulse rounded-3xl bg-white/[0.03]" />;
 
   const font = getPublicFont(data.fontKey);
   const bubble = text ? (
@@ -178,13 +178,14 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
   ) : undefined;
 
   return (
-    <div className="mb-5">
+    <div className="mb-3">
       {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell).
           Va por encima del resplandor de fondo de Inicio, para que no lo tiña. */}
       <div className="relative z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4">
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
         compact
+        small
         background={data.light ? "#ffffff" : "#08070c"}
         name={data.name}
         coverUrl={data.coverUrl}

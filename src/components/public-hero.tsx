@@ -34,6 +34,8 @@ export type PublicHeroProps = {
   className?: string;
   // Inicio: la misma portada y el mismo logo que la página pública, sin nombre ni estadísticas.
   compact?: boolean;
+  // Inicio: portada más baja y logo más chico, para que el resto de la pantalla suba.
+  small?: boolean;
   // Contenido extra debajo de las estadísticas (selector de sucursal).
   children?: React.ReactNode;
 };
@@ -95,7 +97,7 @@ export function PublicHero(p: PublicHeroProps) {
           }}
         />
         <PublicDecor decor={p.decor} primary={p.primary} secondary={p.secondary} accent={p.accent} light={p.light} />
-        <div className={"relative mx-auto max-w-6xl px-4 " + (p.compact ? "py-3 sm:py-4" : "py-5 sm:py-10")}>
+        <div className={"relative mx-auto max-w-6xl px-4 " + (p.small ? "py-2 sm:py-3" : p.compact ? "py-3 sm:py-4" : "py-5 sm:py-10")}>
           <div className="relative" key={`cover-${p.effectRun}`}>
             {bannerGlow ? (
               <div
@@ -108,7 +110,7 @@ export function PublicHero(p: PublicHeroProps) {
             ) : null}
             <div
               data-pos-kind="cover"
-              className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
+              className={`relative ${p.small ? "aspect-[11/3.6] sm:aspect-[5/1]" : COVER_ASPECT_CLASS} overflow-hidden ${p.small ? "rounded-[1.5rem]" : "rounded-[2rem]"} border border-white/20`}
               style={{
                 ...(p.entryEffect !== "zoom" ? coverFxStyle(p.entryEffect, p.playFx) : {}),
                 background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
@@ -132,12 +134,12 @@ export function PublicHero(p: PublicHeroProps) {
               <CoverSweep effect={p.entryEffect} play={p.playFx} />
             </div>
           </div>
-          <div className={"relative z-10 flex flex-col px-4 sm:px-8 " + "-mt-12 sm:-mt-14"}>
+          <div className={"relative z-10 flex flex-col px-4 sm:px-8 " + (p.small ? "-mt-7 sm:-mt-9" : "-mt-12 sm:-mt-14")}>
             <div className="relative w-max">
               {p.bubble}
               <div key={`avatar-${p.effectRun}`} className="fx-anim" style={avatarFxStyle(p.entryEffect, p.playFx)}>
                 <NeonFrame plain={!logoNeon} colors={neonPalette(p.primary)} mode={p.entryEffect === "neon" && p.playFx ? "intro" : "static"}>
-                  <div data-pos-kind="avatar" className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + "h-28 w-28 sm:h-32 sm:w-32"}>
+                  <div data-pos-kind="avatar" className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + (p.small ? "h-16 w-16 sm:h-20 sm:w-20" : "h-28 w-28 sm:h-32 sm:w-32")}>
                     {p.avatarUrl ? (
                       <img
                         loading="lazy"
