@@ -187,7 +187,9 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
     <div className="mb-3">
       {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell).
           Va por encima del resplandor de fondo de Inicio, para que no lo tiña. */}
-      <div className="relative z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4">
+      <div className="relative isolate z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4">
+      {/* Solo en modo claro: color violeta detrás del banner, que se funde con el fondo claro. */}
+      <div aria-hidden="true" className="inicio-fondo" />
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
         compact
