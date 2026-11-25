@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { ROLE_LABEL_BY_ID } from "@/components/settings/equipo-section";
 import { BranchSelector } from "@/components/branch-selector";
+import { ColorModeToggle } from "@/components/color-mode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -810,6 +811,9 @@ export function AppSidebar() {
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
+            {/* Modo claro/oscuro: en el celular, centrado en el encabezado (justo
+                arriba del selector de sucursal); en desktop, junto al resto. */}
+            <ColorModeToggle className="absolute left-1/2 top-1 -translate-x-1/2 lg:static lg:translate-x-0" />
             {/* Selector de sucursal — único en toda la app, siempre visible.
                 Cerca del perfil/menú de usuario en desktop (ver spec: "cerca
                 del nombre/logo o del perfil"). Con 1 sola sucursal muestra

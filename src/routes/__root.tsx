@@ -15,6 +15,8 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { NeonSkinFlag } from "@/components/neon-skin-flag";
+import { ColorModeFlag } from "@/components/color-mode";
+import { COLOR_MODE_BOOT_SCRIPT } from "@/lib/color-mode";
 
 function NotFoundComponent() {
   return (
@@ -168,8 +170,10 @@ function PwaLinks() {
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    // suppressHydrationWarning: el script de modo claro agrega una clase antes de hidratar.
+    <html lang="es" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: COLOR_MODE_BOOT_SCRIPT }} />
         <HeadContent />
         <PwaLinks />
       </head>
@@ -235,6 +239,7 @@ function RootComponent() {
       <AuthProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <NeonSkinFlag />
+        <ColorModeFlag />
         <Outlet />
         <DialogosClippr />
         <Toaster position="top-right" visibleToasts={1} />

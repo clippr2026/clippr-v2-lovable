@@ -13,7 +13,8 @@ export function AcquisitionChannelIcon({
 }) {
   if (channel.icon.kind === "brand") {
     const Brand = channel.icon.component;
-    return <Brand className={className} color={channel.icon.color} />;
+    // "no-invert": el logo de marca conserva su color en modo claro.
+    return <Brand className={`no-invert ${className ?? ""}`} color={channel.icon.color} />;
   }
   return <span className={className}>{channel.icon.value}</span>;
 }

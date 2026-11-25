@@ -773,3 +773,19 @@ html.neon-skin .dashboard-premium-shell .senas-neon-card {
 [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
   color: #fcd34d;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Modo claro (clase "modo-claro" en <html>, ver lib/color-mode.ts): invierte
+   toda la app. El filtro va SOLO en la raíz: en cualquier otro elemento
+   rompería los position: fixed. Fotos, videos, QR, mapas y logos se vuelven
+   a invertir para verse normales; para marcar otro elemento, usar "no-invert".
+   ───────────────────────────────────────────────────────────────────────── */
+html.modo-claro {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.modo-claro :is(img, video, canvas, iframe, svg image, .no-invert) {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+html.modo-claro .no-invert :is(img, video, canvas, iframe, svg image, .no-invert) {
+  filter: none !important;
+}
