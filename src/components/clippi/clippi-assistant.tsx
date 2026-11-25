@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ArrowRight, ArrowUp, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Trash2, X } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiTema } from "@/lib/clippi";
@@ -16,8 +16,39 @@ const cargarMotor = () => import("@/lib/clippi");
 
 type Mensaje = { de: "yo" | "clippi"; texto: string; tema?: ClippiTema; sugerencias?: ClippiTema[] };
 
-// La conversación se conserva al cambiar de pantalla (hasta recargar), separada por cuenta.
-let historial: { cuenta: string; mensajes: Mensaje[] } = { cuenta: "", mensajes: [] };
+// La conversación se guarda en el dispositivo, separada por cuenta: sigue ahí al cambiar de
+// pantalla, recargar o cerrar la app. Se borra sola a los 7 días sin usar el chat.
+const MAXIMO_MENSAJES = 40;
+const VENCE_MS = 7 * 24 * 60 * 60 * 1000;
+const claveChat = (cuenta: string) => `clippr_clippi_chat_${cuenta}`;
+// Respaldo en memoria por si el almacenamiento no está disponible.
+const memoria = new Map<string, Mensaje[]>();
+
+function leerChat(cuenta: string): Mensaje[] {
+  const enMemoria = memoria.get(cuenta);
+  if (enMemoria) return enMemoria;
+  try {
+    const guardado = JSON.parse(localStorage.getItem(claveChat(cuenta)) ?? "null") as { fecha: number; mensajes: Mensaje[] } | null;
+    return guardado && Date.now() - guardado.fecha < VENCE_MS && Array.isArray(guardado.mensajes) ? guardado.mensajes : [];
+  } catch {
+    return [];
+  }
+}
+
+function guardarChat(cuenta: string, mensajes: Mensaje[]) {
+  memoria.set(cuenta, mensajes);
+  try {
+    // De cada opción sugerida solo hace falta lo que se muestra, no sus preguntas.
+    const livianos = mensajes.map((m) => ({
+      ...m,
+      tema: m.tema && { ...m.tema, preguntas: [] },
+      sugerencias: m.sugerencias?.map((t) => ({ ...t, preguntas: [] })),
+    }));
+    localStorage.setItem(claveChat(cuenta), JSON.stringify({ fecha: Date.now(), mensajes: livianos }));
+  } catch {
+    // Sin almacenamiento: la conversación dura hasta recargar.
+  }
+}
 
 export function ClippiAssistant() {
   const { profile, user, loading } = useAuth();
@@ -72,7 +103,7 @@ function useAreaVisible() {
 function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) => boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const area = useAreaVisible();
-  const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => (historial.cuenta === cuenta ? historial.mensajes : []));
+  const [mensajes, setMensajes] = React.useState<Mensaje[]>(() => leerChat(cuenta));
   const [texto, setTexto] = React.useState("");
   const finRef = React.useRef<HTMLDivElement>(null);
   const [temas, setTemas] = React.useState<ClippiTema[]>([]);
@@ -95,11 +126,16 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     return () => window.removeEventListener("keydown", tecla);
   }, [onClose]);
 
-  // Se guarda también en el historial: si se cierra el chat mientras consulta, la respuesta no se pierde.
+  // Se guarda en el momento: si se cierra el chat mientras consulta, la respuesta no se pierde.
   function agregar(mensaje: Mensaje) {
-    const anteriores = historial.cuenta === cuenta ? historial.mensajes : [];
-    historial = { cuenta, mensajes: [...anteriores, mensaje] };
-    setMensajes(historial.mensajes);
+    const todos = [...leerChat(cuenta), mensaje].slice(-MAXIMO_MENSAJES);
+    guardarChat(cuenta, todos);
+    setMensajes(todos);
+  }
+
+  function borrarChat() {
+    guardarChat(cuenta, []);
+    setMensajes([]);
   }
 
   async function preguntar(pregunta: string) {
@@ -142,6 +178,11 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             </div>
             <div className="text-sm text-white/60">Clippr</div>
           </div>
+          {mensajes.length > 0 && !consultando && (
+            <button type="button" onClick={borrarChat} aria-label="Borrar conversación" title="Borrar conversación" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/5 ring-1 ring-white/10">
+              <Trash2 className="h-5 w-5 text-white/70" />
+            </button>
+          )}
           <button type="button" onClick={onClose} aria-label="Cerrar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/5 ring-1 ring-white/10">
             <X className="h-5 w-5" />
           </button>
