@@ -1,6 +1,7 @@
 import * as React from "react";
 import { fmtRating } from "@/lib/rating";
 import { RefItem } from "@/components/auth/reference-item";
+import { SectionTitle } from "@/components/auth/section-title";
 import { createPortal } from "react-dom";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Briefcase, ClipboardList, Clock, Home, Instagram, MapPin, MessageCircle, Scissors, Star } from "lucide-react";
@@ -520,7 +521,7 @@ function BolsaPublicaPage() {
                         <>
                           {r.specialties && r.specialties.length > 0 && (
                             <div>
-                              <div className="mb-2 text-base font-semibold text-white/85">Especialidades</div>
+                              <div className="mb-2"><SectionTitle kind="especialidades" /></div>
                               <div className="flex flex-wrap gap-1.5">
                               {r.specialties.map((sp) => <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">{sp}</span>)}
                               </div>
@@ -528,7 +529,7 @@ function BolsaPublicaPage() {
                           )}
                           {r.bio && (
                             <div>
-                              <div className="mb-2 text-base font-semibold text-white/85">Sobre mí</div>
+                              <div className="mb-2"><SectionTitle kind="sobre" /></div>
                               <div className="rounded-2xl border border-white/10 bg-black/30 p-4" style={startCardStyle}>
                                 <p className="whitespace-pre-line text-base font-semibold text-white/90">{r.bio}</p>
                               </div>
@@ -536,7 +537,7 @@ function BolsaPublicaPage() {
                           )}
                           {r.refs && r.refs.length > 0 && (
                             <div className="space-y-2">
-                              <div className="text-base font-semibold text-white/85">Referencias</div>
+                              <SectionTitle kind="referencias" />
                               {r.refs.map((x, i) => (
                                 <RefItem key={`${x.n}-${i}`} x={{ id: String(i), place_name: x.n, locality: x.l, from_date: x.f, to_date: x.t, instagram: x.i ?? null, whatsapp: null }} />
                               ))}

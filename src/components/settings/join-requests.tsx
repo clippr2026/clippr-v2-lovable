@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { RefItem, monthLabel, type RefRow } from "@/components/auth/reference-item";
+import { SectionTitle } from "@/components/auth/section-title";
 import { BolsaTabs, type BolsaTab } from "@/components/settings/bolsa-tabs";
 
 export type JoinRequest = {
@@ -47,7 +48,7 @@ export function RefsPreview({ userId }: { userId: string }) {
   if (!rows || rows.length === 0) return null;
   return (
     <div className="space-y-2">
-      <div className="text-base font-semibold text-white/85">Referencias</div>
+      <SectionTitle kind="referencias" />
       {rows.map((x) => (
         <RefItem key={x.id} x={{ ...x, whatsapp: null }} />
       ))}
@@ -157,15 +158,23 @@ function PendingCard({
       {more && (
         <>
           {r.specialties && r.specialties.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {r.specialties.map((sp) => (
-                <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">
-                  {sp}
-                </span>
-              ))}
+            <div className="space-y-2">
+              <SectionTitle kind="especialidades" />
+              <div className="flex flex-wrap gap-1.5">
+                {r.specialties.map((sp) => (
+                  <span key={sp} className="rounded-full bg-violet-500/15 px-3 py-1 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/30">
+                    {sp}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
-          {r.bio && <p className="text-base text-white/75">{r.bio}</p>}
+          {r.bio && (
+            <div className="space-y-2">
+              <SectionTitle kind="sobre" />
+              <p className="text-base text-white/75">{r.bio}</p>
+            </div>
+          )}
           {r.photos && r.photos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {r.photos.map((u) => (
