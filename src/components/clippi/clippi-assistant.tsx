@@ -137,9 +137,9 @@ export function ClippiAssistant() {
           onAbrir={() => setAbierto(true)}
           onMover={(posicion) => cambiarBurbuja({ posicion })}
           onGuardar={() => {
-            // Vuelve a aparecer en su lugar de siempre, no encima del basurero.
+            // Vuelve a aparecer en su lugar de siempre, no encima de la X.
             cambiarBurbuja({ guardada: true, posicion: null });
-            toast("Guardaste a Clippi. Lo encontrás en Configuración.");
+            toast("Ocultaste a Clippi. Lo encontrás en Configuración.");
           }}
         />
       )}
@@ -149,7 +149,7 @@ export function ClippiAssistant() {
   );
 }
 
-/** La cara de Clippi flotando: un toque abre el chat; arrastrando se mueve o se tira al basurero. */
+/** La cara de Clippi flotando: un toque abre el chat; arrastrando se mueve o se oculta sobre la X. */
 export function BurbujaClippi({
   posicion,
   sinLeer,
@@ -192,13 +192,14 @@ export function BurbujaClippi({
   return (
     <>
       {arrastre && (
-        <div aria-hidden className="no-invert pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] z-[10010] flex justify-center">
+        <div aria-hidden className="no-invert pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] z-[10010] flex flex-col items-center gap-1.5">
           <div
             ref={basurero}
             className={`grid h-16 w-16 place-items-center rounded-full border-2 text-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.6)] backdrop-blur-[3px] transition ${arrastre.sobre ? "scale-125 border-white bg-rose-500/70" : "border-white/70 bg-slate-400/30"}`}
           >
-            <Trash2 className="h-7 w-7 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
+            <X className="h-8 w-8 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           </div>
+          <span className="rounded-full bg-black/50 px-3 py-0.5 text-xs font-semibold text-white">Ocultar</span>
         </div>
       )}
       {/* "no-invert": en modo claro Clippi se ve con sus colores. "touch-none": arrastrar no mueve la pantalla. */}
