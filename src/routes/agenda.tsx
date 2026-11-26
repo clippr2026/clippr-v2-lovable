@@ -1827,7 +1827,7 @@ function AgendaPage() {
                   aria-label={profElegido ? `Profesional: ${profElegido.full_name}` : "Todos los profesionales"}
                   aria-expanded={profFilterOpen}
                   data-activo={profElegido ? true : undefined}
-                  className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1 rounded-full pl-2 pr-1.5 text-xs font-semibold"
+                  className="filtro-estado inline-flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full pl-2.5 pr-2 text-xs font-semibold"
                   style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
                 >
                   {profElegido?.avatar_url ? (
@@ -1837,7 +1837,7 @@ function AgendaPage() {
                   ) : (
                     <Users className="h-4 w-4" />
                   )}
-                  {profElegido && <span className="max-w-[72px] truncate">{(profElegido.full_name ?? "").split(" ")[0]}</span>}
+                  <span className="min-w-0 flex-1 truncate text-left">{profElegido ? profElegido.full_name : "Todos los profesionales"}</span>
                   <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", profFilterOpen && "rotate-180")} />
                 </button>
                 <button
@@ -1848,14 +1848,18 @@ function AgendaPage() {
                   }}
                   aria-expanded={estadosMenuAbierto}
                   data-activo={true}
-                  className="filtro-estado inline-flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full px-3 text-xs font-semibold"
+                  className="filtro-estado inline-flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full pl-3 pr-2 text-xs font-semibold"
                   style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
                 >
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
-                  <span className="truncate">{etiqueta}</span>
+                  <span className="min-w-0 truncate">{etiqueta}</span>
                   <span className="filtro-numero tabular-nums">{filtrando ? nVisibles : total}</span>
+                  <span className="flex-1" />
                   <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", estadosMenuAbierto && "rotate-180")} />
                 </button>
+              </div>
+              {/* Segunda línea: «Se fueron» y el cambio de vista. */}
+              <div className="mb-2 flex items-center gap-1.5">
                 <ClientesNoAtendidosButton
                   businessId={data.businessId}
                   branchId={data.activeBranchId}
@@ -1913,7 +1917,7 @@ function AgendaPage() {
               {estadosMenuAbierto && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setEstadosMenuAbierto(false)} />
-                  <div className="menu-estados absolute left-0 top-9 z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
+                  <div className="menu-estados absolute right-0 top-9 z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
                     <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">Ver en la agenda</p>
                     <button
                       type="button"
