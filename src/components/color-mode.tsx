@@ -14,7 +14,8 @@ export function ColorModeFlag() {
 export function ColorModeToggle({ className }: { className?: string }) {
   const [light, setLight] = React.useState(false);
   React.useEffect(() => setLight(readLightMode()), []);
-  const Icon = light ? Sun : Moon;
+  // Muestra el modo al que se pasa: en claro la luna, en oscuro el sol.
+  const Icon = light ? Moon : Sun;
   return (
     <button
       type="button"
