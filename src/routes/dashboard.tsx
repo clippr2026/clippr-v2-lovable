@@ -163,7 +163,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   }
 
   return (
-    <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
+    <div className="dashboard-premium-shell space-y-6 animate-fade-in-safe">
       {/* Fichaje de jornada, justo debajo del banner. */}
       <FichajeHoyCard
         fichaje={fichajeHoy}
@@ -279,7 +279,7 @@ function CajaHoyCard({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
       {/* Ninguna caja se cierra sola: este aviso solo lleva a la vista
           previa de Caja > Cierres (ver sección 2/4 del pedido) — nunca
           cierra nada desde Inicio. Lista TODAS las jornadas pendientes,
