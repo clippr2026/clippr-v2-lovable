@@ -1,4 +1,6 @@
 import * as React from "react";
+import { Eye } from "lucide-react";
+import { ocultarTarjetaFichaje, useTarjetaFichajeOculta } from "@/lib/fichaje-tarjeta";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
 import { Clock3, Plus, Trash2, Loader2, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +27,7 @@ const EMPTY_FORM: RuleForm = { minMinutes: "", discountType: "percent", discount
 // de un rango "hasta X" mal configurado.
 export function ReglasTardanzaSection() {
   const { businessId, activeBranchId, branches } = useAuth();
+  const tarjetaOculta = useTarjetaFichajeOculta(businessId);
   const [rules, setRules] = React.useState<LatenessRule[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [form, setForm] = React.useState<RuleForm>(EMPTY_FORM);
@@ -88,6 +91,19 @@ export function ReglasTardanzaSection() {
 
   return (
     <div className="space-y-4">
+      {tarjetaOculta && businessId && (
+        // La tarjeta de fichaje de Inicio se ocultó: se puede volver a mostrar desde acá.
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm text-white/75">Ocultaste la tarjeta de fichaje de Inicio.</p>
+          <button
+            type="button"
+            onClick={() => ocultarTarjetaFichaje(businessId, false)}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
+          >
+            <Eye className="h-4 w-4" /> Mostrar en Inicio
+          </button>
+        </div>
+      )}
       <SectionCard label={`Reglas de tardanza${activeBranchName ? ` — ${activeBranchName}` : ""}`}>
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -1,7 +1,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
-import { ClipboardCheck, Clock, QrCode, X } from "lucide-react";
+import { ClipboardCheck, Clock, EyeOff, QrCode, Settings2, X } from "lucide-react";
+import { ocultarTarjetaFichaje, useFichajeConfigurado, useTarjetaFichajeOculta } from "@/lib/fichaje-tarjeta";
 import { useAuth } from "@/hooks/use-auth";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
@@ -39,7 +40,9 @@ export function FichajeHoyCard({
   activeBranches: BranchOption[];
   branchesLoading: boolean;
 }) {
-  const { setActiveBranchId } = useAuth();
+  const { setActiveBranchId, businessId } = useAuth();
+  const configurado = useFichajeConfigurado(businessId);
+  const oculta = useTarjetaFichajeOculta(businessId);
   const [qrOpen, setQrOpen] = React.useState(false);
   const [listOpen, setListOpen] = React.useState(false);
   const branchName = activeBranches.find((b) => b.id === branchId)?.name ?? "";
@@ -54,7 +57,7 @@ export function FichajeHoyCard({
       : needsPicker && !branchId
         ? "Elegí una sucursal."
         : null;
-  const cargando = !aviso && (branchesLoading || fichaje.loading || !summary || !branchId);
+  const cargando = !aviso && (configurado === null || branchesLoading || fichaje.loading || !summary || !branchId);
 
   // Tarjeta "Fichaje" del carrusel: abre la asistencia del día; si todavía no se puede (sin sucursal o sin datos),
   // lleva a la configuración de fichaje.
@@ -68,6 +71,37 @@ export function FichajeHoyCard({
     window.addEventListener(EVENTO_VER_ASISTENCIA, ver);
     return () => window.removeEventListener(EVENTO_VER_ASISTENCIA, ver);
   }, [puedeVer, navigate]);
+
+  // Sin configurar: invita a configurarlo (se puede ocultar). Configurado: la tarjeta de siempre.
+  if (configurado === false) {
+    if (oculta || !businessId) return null;
+    return (
+      <div className="glass rounded-2xl p-4 ring-1 ring-white/5 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
+            <QrCode className="h-5 w-5 text-violet-300" />
+            Fichaje de jornada
+          </div>
+          <button
+            type="button"
+            onClick={() => ocultarTarjetaFichaje(businessId, true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-sm font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white"
+            aria-label="Ocultar la tarjeta de fichaje"
+          >
+            <EyeOff className="h-4 w-4" /> Ocultar
+          </button>
+        </div>
+        <p className="mt-1.5 text-base leading-6 text-white/75">Registrá y controlá los horarios de entrada y salida de tu equipo.</p>
+        <button
+          type="button"
+          onClick={() => void navigate({ to: "/settings", search: { section: "tardanza" } as never })}
+          className="fichaje-accion fichaje-principal mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-200 to-violet-300 text-base font-semibold text-violet-950 shadow-[0_6px_18px_-6px_rgba(196,181,253,.7),inset_0_1px_0_rgba(255,255,255,.5)] ring-1 ring-violet-100/60 transition active:scale-[0.97]"
+        >
+          <Settings2 className="h-5 w-5" /> Configurar fichaje
+        </button>
+      </div>
+    );
+  }
 
   // "glass": mismo borde iluminado que Caja de hoy y Próximos turnos.
   return (
