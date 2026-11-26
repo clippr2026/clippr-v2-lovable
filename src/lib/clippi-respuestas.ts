@@ -168,7 +168,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("anticipacion", "Reglas para reservar y cancelar", ["con cuanto tiempo pueden reservar", "hasta cuando pueden cancelar", "limite para reprogramar", "anticipacion minima"],
     "En Configuración → Reservas definís la anticipación mínima y máxima para reservar y hasta cuándo el cliente puede cancelar o reprogramar.", config("senas", "Ir a Reservas")),
   t("sena-revisar", "Aprobar un comprobante de seña", ["un cliente mando el comprobante", "aprobar seña", "rechazar seña", "seña pendiente", "reembolso pendiente"],
-    "Cuando hay señas por revisar aparece un aviso en Inicio y en Caja: tocá «Revisar» para aprobarlas o rechazarlas. Los reembolsos pendientes aparecen igual.", inicio),
+    "Cuando hay señas por revisar aparece un aviso en Caja: tocá «Revisar» para aprobarlas o rechazarlas. Los reembolsos pendientes aparecen igual.", caja("resumen")),
   t("resenas", "Reseñas", ["ver opiniones de clientes", "destacar una reseña", "cargar una reseña de google", "borrar una resena"],
     "En Configuración → Reseñas ves las opiniones, elegís cuáles destacar y podés cargar a mano las que recibiste por otro lado.", config("resenas", "Ir a Reseñas")),
   t("bolsa", "Bolsa de trabajo", ["buscar barbero", "publicar oferta de trabajo", "alquilar un sillon", "solicitudes de empleo"],

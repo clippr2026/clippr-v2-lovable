@@ -14,7 +14,6 @@ import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeHoyCard } from "@/components/dashboard/fichaje-hoy-card";
 import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
-import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { NegocioHero } from "@/components/dashboard/negocio-hero";
 import { ModulosCarousel } from "@/components/dashboard/modulos-carousel";
@@ -312,8 +311,6 @@ function CajaHoyCard({
           </Link>
         </div>
       ) : null}
-
-      <SenasCajaCard businessId={bizId} branchId={activeBranchId} onChanged={() => void caja.refresh()} variant="avisos" />
       </div>
 
       <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
