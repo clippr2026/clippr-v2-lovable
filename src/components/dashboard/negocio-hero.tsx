@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PublicHero, AnnouncementBubble } from "@/components/public-hero";
 import { normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
-import { normalizePublicBg, type PublicBgKey } from "@/lib/public-theme";
+import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import {
   ANNOUNCEMENT_MAX_CHARS,
@@ -189,12 +189,17 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
     <div className="mb-3">
       {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell).
           Va por encima del resplandor de fondo de Inicio, para que no lo tiña. */}
-      <div className="inicio-portada relative isolate z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4">
+      <div
+        className="inicio-portada relative isolate z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4"
+        // El mismo fondo que la página pública del negocio (blanco o negro, con sus colores), sin importar si el
+        // panel está en modo claro u oscuro. Abajo se desvanece y deja ver el fondo del panel (ver styles.css).
+        style={{ ["--hero-fondo" as string]: pageBackground(data.bg, data.light, data.primary, data.secondary) } as React.CSSProperties}
+      >
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
         compact
         small
-        background={data.light ? "#ffffff" : "transparent"}
+        background="transparent"
         name={data.name}
         coverUrl={data.coverUrl}
         avatarUrl={data.avatarUrl}
@@ -216,7 +221,7 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
         extension={
           <>
             {text ? (
-              <p className="mb-2 px-1 text-xs text-white/70">
+              <p className={"mb-2 px-1 text-xs " + (data.light ? "!text-zinc-600" : "text-white/70")}>
                 Tu anuncio se ve en tu página pública y se borra solo en {formatRemaining(remaining)}.
               </p>
             ) : null}

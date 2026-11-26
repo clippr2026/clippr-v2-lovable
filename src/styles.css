@@ -1477,28 +1477,20 @@ html.modo-claro .fichaje-accion {
 }
 html.modo-claro .fichaje-accion.fichaje-principal { background: #491a89; color: #ffffff; }
 
-/* Portada de Inicio: igual que en oscuro (fondo oscuro detrás de la foto, el logo y el decorado de la barbería);
-   recién abajo, donde empiezan las tarjetas deslizables, se funde con la página clara. */
-html.modo-claro .inicio-portada .public-hero[data-theme="dark"] {
-  background:
-    radial-gradient(circle at 18% 0%, rgb(139 92 246 / 0.34), transparent 42%),
-    radial-gradient(circle at 82% 2%, rgb(79 125 255 / 0.30), transparent 44%),
-    oklch(0.135 0.028 282) !important;
-}
-/* flow-root: el margen de abajo del carrusel queda adentro (antes se escapaba y dejaba una franja oscura). */
-html.modo-claro .inicio-portada .hero-extension { isolation: isolate; display: flow-root; }
-/* El fondo oscuro llega hasta la mitad de las tarjetas del carrusel y ahí se funde con el blanco perla. */
-html.modo-claro .inicio-portada .hero-extension::before {
+/* Portada de Inicio: lleva el fondo de la página pública del negocio (--hero-fondo, desde negocio-hero), igual en
+   los dos modos del panel. Desde la mitad de las tarjetas del carrusel se desvanece y deja ver el fondo del panel,
+   sin cortes. */
+.inicio-portada::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgb(246 247 251 / 0) 0, rgb(246 247 251 / 0) 30%, #f6f7fb 58%);
+  background: var(--hero-fondo);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 130px), transparent calc(100% - 52px));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 130px), transparent calc(100% - 52px));
 }
-html.modo-claro .inicio-portada .hero-extension {
-  --color-white: #17172b;
-}
+.inicio-portada .hero-extension { display: flow-root; }
 
 /* Tarjetas deslizables: iguales que en oscuro (base negra con el degradé de color de cada sección y texto blanco).
    En claro solo cambia el entorno; se suma una sombra suave para que se apoyen sobre el fondo claro. */

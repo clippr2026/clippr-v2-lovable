@@ -46,7 +46,8 @@ function Contenido({ m }: { m: Modulo }) {
   );
 }
 
-// Movimiento sutil al deslizar: la tarjeta encajada queda a tamaño completo y las vecinas apenas más chicas y tenues.
+// Movimiento sutil al deslizar: la tarjeta encajada queda a tamaño completo y las vecinas apenas más chicas.
+// Siempre opacas: la portada del negocio no se ve a través de ninguna tarjeta.
 function useEnfoque(ref: React.RefObject<HTMLDivElement | null>) {
   React.useEffect(() => {
     const el = ref.current;
@@ -63,7 +64,6 @@ function useEnfoque(ref: React.RefObject<HTMLDivElement | null>) {
         const distancia = Math.abs(item.getBoundingClientRect().left - inicio) / Math.max(1, item.offsetWidth);
         const lejos = alFinal && i === items.length - 1 ? 0 : Math.min(1, distancia);
         item.style.transform = `scale(${1 - lejos * 0.05})`;
-        item.style.opacity = String(1 - lejos * 0.25);
       });
     };
     const alDeslizar = () => {
