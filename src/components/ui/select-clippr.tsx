@@ -11,6 +11,7 @@ export function SelectClippr({
   className,
   pill = false,
   compact = false,
+  icono,
 }: {
   opciones: Array<{ id: string; label: string }>;
   valor: string;
@@ -20,6 +21,8 @@ export function SelectClippr({
   pill?: boolean;
   // Versión chica para barras (selector de sucursal).
   compact?: boolean;
+  /** Ícono a la izquierda del texto (selector de sucursal). */
+  icono?: React.ReactNode;
 }) {
   const [abierto, setAbierto] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
@@ -60,13 +63,16 @@ export function SelectClippr({
         className={cn(
           "flex w-full touch-manipulation items-center justify-between gap-1.5 text-left text-[15px] font-semibold text-white outline-none",
           compact
-            ? "h-8 rounded-lg border border-violet-400/30 bg-violet-500/10 pl-3 pr-2 text-sm focus:border-violet-400/60"
+            ? "selector-sucursal h-9 rounded-full border border-violet-400/25 bg-violet-500/12 pl-3.5 pr-3 text-sm focus:border-violet-400/50"
             : pill
             ? "h-11 rounded-full border border-blue-300/25 bg-black/45 pl-4 pr-3 focus:border-blue-300/55"
             : "h-12 rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 focus:border-violet-400/50",
         )}
       >
-        <span className="truncate">{actual?.label ?? "—"}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {icono}
+          <span className="truncate">{actual?.label ?? "—"}</span>
+        </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/60 transition-transform", abierto && "rotate-180")} />
       </button>
       {abierto && pos && typeof document !== "undefined" &&

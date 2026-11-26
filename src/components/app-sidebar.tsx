@@ -229,7 +229,7 @@ function NotificationsButton() {
     >
       <DropdownMenuTrigger asChild>
         <button
-          className="grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-xl glass glass-hover relative"
+          className="boton-cabecera relative grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/85 transition hover:bg-white/[0.1] active:scale-95"
           aria-label="Notificaciones"
         >
           <Bell className="h-4 w-4" />
@@ -316,9 +316,9 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Cuenta"
-          className="h-[46px] w-[46px] rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
+          className="grid h-11 w-11 place-items-center rounded-full transition active:scale-[0.96]"
         >
-          {avatar("h-[41px] w-[41px]")}
+          {avatar("foto-cabecera h-11 w-11 ring-2 ring-white/15")}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -505,16 +505,14 @@ function PublicSiteMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Reservas online"
-          className="inline-flex h-10 items-center gap-2 rounded-xl glass glass-hover px-2.5 text-sm font-medium text-white/85 transition active:scale-[0.96] hover:text-white"
+          className={cn(
+            "www-boton inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold tracking-tight transition active:scale-[0.96] hover:brightness-110",
+            maintenance ? "www-mantenimiento" : "www-activo",
+          )}
+          title={maintenance ? "Página pública en mantenimiento" : "Página pública activa"}
         >
-          <span
-            className={cn(
-              "www-pastilla rounded-full px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white",
-              maintenance ? "bg-amber-500" : "bg-violet-600",
-            )}
-          >
-            WWW
-          </span>
+          <Globe className="h-4 w-4" />
+          WWW
         </button>
       </DropdownMenuTrigger>
 
@@ -798,7 +796,13 @@ export function AppSidebar() {
   const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
   return (
     <>
-      <header className="app-encabezado no-invert sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
+      <header
+        className={cn(
+          "app-encabezado sticky top-0 z-40 w-full border-white/10 bg-black",
+          // Con selector de sucursal abajo (celular), sin línea entre los dos: forman un solo bloque.
+          hasBranchBar ? "lg:border-b" : "border-b",
+        )}
+      >
         <div className="max-w-[1600px] mx-auto h-12 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
           <Brand />
 
@@ -811,7 +815,7 @@ export function AppSidebar() {
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             {/* Modo claro/oscuro: en el celular, centrado en el encabezado (justo
                 arriba del selector de sucursal); en desktop, junto al resto. */}
-            <ColorModeToggle className="w-12 lg:w-14" />
+            <ColorModeToggle />
             {/* Selector de sucursal — único en toda la app, siempre visible.
                 Cerca del perfil/menú de usuario en desktop (ver spec: "cerca
                 del nombre/logo o del perfil"). Con 1 sola sucursal muestra
@@ -835,7 +839,7 @@ export function AppSidebar() {
           offset para no superponerse (dos sticky con el mismo `top` se
           pisan, no se apilan solos). */}
       {hasBranchBar && (
-        <div className="app-encabezado no-invert lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
+        <div className="app-encabezado lg:hidden sticky top-12 z-30 flex h-12 items-center justify-center border-b border-white/[0.06] bg-black pb-1.5">
           <BranchSelector />
         </div>
       )}

@@ -1,3 +1,4 @@
+import { Store } from "lucide-react";
 import { SelectClippr } from "@/components/ui/select-clippr";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,8 @@ export function BranchSelector({ className }: { className?: string }) {
   return (
     <SelectClippr
       compact
-      className={cn("min-w-[170px]", className)}
+      icono={<Store className="h-4 w-4 shrink-0 text-violet-300" />}
+      className={cn("min-w-[190px]", className)}
       valor={activeBranchId ?? ""}
       onChange={setActiveBranchId}
       opciones={branches.map((b) => ({ id: b.id, label: b.name }))}

@@ -26,18 +26,12 @@ export function ColorModeToggle({ className }: { className?: string }) {
         setLightMode(!light);
         setLight(!light);
       }}
-      className={cn("flex h-10 w-14 shrink-0 items-center justify-center", className)}
+      className={cn(
+        "boton-cabecera grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/85 transition hover:bg-white/[0.1] active:scale-95",
+        className,
+      )}
     >
-      <span className="tema-pista relative block h-6 w-12 rounded-full border border-white/20 bg-white/10">
-        <span
-          className={cn(
-            "tema-perilla absolute left-0.5 top-0.5 grid h-[18px] w-[18px] place-items-center rounded-full bg-white text-black transition-transform duration-200",
-            light && "translate-x-6",
-          )}
-        >
-          <Icon className="h-3 w-3" />
-        </span>
-      </span>
+      <Icon className="h-[18px] w-[18px]" />
     </button>
   );
 }

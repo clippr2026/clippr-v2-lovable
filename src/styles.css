@@ -1530,9 +1530,6 @@ html.modo-claro .turno-hora-claro { display: inline; color: #491a89; font-varian
 html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
 
 /* Cabecera: sol con buen contraste y "WWW" en blanco sobre el verde. */
-html.modo-claro .tema-pista { background-color: #e6e3f1; border-color: #d6d1e8; }
-html.modo-claro .tema-perilla { background-color: #491a89; color: #ffffff; }
-html.modo-claro .www-pastilla { color: #ffffff; }
 
 /* Menús de la cabecera (WWW y cuenta): en claro, blancos con texto oscuro, borde suave y sombra sutil. */
 html.modo-claro .menu-tema {
@@ -1544,3 +1541,25 @@ html.modo-claro .menu-tema {
   box-shadow: 0 1px 2px rgb(23 23 43 / 0.05), 0 16px 40px -18px rgb(23 23 43 / 0.28);
 }
 html.modo-claro .menu-tema [role="separator"] { background-color: #eceaf3; }
+
+/* Cabecera en modo claro: botones redondos blancos con borde sutil, foto con aro claro, selector de sucursal lavanda. */
+html.modo-claro .boton-cabecera {
+  background-color: #ffffff;
+  border-color: #e4e2ee;
+  color: #3a3850;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.06);
+}
+html.modo-claro .boton-cabecera:hover { background-color: #f6f5fa; }
+html.modo-claro .foto-cabecera { --tw-ring-color: #e6e3f1; }
+html.modo-claro .selector-sucursal {
+  background-color: #efedf7;
+  border-color: #e0dcef;
+  color: #17172b;
+}
+html.modo-claro .selector-sucursal svg { color: #491a89; }
+
+/* Botón WWW (los dos modos): degradé violeta suave con la página activa, naranja en mantenimiento. Colores fijos,
+   para que el modo claro no los cambie. */
+.www-boton.www-boton { --color-white: #ffffff; color: #ffffff; }
+.www-boton.www-activo { background-image: linear-gradient(to bottom, #8b5cf6, #6d28d9); box-shadow: 0 4px 12px -6px rgb(76 29 149 / 0.55); }
+.www-boton.www-mantenimiento { background-image: linear-gradient(to bottom, #fbbf24, #f97316); box-shadow: 0 4px 12px -6px rgb(194 65 12 / 0.5); }
