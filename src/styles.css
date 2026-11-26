@@ -1584,3 +1584,5 @@ html.modo-claro .filtro-estado .filtro-numero { color: #17172b; }
 html.modo-claro .filtro-estado[data-activo] { background: color-mix(in srgb, var(--c) 14%, #ffffff); border-color: var(--c); color: #17172b; }
 /* Cabecera compacta de sección (celular). */
 html.modo-claro .encabezado-seccion h1 { color: #17172b; }
+/* Agenda: menú del desplegable «Todos» en modo claro. */
+html.modo-claro .menu-estados { background: #ffffff; border-color: #e6e3f1; box-shadow: 0 18px 40px -20px rgba(23, 23, 43, 0.35); }

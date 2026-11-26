@@ -6,7 +6,7 @@ import { whatsappHref as armarWhatsappHref } from "@/lib/contacto-valido";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
-  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft, Check,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -165,6 +165,15 @@ const DEPOSIT_PENDING_META = {
 function isDepositPendingAppt(a: { status?: string | null; deposit_status?: string | null }) {
   return a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
 }
+// Grupo de estado de un turno, el mismo de los filtros de arriba. Los bloqueos de horario se ven siempre.
+function grupoEstado(a: { status: string; deposit_status?: string | null }): string {
+  if (a.status === "blocked") return "blocked";
+  if (isDepositPendingAppt(a as { status?: string | null; deposit_status?: string | null })) return "deposit";
+  if (a.status === "pending") return "pending";
+  if (a.status === "charged" || a.status === "cancelled" || a.status === "no_show") return a.status;
+  return "confirmed";
+}
+
 function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) {
   if (isDepositPendingAppt(a)) return DEPOSIT_PENDING_META;
   return STATUS_META[a.status] ?? STATUS_META.pending;
@@ -352,6 +361,9 @@ function AgendaPage() {
   // sucursal con otra. Solo filtra la grilla (columnas de profesionales),
   // no los conteos de estado de arriba.
   const [profFilterId, setProfFilterId] = React.useState<string | null>(null);
+  // Estados que se ven en la grilla (celular, desde el desplegable «Todos»). null = todos.
+  const [estadosVisibles, setEstadosVisibles] = React.useState<string[] | null>(null);
+  const [estadosMenuAbierto, setEstadosMenuAbierto] = React.useState(false);
   const [profFilterOpen, setProfFilterOpen] = React.useState(false);
   // Ocupación de todo el local en el día (la calcula la grilla del día).
   // Servicios del catálogo (no productos) para registrar por cuál se fue un cliente por el precio.
@@ -1840,45 +1852,108 @@ function AgendaPage() {
           />
         </div>
 
-        {/* Estados — mobile: filtros compactos en una sola fila con scroll horizontal. Tocar uno abre su lista
-            (igual que antes); «Todos» queda marcado cuando no hay ninguno abierto. */}
-        <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:hidden" style={{ scrollbarWidth: "none" }}>
-          {(
-            [
-              ["todos", "Todos", "#a78bfa", null] as const,
-              ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, k] as const),
-            ]
-          ).map(([k, label, color, abre]) => {
-            const n =
-              k === "todos"
-                ? STATUS_FILTERS.reduce((t, [key]) => t + ((counts as Record<string, number>)[key] ?? 0), 0)
-                : (counts as Record<string, number>)[k] ?? 0;
-            const abierto = activeDrawer === "filter" && !!filterModal;
-            const activo = abre === null ? !abierto : abierto && filterModal === abre;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => {
-                  if (abre === null) {
-                    if (activeDrawer === "filter") setActiveDrawer(null);
-                    return;
-                  }
-                  setFilterModal(abre);
-                  setActiveDrawer("filter");
-                }}
-                data-activo={activo || undefined}
-                data-cero={n === 0 || undefined}
-                className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
-                style={{ ["--c" as string]: color } as React.CSSProperties}
-              >
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-                <span className="whitespace-nowrap">{label}</span>
-                <span className="filtro-numero tabular-nums">{n}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Estados — mobile: «Todos» es un desplegable para elegir qué estados se ven en la grilla; los demás
+            filtros abren su lista de turnos como siempre. Todo en una sola fila con scroll horizontal. */}
+        {(() => {
+          const total = STATUS_FILTERS.reduce((t, [key]) => t + ((counts as Record<string, number>)[key] ?? 0), 0);
+          const elegidos = estadosVisibles ?? STATUS_FILTERS.map(([k]) => k);
+          const filtrando = estadosVisibles !== null;
+          const nVisibles = STATUS_FILTERS.filter(([k]) => elegidos.includes(k)).reduce(
+            (t, [k]) => t + ((counts as Record<string, number>)[k] ?? 0),
+            0,
+          );
+          const etiqueta = !filtrando
+            ? "Todos"
+            : elegidos.length === 1
+              ? STATUS_FILTERS.find(([k]) => k === elegidos[0])?.[1] ?? "Estados"
+              : `${elegidos.length} estados`;
+          const alternar = (k: string) => {
+            const siguiente = elegidos.includes(k) ? elegidos.filter((x) => x !== k) : [...elegidos, k];
+            setEstadosVisibles(siguiente.length === 0 || siguiente.length === STATUS_FILTERS.length ? null : siguiente);
+          };
+          return (
+            <div className="relative z-[80] sm:hidden">
+              <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 pb-0.5" style={{ scrollbarWidth: "none" }}>
+                <button
+                  type="button"
+                  onClick={() => setEstadosMenuAbierto((v) => !v)}
+                  aria-expanded={estadosMenuAbierto}
+                  data-activo={!(activeDrawer === "filter" && filterModal) || undefined}
+                  className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
+                  style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
+                  <span className="whitespace-nowrap">{etiqueta}</span>
+                  <span className="filtro-numero tabular-nums">{filtrando ? nVisibles : total}</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", estadosMenuAbierto && "rotate-180")} />
+                </button>
+                {STATUS_FILTERS.map(([k, label, color]) => {
+                  const n = (counts as Record<string, number>)[k] ?? 0;
+                  const activo = activeDrawer === "filter" && filterModal === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        setEstadosMenuAbierto(false);
+                        setFilterModal(k);
+                        setActiveDrawer("filter");
+                      }}
+                      data-activo={activo || undefined}
+                      data-cero={n === 0 || undefined}
+                      className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
+                      style={{ ["--c" as string]: color } as React.CSSProperties}
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                      <span className="whitespace-nowrap">{label}</span>
+                      <span className="filtro-numero tabular-nums">{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {estadosMenuAbierto && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setEstadosMenuAbierto(false)} />
+                  <div className="menu-estados absolute left-0 top-9 z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
+                    <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">Ver en la agenda</p>
+                    <button
+                      type="button"
+                      onClick={() => setEstadosVisibles(null)}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold hover:bg-white/[0.06]"
+                    >
+                      <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border", !filtrando ? "border-violet-500 bg-violet-600 text-white" : "border-white/25")}>
+                        {!filtrando && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="flex-1">Todos</span>
+                      <span className="tabular-nums text-white/60">{total}</span>
+                    </button>
+                    <div className="my-1 h-px bg-white/10" />
+                    {STATUS_FILTERS.map(([k, label, color]) => {
+                      const marcado = filtrando && elegidos.includes(k);
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => (filtrando ? alternar(k) : setEstadosVisibles([k]))}
+                          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-white/[0.06]"
+                        >
+                          <span
+                            className="grid h-5 w-5 shrink-0 place-items-center rounded-md border"
+                            style={marcado ? { background: color, borderColor: color, color: "#0b0a14" } : { borderColor: "rgba(127,127,140,0.45)" }}
+                          >
+                            {marcado && <Check className="h-3.5 w-3.5" />}
+                          </span>
+                          <span className="flex-1">{label}</span>
+                          <span className="tabular-nums text-white/60">{(counts as Record<string, number>)[k] ?? 0}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Ocupación de todo el local: dos líneas finas entre los estados y el calendario (celular) */}
         {localOccupancy !== null && (
@@ -2056,6 +2131,7 @@ function AgendaPage() {
             schedule={daySchedule}
             closure={closedToday}
             profFilterId={profFilterId}
+            estadosVisibles={estadosVisibles}
             enabledBreaks={enabledBreaks}
             onSlotClick={handleSlotClick}
             onApptClick={handleApptClick}
@@ -2500,6 +2576,7 @@ const DayView = React.memo(function DayView({
   schedule,
   closure,
   profFilterId,
+  estadosVisibles = null,
   enabledBreaks,
   onSlotClick,
   onApptClick,
@@ -2515,6 +2592,8 @@ const DayView = React.memo(function DayView({
   // Solo tiene efecto en mobile (ver isMobileForProfFilter más abajo) — en
   // desktop esta prop se ignora a propósito, siempre se ven todos.
   profFilterId: string | null;
+  // Estados elegidos en «Todos» (null = todos). Solo cambia qué turnos se dibujan: la ocupación no cambia.
+  estadosVisibles?: string[] | null;
   enabledBreaks: Set<string>;
   onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
   onApptClick: (a: Appointment) => void;
@@ -3005,12 +3084,14 @@ const DayView = React.memo(function DayView({
   const columnRender = React.useMemo(
     () =>
       employees.map((e) => {
-        const columnAppts = visibleDayAppts.filter((a) =>
-          e.id === "__none__" ? !a.employee_id : a.employee_id === e.id,
+        const columnAppts = visibleDayAppts.filter(
+          (a) =>
+            (e.id === "__none__" ? !a.employee_id : a.employee_id === e.id) &&
+            (!estadosVisibles || grupoEstado(a) === "blocked" || estadosVisibles.includes(grupoEstado(a))),
         );
         return { e, columnAppts, layouts: computeOverlapLayouts(columnAppts) };
       }),
-    [employees, visibleDayAppts],
+    [employees, visibleDayAppts, estadosVisibles],
   );
   const isToday = startOfDay(now).getTime() === startOfDay(date).getTime();
   const nowHour = now.getHours() + now.getMinutes() / 60;
