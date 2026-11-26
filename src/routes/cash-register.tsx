@@ -17837,13 +17837,11 @@ export function NuevaVentaTab({
                           const sub = (priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
                           return acc + (sub - applyPromotionDiscount(sub, p));
                         }, 0);
-                        return { id: p.id, label: ahorro > 0 ? `${p.name} · −$${Math.round(ahorro).toLocaleString("es-AR")}` : p.name, nombre: p.name };
+                        // Dentro del desglose: nombre y descuento juntos («Promo UADE −$2.900»).
+                        return { id: p.id, label: ahorro > 0 ? `${p.name} −$${Math.round(ahorro).toLocaleString("es-AR")}` : p.name };
                       }),
-                    ].map((o) => (o.id === promotionId && "nombre" in o ? { id: o.id, label: o.nombre } : { id: o.id, label: o.label }))}
+                    ]}
                   />
-                  {selectedPromotion && discountAmount > 0 && (
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-violet-200">−${Math.round(discountAmount).toLocaleString("es-AR")}</span>
-                  )}
                 </div>
               )}
               {depositApplied > 0 && (
