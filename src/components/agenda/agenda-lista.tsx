@@ -188,7 +188,7 @@ export function TurnosDeEstado({
         role="dialog"
         aria-label={titulo}
         onClick={(e) => e.stopPropagation()}
-        className="turnos-estado flex max-h-[85dvh] w-full flex-col rounded-t-3xl border border-white/10 bg-[#0d0c15] sm:max-w-md sm:rounded-3xl"
+        className="turnos-estado flex h-[85dvh] w-full flex-col rounded-t-3xl border border-white/10 bg-[#0d0c15] sm:max-w-md sm:rounded-3xl"
       >
         <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4">
           <h2 className="text-lg font-bold text-white">
