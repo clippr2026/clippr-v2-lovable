@@ -2069,35 +2069,23 @@ function AgendaPage() {
         {/* Ocupación de todo el local: dos líneas finas entre los estados y el calendario (celular) */}
         {localOccupancy !== null && (
           <div className="mb-2.5 px-1 sm:hidden">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1 space-y-1.5">
-                {(
-                  [
-                    ["Ocupación agendada", localOccupancy.agendada],
-                  ] as const
-                ).map(([nombre, valor]) =>
-                  valor == null ? null : (
-                    <div key={nombre}>
-                      <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
-                        <span>{nombre}</span>
-                        <span className="font-bold tabular-nums text-white">{valor}%</span>
-                      </div>
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full transition-[width] duration-500"
-                          style={{ width: `${valor}%`, background: occupancyColor(valor).fill, boxShadow: `0 0 8px ${occupancyColor(valor).glow}` }}
-                        />
-                      </div>
-                    </div>
-                  ),
-                )}
+            {/* Una sola línea: «Ocupación», barra corta con el color según el nivel, porcentaje y la ⓘ. */}
+            <div className="flex items-center gap-2.5">
+              <span className="text-[13px] font-semibold text-white/75">Ocupación</span>
+              <div className="ocupacion-pista h-1.5 w-28 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${localOccupancy.agendada ?? 0}%`, background: occupancyColor(localOccupancy.agendada ?? 0).fill }}
+                />
               </div>
+              <span className="text-[13px] font-bold tabular-nums text-white">{localOccupancy.agendada ?? 0}%</span>
+              <span className="flex-1" />
               <button
                 type="button"
                 aria-label="Qué significa la ocupación agendada"
                 aria-expanded={ocupacionInfoOpen}
                 onClick={() => setOcupacionInfoOpen((v) => !v)}
-                className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70"
               >
                 i
               </button>
@@ -3672,7 +3660,7 @@ const DayView = React.memo(function DayView({
                       {/* Solo la ocupación agendada: la atendida se ve en el Asesor IA. */}
                       {(
                         [
-                          ["Agendado", occupancyPct],
+                          ["Ocupación", occupancyPct],
                         ] as const
                       ).map(([nombre, valor]) => (
                         <div key={nombre}>
