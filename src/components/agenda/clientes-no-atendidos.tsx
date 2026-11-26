@@ -29,6 +29,11 @@ export function ClientesNoAtendidosButton({
   employees,
   servicios = [],
   className = "",
+  sinBoton = false,
+  abierto,
+  onCerrar,
+  ocurrio = null,
+  onRegistrado,
 }: {
   businessId: string | null | undefined;
   branchId: string | null | undefined;
@@ -39,8 +44,18 @@ export function ClientesNoAtendidosButton({
   servicios?: Array<{ id: string; name: string }>;
   /** Clases extra para el botón de la Agenda (por ejemplo, para que ocupe el ancho que sobra). */
   className?: string;
+  /** Sin el botón: la ventana se abre desde afuera (por ejemplo, al tocar un horario de la grilla). */
+  sinBoton?: boolean;
+  /** Abre la ventana desde afuera. */
+  abierto?: boolean;
+  onCerrar?: () => void;
+  /** Hora en que se fue (el horario tocado). Si es futura o no se pasa, se usa la hora actual. */
+  ocurrio?: Date | null;
+  /** Avisa que se registró uno (para refrescar la Agenda). */
+  onRegistrado?: () => void;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [openInterno, setOpen] = React.useState(false);
+  const open = abierto ?? openInterno;
   const [eligiendo, setEligiendo] = React.useState(false);
   const [eligiendoServicio, setEligiendoServicio] = React.useState(false);
   const [countHoy, setCountHoy] = React.useState(0);
@@ -70,6 +85,7 @@ export function ClientesNoAtendidosButton({
   const cerrar = () => {
     if (guardando.current) return;
     setOpen(false);
+    onCerrar?.();
     setEligiendo(false);
     setEligiendoServicio(false);
   };
@@ -85,12 +101,15 @@ export function ClientesNoAtendidosButton({
       preferencia: porPrecio ? "precio" : profesional ? "especifico" : "cualquiera",
       servicio: porPrecio ? servicio : null,
       requested_employee_id: profesional?.id ?? null,
+      ...(ocurrio && ocurrio.getTime() <= Date.now() ? { occurred_at: ocurrio.toISOString() } : {}),
     });
     guardando.current = false;
     setSaving(false);
     if (error) return toast.error("No se pudo registrar. Probá de nuevo.");
     toast.success(porPrecio ? `Registrado: se fue por el precio${servicio ? ` de ${servicio}` : ""}.` : profesional ? `Registrado: quería a ${profesional.full_name}.` : "Registrado.");
     setCountHoy((n) => n + 1);
+    onRegistrado?.();
+    onCerrar?.();
     setOpen(false);
     setEligiendo(false);
     setEligiendoServicio(false);
@@ -99,6 +118,7 @@ export function ClientesNoAtendidosButton({
 
   return (
     <>
+      {!sinBoton && (
       <button
         type="button"
         onClick={() => {
@@ -117,6 +137,7 @@ export function ClientesNoAtendidosButton({
         Se fueron
         <span className="rounded-full bg-[#7f1d2d] px-1.5 text-[11px] font-semibold tabular-nums text-white">{countHoy}</span>
       </button>
+      )}
       {open &&
         typeof document !== "undefined" &&
         createPortal(
