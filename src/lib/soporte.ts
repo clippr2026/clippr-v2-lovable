@@ -2,10 +2,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type ConsultaEstado = "abierta" | "respondida" | "cerrada";
+export type CerradaPor = "asesor" | "cliente" | "automatico";
 export type MiConsulta = { id: string; estado: ConsultaEstado; sin_leer: number; respuestas: { id: number; texto: string }[] };
 export type ConsultaBandeja = {
   id: string; estado: ConsultaEstado; negocio: string; usuario: string; email: string;
-  pantalla: string; actualizada_en: string; ultimo: string | null;
+  pantalla: string; actualizada_en: string; ultimo: string | null; cerrada_por?: CerradaPor | null;
 };
 export type ConsultaMensaje = { id: number; autor: "usuario" | "clippi" | "asesor"; texto: string; creado_en: string };
 
@@ -20,6 +21,10 @@ async function llamar<T>(funcion: string, args?: Record<string, unknown>): Promi
 export const PIDE_TRAS_PROBAR = "No se resolvió, quiero hablar con un asesor";
 export const PIDE_ASESOR = "Quiero hablar con un asesor";
 export const esPedidoDeAsesor = (texto: string) => texto === PIDE_TRAS_PROBAR || texto === PIDE_ASESOR;
+
+/** Etiqueta del panel para una consulta cerrada. */
+export const textoCierre = (por?: CerradaPor | null) =>
+  por === "automatico" ? "Cierre automático" : por === "cliente" ? "Cerrada por el cliente" : por === "asesor" ? "Cerrada por vos" : "Cerrada";
 
 /** "iPhone · Safari", "Android · app instalada": desde qué aparato escriben. */
 export function describirEquipo(agente: string, instalada: boolean, tactil = false): string {
@@ -55,6 +60,8 @@ export const pedirAsesor = (mensajes: { autor: "usuario" | "clippi"; texto: stri
   llamar<string>("soporte_pedir_asesor", { p_mensajes: mensajes.slice(-20), p_pantalla: origen.slice(0, 100) });
 export const escribirAsesor = (consulta: string, texto: string) => llamar<void>("soporte_escribir", { p_consulta: consulta, p_texto: texto });
 export const miConsulta = () => llamar<MiConsulta | null>("soporte_mi_consulta");
+/** Al borrar la conversación. */
+export const cerrarMiConsulta = () => llamar<void>("soporte_cerrar_mia");
 export const marcarLeida = (consulta: string) => llamar<void>("soporte_marcar_leida", { p_consulta: consulta });
 
 // Solo para el dueño de Clippr.

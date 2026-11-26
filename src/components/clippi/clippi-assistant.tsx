@@ -6,10 +6,11 @@ import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
 import { nombreDePila, saludar } from "@/lib/clippi-saludo";
+import { chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
 import {
-  PIDE_ASESOR, PIDE_TRAS_PROBAR, describirEquipo, escribirAsesor, marcarLeida, miConsulta, pedirAsesor, type MiConsulta,
+  PIDE_ASESOR, PIDE_TRAS_PROBAR, describirEquipo, escribirAsesor, marcarLeida, cerrarMiConsulta, miConsulta, pedirAsesor, type MiConsulta,
 } from "@/lib/soporte";
 
 const FOTO = "/clippi-v3.webp";
@@ -34,37 +35,50 @@ type Mensaje = {
 };
 
 // La conversación se guarda en el dispositivo, separada por cuenta: sigue ahí al cambiar de
-// pantalla, recargar o cerrar la app. Se borra sola a los 7 días sin usar el chat.
+// pantalla, recargar o cerrar la app. Cuánto dura lo decide lib/clippi-vigencia.
 const MAXIMO_MENSAJES = 40;
-const VENCE_MS = 7 * 24 * 60 * 60 * 1000;
 const claveChat = (cuenta: string) => `clippr_clippi_chat_${cuenta}`;
 // Respaldo en memoria por si el almacenamiento no está disponible.
-const memoria = new Map<string, Mensaje[]>();
+const memoria = new Map<string, ChatGuardado<Mensaje>>();
 
-function leerChat(cuenta: string): Mensaje[] {
-  const enMemoria = memoria.get(cuenta);
-  if (enMemoria) return enMemoria;
-  try {
-    const guardado = JSON.parse(localStorage.getItem(claveChat(cuenta)) ?? "null") as { fecha: number; mensajes: Mensaje[] } | null;
-    return guardado && Date.now() - guardado.fecha < VENCE_MS && Array.isArray(guardado.mensajes) ? guardado.mensajes : [];
-  } catch {
-    return [];
+function leerGuardado(cuenta: string): ChatGuardado<Mensaje> | null {
+  let guardado = memoria.get(cuenta) ?? null;
+  if (!guardado) {
+    try {
+      guardado = JSON.parse(localStorage.getItem(claveChat(cuenta)) ?? "null") as ChatGuardado<Mensaje> | null;
+    } catch {
+      return null;
+    }
   }
+  return guardado && Array.isArray(guardado.mensajes) && chatVigente(guardado, Date.now()) ? guardado : null;
 }
 
-function guardarChat(cuenta: string, mensajes: Mensaje[]) {
-  memoria.set(cuenta, mensajes);
+const leerChat = (cuenta: string): Mensaje[] => leerGuardado(cuenta)?.mensajes ?? [];
+
+function escribirGuardado(cuenta: string, chat: ChatGuardado<Mensaje>) {
+  memoria.set(cuenta, chat);
   try {
     // De cada opción sugerida solo hace falta lo que se muestra, no sus preguntas.
-    const livianos = mensajes.map((m) => ({
+    const livianos = chat.mensajes.map((m) => ({
       ...m,
       tema: m.tema && { ...m.tema, preguntas: [] },
       sugerencias: m.sugerencias?.map((t) => ({ ...t, preguntas: [] })),
     }));
-    localStorage.setItem(claveChat(cuenta), JSON.stringify({ fecha: Date.now(), mensajes: livianos }));
+    localStorage.setItem(claveChat(cuenta), JSON.stringify({ ...chat, mensajes: livianos }));
   } catch {
     // Sin almacenamiento: la conversación dura hasta recargar.
   }
+}
+
+/** Guarda un mensaje nuevo: el tiempo vuelve a contar desde ahora. */
+function guardarChat(cuenta: string, mensajes: Mensaje[], esperando = leerGuardado(cuenta)?.esperando ?? false) {
+  escribirGuardado(cuenta, { fecha: Date.now(), mensajes, esperando });
+}
+
+/** Anota si se está esperando al asesor, sin reiniciar el tiempo. */
+function marcarEspera(cuenta: string, esperando: boolean) {
+  const chat = leerGuardado(cuenta);
+  if (chat && Boolean(chat.esperando) !== esperando) escribirGuardado(cuenta, { ...chat, esperando });
 }
 
 // Clippi es solo para el dueño y el administrador general.
@@ -269,12 +283,13 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const finRef = React.useRef<HTMLDivElement>(null);
   const [temas, setTemas] = React.useState<ClippiTema[]>([]);
   const [consultando, setConsultando] = React.useState(false);
-  // Consulta con un asesor sin cerrar: mientras exista, lo que se escribe le llega a él.
+  // Última consulta con un asesor.
   const [consulta, setConsulta] = React.useState<MiConsulta | null>(null);
   // El chat siempre abre con Clippi. Pasa a ser con el asesor al pedirlo, al llegar una respuesta
   // suya o al tocar "Ir al asesor", y dura hasta cerrarlo.
   const [modoAsesor, elegirAsesor] = React.useState(false);
-  const conAsesor = Boolean(consulta && consulta.estado !== "cerrada") && modoAsesor;
+  const hayConsulta = consultaVisible(consulta, mensajes);
+  const conAsesor = hayConsulta && modoAsesor;
   React.useEffect(() => {
     // Si falla, se reintenta al preguntar.
     cargarMotor().then((m) => setTemas(m.CLIPPI_TEMAS)).catch(() => {});
@@ -310,9 +325,11 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     const pendientes = ultima ? c.respuestas.filter((r) => r.id > ultima) : c.respuestas.slice(c.respuestas.length - c.sin_leer);
     if (pendientes.length) {
       const todos = [...actuales, ...pendientes.map((r) => ({ de: "asesor" as const, texto: r.texto, respuestaId: r.id }))].slice(-MAXIMO_MENSAJES);
-      guardarChat(cuenta, todos);
+      guardarChat(cuenta, todos, c.estado === "abierta");
       setMensajes(todos);
       elegirAsesor(true);
+    } else {
+      marcarEspera(cuenta, c.estado === "abierta");
     }
     if (c.sin_leer > 0) await marcarLeida(c.id);
   }, [cuenta]);
@@ -326,7 +343,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
 
   async function hablarConAsesor(pedido: string) {
     if (consultando) return;
-    const yaAbierta = Boolean(consulta && consulta.estado !== "cerrada");
+    const abiertaId = consulta && consulta.estado !== "cerrada" ? consulta.id : null;
     const previos = leerChat(cuenta).map((m) => ({ autor: m.de === "yo" ? ("usuario" as const) : ("clippi" as const), texto: m.texto }));
     const confirmacion = "Listo, le pasé tu consulta a un asesor.";
     agregar({ de: "yo", texto: pedido });
@@ -346,9 +363,10 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
         [sucursal, equipo].filter(Boolean).join(" · "),
       );
       // Con una consulta ya abierta la base no vuelve a copiar el chat: se avisa con un mensaje.
-      if (yaAbierta) await escribirAsesor(id, pedido);
+      if (id === abiertaId) await escribirAsesor(id, pedido);
       elegirAsesor(true);
       agregar({ de: "clippi", texto: confirmacion });
+      marcarEspera(cuenta, true);
       await traerRespuestas().catch(() => {});
     } catch (e) {
       const limite = (e as Error).message.includes("limite");
@@ -363,8 +381,25 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     agregar({ de: "clippi", texto: "¡Genial! Acá estoy si necesitás otra cosa." });
   }
 
-  function borrarChat() {
-    guardarChat(cuenta, []);
+  // Borrar la conversación también cierra la consulta con el asesor, si hay una sin cerrar.
+  async function borrarChat() {
+    if (consultando) return;
+    if (!consulta || consulta.estado !== "cerrada") {
+      setConsultando(true);
+      try {
+        await cerrarMiConsulta();
+        if (consulta) setConsulta({ ...consulta, estado: "cerrada", sin_leer: 0 });
+      } catch {
+        // Sin una consulta conocida se borra igual.
+        if (consulta) {
+          agregar({ de: "clippi", texto: "No pude cerrar la consulta. Revisá tu conexión y probá de nuevo." });
+          return;
+        }
+      } finally {
+        setConsultando(false);
+      }
+    }
+    guardarChat(cuenta, [], false);
     setMensajes([]);
     elegirAsesor(false);
   }
@@ -378,6 +413,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
       try {
         await escribirAsesor(consulta.id, limpia);
         agregar({ de: "yo", texto: limpia });
+        marcarEspera(cuenta, true);
       } catch {
         setTexto(limpia);
         agregar({ de: "clippi", texto: "No pude enviar el mensaje al asesor. Probá de nuevo." });
@@ -423,7 +459,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             </div>
             <div className="text-sm text-white/60">Clippr</div>
           </div>
-          {mensajes.length > 0 && !consultando && (
+          {(mensajes.length > 0 || hayConsulta) && !consultando && (
             <button type="button" onClick={borrarChat} aria-label="Borrar conversación" title="Borrar conversación" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/5 ring-1 ring-white/10">
               <Trash2 className="h-5 w-5 text-white/70" />
             </button>
@@ -522,7 +558,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
           <div ref={finRef} />
         </div>
 
-        {consulta && consulta.estado !== "cerrada" && (
+        {hayConsulta && (
           <div className="mx-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs">
             <span className="font-semibold text-emerald-200">{conAsesor ? "Estás escribiéndole a un asesor" : "Tenés una consulta con un asesor"}</span>
             <button type="button" onClick={() => elegirAsesor(!conAsesor)} className="shrink-0 font-semibold underline">

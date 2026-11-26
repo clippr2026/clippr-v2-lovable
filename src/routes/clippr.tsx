@@ -3,7 +3,7 @@ import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowUp, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { bandeja, cerrarConsulta, esPedidoDeAsesor, mensajesDe, responder, type ConsultaBandeja, type ConsultaEstado, type ConsultaMensaje } from "@/lib/soporte";
+import { bandeja, cerrarConsulta, esPedidoDeAsesor, mensajesDe, responder, textoCierre, type ConsultaBandeja, type ConsultaEstado, type ConsultaMensaje } from "@/lib/soporte";
 
 export const Route = createFileRoute("/clippr")({
   head: () => ({ meta: [{ title: "Clippr — Panel" }] }),
@@ -86,7 +86,7 @@ function Consultas() {
           <button key={c.id} type="button" onClick={() => setAbierta(c.id)} className="block w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left">
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-base font-semibold text-white">{c.negocio || "Local sin nombre"}</span>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${ESTADOS[c.estado].clase}`}>{ESTADOS[c.estado].texto}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${ESTADOS[c.estado].clase}`}>{c.estado === "cerrada" ? textoCierre(c.cerrada_por) : ESTADOS[c.estado].texto}</span>
             </div>
             <div className="mt-0.5 truncate text-sm text-white/70">{c.ultimo ?? "—"}</div>
             <div className="mt-0.5 truncate text-xs text-white/45">{[c.usuario || c.email, cuando(c.actualizada_en)].join(" · ")}</div>
@@ -158,7 +158,7 @@ function Conversacion({ consulta, volver }: { consulta: ConsultaBandeja; volver:
           </button>
         </>
       ) : (
-        <p className="text-center text-sm text-white/50">Consulta cerrada.</p>
+        <p className="text-center text-sm text-white/50">{textoCierre(consulta.cerrada_por)}</p>
       )}
     </section>
   );
