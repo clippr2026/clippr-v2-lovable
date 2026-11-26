@@ -1552,3 +1552,15 @@ html.modo-claro .selector-sucursal svg { color: #491a89; }
 .www-boton.www-boton { --color-white: #ffffff; color: #ffffff; }
 .www-boton.www-activo { background-image: linear-gradient(to bottom, #8b5cf6, #6d28d9); box-shadow: 0 4px 12px -6px rgb(76 29 149 / 0.55); }
 .www-boton.www-mantenimiento { background-image: linear-gradient(to bottom, #fbbf24, #f97316); box-shadow: 0 4px 12px -6px rgb(194 65 12 / 0.5); }
+
+/* Centro de notificaciones: sin barra de abajo mientras está abierto. */
+html.notificaciones-abiertas .app-barra { display: none; }
+/* En claro: fondo perla, tarjetas blancas; sin leer en violeta suave. */
+html.modo-claro .notificaciones-panel { background-color: #f6f7fb; border-color: #e4e2ee; }
+html.modo-claro .notificaciones-panel header { background-color: #f6f7fb; border-color: #e4e2ee; }
+html.modo-claro .notificaciones-pestanas { background-color: #ffffff; border-color: #e4e2ee; }
+html.modo-claro .notificaciones-pestanas .pestana-activa { background-color: #e6e3f1; color: #491a89; }
+html.modo-claro .aviso-fila { background-color: #ffffff; border-color: #e9e7f1; }
+html.modo-claro .aviso-fila[data-nueva] { background-color: #efecf8; border-color: #ddd6f0; }
+html.modo-claro .aviso-icono { background-color: #e6e3f1; color: #491a89; }
+html.modo-claro .notificaciones-centro { background-color: rgb(23 23 43 / 0.35); }
