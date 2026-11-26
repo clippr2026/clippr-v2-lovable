@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatVigente, consultaVisible } from "./clippi-vigencia";
+import { DERIVADO, chatVigente, consultaVisible } from "./clippi-vigencia";
 
 const H = 60 * 60 * 1000;
 const clippi = [{ de: "yo" }, { de: "clippi" }];
@@ -28,5 +28,18 @@ describe("cuánto dura el chat de Clippi", () => {
     expect(consultaVisible({ estado: "respondida", sin_leer: 1 }, [])).toBe(true);
     expect(consultaVisible({ estado: "abierta", sin_leer: 0 }, [])).toBe(true);
     expect(consultaVisible({ estado: "cerrada", sin_leer: 0 }, conAsesor)).toBe(false);
+  });
+});
+
+describe("cuándo el chat está derivado", () => {
+  const abierta = { estado: "abierta", sin_leer: 0 };
+
+  it("solo si la conversación lo dice", () => {
+    expect(consultaVisible(abierta, [{ de: "yo", texto: "Cambiar los horarios" }, { de: "clippi", texto: "Están en Configuración." }])).toBe(false);
+    expect(consultaVisible(abierta, [{ de: "yo", texto: "Quiero un asesor" }, { de: "clippi", texto: DERIVADO }])).toBe(true);
+  });
+
+  it("que la persona escriba esa frase no alcanza", () => {
+    expect(consultaVisible(abierta, [{ de: "yo", texto: DERIVADO }])).toBe(false);
   });
 });

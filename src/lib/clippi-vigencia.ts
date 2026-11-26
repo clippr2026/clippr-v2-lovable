@@ -15,14 +15,20 @@ export function chatVigente(chat: ChatGuardado<{ de: string }>, ahora: number): 
   return ahora - chat.fecha < dura;
 }
 
+/** Lo que dice Clippi al derivar la consulta. */
+export const DERIVADO = "Listo, le pasé tu consulta a un asesor.";
+
 /**
- * Si en el chat se muestra la consulta con el asesor. Una ya contestada deja de mostrarse cuando
- * su respuesta ya no está en la conversación (venció o se borró).
+ * Si el chat está derivado a un asesor: la consulta sigue sin cerrar y la conversación lo muestra
+ * (dice que se derivó o ya hay una respuesta). Sin conversación guardada, alcanza con que esté sin
+ * contestar. Una consulta que el chat no muestra no calla a Clippi.
  */
 export function consultaVisible(
   consulta: { estado: string; sin_leer: number } | null,
-  mensajes: { de: string }[],
+  mensajes: { de: string; texto?: string }[],
 ): boolean {
   if (!consulta || consulta.estado === "cerrada") return false;
-  return consulta.estado === "abierta" || consulta.sin_leer > 0 || mensajes.some((m) => m.de === "asesor");
+  if (consulta.sin_leer > 0) return true;
+  if (mensajes.length === 0) return consulta.estado === "abierta";
+  return mensajes.some((m) => m.de === "asesor" || (m.de === "clippi" && m.texto === DERIVADO));
 }

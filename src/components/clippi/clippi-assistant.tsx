@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
 import { nombreDePila, saludar } from "@/lib/clippi-saludo";
-import { chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
+import { DERIVADO, chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
 import {
@@ -343,7 +343,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     if (consultando) return;
     const abiertaId = consulta && consulta.estado !== "cerrada" ? consulta.id : null;
     const previos = leerChat(cuenta).map((m) => ({ autor: m.de === "yo" ? ("usuario" as const) : ("clippi" as const), texto: m.texto }));
-    const confirmacion = "Listo, le pasé tu consulta a un asesor.";
+    const confirmacion = DERIVADO;
     agregar({ de: "yo", texto: pedido });
     setConsultando(true);
     try {
