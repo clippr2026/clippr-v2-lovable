@@ -1500,18 +1500,12 @@ html.modo-claro .inicio-portada .hero-extension {
   --color-white: #17172b;
 }
 
-/* Tarjetas deslizables: cada sección conserva su color (Agenda rosa, Caja rojo, Liquidaciones azul…) en un
-   degradado pastel suave, con textos oscuros. El color de cada una llega en --modulo.
-   Se ve una parte de la tarjeta siguiente para que se entienda que se desliza. */
+/* Tarjetas deslizables: iguales que en oscuro (base negra con el degradé de color de cada sección y texto blanco).
+   En claro solo cambia el entorno; se suma una sombra suave para que se apoyen sobre el fondo claro. */
 html.modo-claro .modulo-tarjeta {
-  --color-white: #17172b;
-  background-image: linear-gradient(112deg, color-mix(in srgb, var(--modulo) 7%, #ffffff) 0%, color-mix(in srgb, var(--modulo) 22%, #ffffff) 100%) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--modulo) 18%, #ffffff);
-  color: #17172b;
-}
-html.modo-claro .modulo-tarjeta .modulo-chip {
-  background-color: rgb(255 255 255 / 0.8);
-  color: color-mix(in oklab, var(--modulo) 78%, #17172b);
+  --color-white: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 10px 24px -16px rgb(23 23 43 / 0.45);
 }
 
 /* Próximos turnos: una sola tarjeta blanca, filas con líneas finas, agrupadas por día. */
