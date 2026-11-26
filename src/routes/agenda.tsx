@@ -1877,7 +1877,7 @@ function AgendaPage() {
               {profFilterOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setProfFilterOpen(false)} />
-                  <div className="absolute left-0 top-9 z-50 max-h-72 w-56 overflow-y-auto rounded-xl glass-strong p-1 animate-fade-up">
+                  <div className="menu-estados absolute left-0 top-9 z-50 max-h-72 w-60 overflow-y-auto rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
                     <button
                       type="button"
                       onClick={() => {
