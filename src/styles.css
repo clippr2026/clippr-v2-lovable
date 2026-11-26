@@ -1500,21 +1500,13 @@ html.modo-claro .modulo-tarjeta {
   box-shadow: 0 10px 24px -16px rgb(23 23 43 / 0.45);
 }
 
-/* Próximos turnos: una sola tarjeta blanca, filas con líneas finas, agrupadas por día. */
+/* Próximos turnos en claro: una sola tarjeta blanca con filas separadas por líneas finas. */
 .turnos-dia, .turno-hora-claro { display: none; }
 html.modo-claro .turnos-lista { display: flex; flex-direction: column; gap: 0; }
 html.modo-claro .turnos-lista > * { margin: 0 !important; }
-html.modo-claro .turnos-dia {
-  display: block;
-  margin-top: 0.75rem !important;
-  padding: 0.25rem 0 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #5a5870;
-}
-html.modo-claro .turnos-dia:first-child { margin-top: 0 !important; }
+/* Mismo texto que en oscuro ("Hoy · 11:00 a. m."); en claro cambian solo los colores y las líneas. */
+html.modo-claro .turnos-lista > a.turno-fila:first-of-type { border-top-color: transparent !important; }
+html.modo-claro .turno-hora-oscuro { color: #491a89; }
 html.modo-claro .dashboard-premium-shell .turno-fila.turno-fila {
   border-radius: 0;
   background: transparent;
@@ -1524,9 +1516,6 @@ html.modo-claro .dashboard-premium-shell .turno-fila.turno-fila {
   padding: 0.7rem 0;
   border-top: 1px solid #eceaf3;
 }
-html.modo-claro .turnos-dia + .turno-fila.turno-fila { border-top-color: transparent; }
-html.modo-claro .turno-hora-oscuro { display: none; }
-html.modo-claro .turno-hora-claro { display: inline; color: #491a89; font-variant-numeric: tabular-nums; }
 html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
 
 /* Cabecera: sol con buen contraste y "WWW" en blanco sobre el verde. */
