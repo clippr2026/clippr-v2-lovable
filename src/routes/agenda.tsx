@@ -404,6 +404,7 @@ function AgendaPage() {
   // Estados que se ven en la grilla (celular, desde el desplegable «Todos»). null = todos.
   const [estadosVisibles, setEstadosVisibles] = React.useState<string[] | null>(null);
   const [estadosMenuAbierto, setEstadosMenuAbierto] = React.useState(false);
+  const [estadosPos, setEstadosPos] = React.useState<{ top: number; right: number }>({ top: 0, right: 8 });
   // Clientes que se fueron sin atender en el día elegido (para «Se fueron» en estados y en la grilla).
   const [seFueronDia, setSeFueronDia] = React.useState<SeFueRegistro[]>([]);
   const [seFueronTick, setSeFueronTick] = React.useState(0);
@@ -1612,6 +1613,33 @@ function AgendaPage() {
   const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
   const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))}`;
   const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
+  // Estados del día para el desplegable «Todos» (celular y web).
+  // Contadores del día; con un profesional elegido, solo los suyos. Tocar un estado abre sus turnos encima.
+  const delProf = (a: Appointment) => !profFilterId || a.employee_id === profFilterId;
+  const cuenta = (k: string) => data.appointments.filter((a) => delProf(a) && grupoEstado(a) === k).length;
+  const opciones: Array<[string, string, string, number]> = [
+    ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, cuenta(k)] as [string, string, string, number]),
+    [
+      "se_fueron",
+      "Se fueron",
+      SE_FUERON_META.dot,
+      seFueronDia.filter((r) => !profFilterId || r.requested_employee_id === profFilterId).length,
+    ],
+  ];
+  const total = opciones.slice(0, STATUS_FILTERS.length).reduce((t, o) => t + o[3], 0);
+  const elegido = estadosVisibles?.[0] ?? null;
+  const filtrando = elegido !== null;
+  const opcionElegida = opciones.find(([k]) => k === elegido);
+  const etiqueta = opcionElegida?.[1] ?? "Todos";
+  const nVisibles = opcionElegida?.[3] ?? total;
+  const colorElegido = opcionElegida?.[2] ?? "#a78bfa";
+  const profElegido = profFilterId ? data.employees.find((e) => e.id === profFilterId) : null;
+  const abrirEstados = (boton: HTMLElement) => {
+    const r = boton.getBoundingClientRect();
+    setEstadosPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    setProfFilterOpen(false);
+    setEstadosMenuAbierto((v) => !v);
+  };
 
   return (
     <AppShell fullWidth>
@@ -1787,26 +1815,14 @@ function AgendaPage() {
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
           <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
-            {/* Ocupación de todo el local en el día: agendada y atendida, con un solo ⓘ que explica las dos */}
-            {localOccupancy !== null && (
-              <div className="relative mr-1.5 flex shrink-0 items-center gap-1.5">
-                {(
-                  [
-                    ["Agendado", localOccupancy.agendada, OCUPACION_AGENDADA_TEXTO],
-                  ] as const
-                ).map(([nombre, valor, ayuda]) =>
-                  valor == null ? null : (
-                    <div
-                      key={nombre}
-                      className="flex shrink-0 items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1 text-sm font-medium text-foreground ring-1 ring-white/15"
-                      title={ayuda}
-                    >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: occupancyColor(valor).fill }} />
-                      <span className="opacity-85">{nombre}</span>
-                      <span className="text-lg font-bold leading-none tabular-nums">{valor}%</span>
-                    </div>
-                  ),
-                )}
+            {/* Ocupación del local (como en el celular): nombre, barra corta, porcentaje y ⓘ. */}
+            {localOccupancy !== null && localOccupancy.agendada != null && (
+              <div className="relative mr-1 flex shrink-0 items-center gap-2" title={OCUPACION_AGENDADA_TEXTO}>
+                <span className="text-sm font-semibold text-white/75">Ocupación</span>
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full" style={{ width: `${localOccupancy.agendada}%`, background: occupancyColor(localOccupancy.agendada).fill }} />
+                </div>
+                <span className="text-sm font-bold tabular-nums text-white">{localOccupancy.agendada}%</span>
                 <button
                   type="button"
                   aria-label="Qué significa la ocupación agendada"
@@ -1823,32 +1839,20 @@ function AgendaPage() {
                 )}
               </div>
             )}
-            {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
-              <button
-                key={k}
-                onClick={() => {
-                  setFilterModal(k);
-                  setActiveDrawer("filter");
-                }}
-                className="estado-chip inline-flex items-center gap-1 rounded-lg px-2 py-0.5 pr-4 text-xs font-medium transition-all hover:brightness-110 shrink-0"
-                data-cero={!((counts as Record<string, number>)[k] ?? 0)}
-                style={statusNeonStyle(color, ring, bg)}
-              >
-                <span className="font-semibold tabular-nums text-sm">
-                  {(counts as Record<string, number>)[k] ?? 0}
-                </span>
-                <span className="opacity-80">{label}</span>
-              </button>
-            ))}
-            {/* "Se fue": en desktop va pegado a la derecha de "No asistió". */}
-            <ClientesNoAtendidosButton
-              businessId={data.businessId}
-              branchId={data.activeBranchId}
-              createdByName={(profile as any)?.full_name ?? null}
-              employees={data.employees}
-              servicios={serviciosSeFue}
-              className="hidden shrink-0 sm:inline-flex !px-3 !py-1"
-            />
+            {/* Estados: un solo desplegable «Todos» (los contadores y «Se fueron» van adentro; tocar uno abre sus turnos). */}
+            <button
+              type="button"
+              onClick={(e) => abrirEstados(e.currentTarget)}
+              aria-expanded={estadosMenuAbierto}
+              data-activo={true}
+              className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-3 pr-2 text-xs font-semibold"
+              style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
+              <span>Todos</span>
+              <span className="filtro-numero tabular-nums">{total}</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", estadosMenuAbierto && "rotate-180")} />
+            </button>
           </div>
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
@@ -1927,26 +1931,6 @@ function AgendaPage() {
             estados con contadores: elige uno solo, o Todos; incluye «Se fueron») y el botón para cambiar de vista
             (calendario ↔ lista). «Se fue un cliente» se registra tocando un horario de la grilla. En desktop esta fila no existe. */}
         {(() => {
-          // Contadores del día; con un profesional elegido, solo los suyos. Tocar un estado abre sus turnos encima.
-          const delProf = (a: Appointment) => !profFilterId || a.employee_id === profFilterId;
-          const cuenta = (k: string) => data.appointments.filter((a) => delProf(a) && grupoEstado(a) === k).length;
-          const opciones: Array<[string, string, string, number]> = [
-            ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, cuenta(k)] as [string, string, string, number]),
-            [
-              "se_fueron",
-              "Se fueron",
-              SE_FUERON_META.dot,
-              seFueronDia.filter((r) => !profFilterId || r.requested_employee_id === profFilterId).length,
-            ],
-          ];
-          const total = opciones.slice(0, STATUS_FILTERS.length).reduce((t, o) => t + o[3], 0);
-          const elegido = estadosVisibles?.[0] ?? null;
-          const filtrando = elegido !== null;
-          const opcionElegida = opciones.find(([k]) => k === elegido);
-          const etiqueta = opcionElegida?.[1] ?? "Todos";
-          const nVisibles = opcionElegida?.[3] ?? total;
-          const colorElegido = opcionElegida?.[2] ?? "#a78bfa";
-          const profElegido = profFilterId ? data.employees.find((e) => e.id === profFilterId) : null;
           return (
             <div className="relative z-[80] sm:hidden">
               <div className="mb-2 flex items-center gap-1.5">
@@ -1974,10 +1958,7 @@ function AgendaPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setProfFilterOpen(false);
-                    setEstadosMenuAbierto((v) => !v);
-                  }}
+                  onClick={(e) => abrirEstados(e.currentTarget)}
                   aria-expanded={estadosMenuAbierto}
                   data-activo={true}
                   className="filtro-estado inline-flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full pl-3 pr-2 text-xs font-semibold"
@@ -2026,42 +2007,6 @@ function AgendaPage() {
                   </div>
                 </>
               )}
-              {estadosMenuAbierto && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setEstadosMenuAbierto(false)} />
-                  <div className="menu-estados absolute right-0 top-9 z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
-                    <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">Ver en la agenda</p>
-                    {(
-                      [["todos", "Todos", "#a78bfa", total] as [string, string, string, number], ...opciones]
-                    ).map(([k, label, color, n], i) => {
-                      const marcado = k === "todos" ? !filtrando : elegido === k;
-                      return (
-                        <React.Fragment key={k}>
-                          {i === 1 && <div className="my-1 h-px bg-white/10" />}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEstadosVisibles(null);
-                              setEstadosMenuAbierto(false);
-                              setEstadoAbierto(k === "todos" ? null : k);
-                            }}
-                            className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-white/[0.06]", marcado && "font-semibold")}
-                          >
-                            <span
-                              className="grid h-5 w-5 shrink-0 place-items-center rounded-full border"
-                              style={marcado ? { background: color, borderColor: color, color: "#0b0a14" } : { borderColor: "rgba(127,127,140,0.45)" }}
-                            >
-                              {marcado && <Check className="h-3.5 w-3.5" />}
-                            </span>
-                            <span className="flex-1">{label}</span>
-                            <span className="tabular-nums text-white/60">{n}</span>
-                          </button>
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
             </div>
           );
         })()}
@@ -2071,6 +2016,7 @@ function AgendaPage() {
           <div className="mb-2.5 px-1 sm:hidden">
             {/* Una sola línea: «Ocupación», barra corta con el color según el nivel, porcentaje y la ⓘ. */}
             <div className="flex items-center gap-2.5">
+              <span className="flex-1" />
               <span className="text-[13px] font-semibold text-white/75">Ocupación</span>
               <div className="ocupacion-pista h-1.5 w-28 overflow-hidden rounded-full bg-white/10">
                 <div
@@ -2079,7 +2025,6 @@ function AgendaPage() {
                 />
               </div>
               <span className="text-[13px] font-bold tabular-nums text-white">{localOccupancy.agendada ?? 0}%</span>
-              <span className="flex-1" />
               <button
                 type="button"
                 aria-label="Qué significa la ocupación agendada"
@@ -2305,6 +2250,44 @@ function AgendaPage() {
             </div>
           </MobileSafePortal>
         ) : null}
+
+        {/* Desplegable de «Todos» (lo abren el botón del celular y el de la web). */}
+              {estadosMenuAbierto && (
+                <MobileSafePortal>
+                  <div className="fixed inset-0 z-40" onClick={() => setEstadosMenuAbierto(false)} />
+                  <div style={{ top: estadosPos.top, right: estadosPos.right }} className="menu-estados fixed z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
+                    <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">Ver en la agenda</p>
+                    {(
+                      [["todos", "Todos", "#a78bfa", total] as [string, string, string, number], ...opciones]
+                    ).map(([k, label, color, n], i) => {
+                      const marcado = k === "todos" ? !filtrando : elegido === k;
+                      return (
+                        <React.Fragment key={k}>
+                          {i === 1 && <div className="my-1 h-px bg-white/10" />}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEstadosVisibles(null);
+                              setEstadosMenuAbierto(false);
+                              setEstadoAbierto(k === "todos" ? null : k);
+                            }}
+                            className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-white/[0.06]", marcado && "font-semibold")}
+                          >
+                            <span
+                              className="grid h-5 w-5 shrink-0 place-items-center rounded-full border"
+                              style={marcado ? { background: color, borderColor: color, color: "#0b0a14" } : { borderColor: "rgba(127,127,140,0.45)" }}
+                            >
+                              {marcado && <Check className="h-3.5 w-3.5" />}
+                            </span>
+                            <span className="flex-1">{label}</span>
+                            <span className="tabular-nums text-white/60">{n}</span>
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </MobileSafePortal>
+              )}
 
         {/* Turnos del estado elegido en «Todos», en una ventana encima de la Agenda. */}
         {estadoAbierto && (() => {
