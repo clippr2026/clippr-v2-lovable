@@ -1458,7 +1458,6 @@ html.modo-claro * { scrollbar-color: rgb(23 23 43 / 0.18) transparent; }
 html.modo-claro *::-webkit-scrollbar-thumb { background: rgb(23 23 43 / 0.14); background-clip: padding-box; }
 
 /* ── Inicio ── */
-.inicio-fondo { display: none; }
 /* Las tarjetas del carrusel no se transparentan sobre el fondo claro. */
 html.modo-claro [aria-label="Qué podés hacer en Clippr"] > div { opacity: 1 !important; }
 html.modo-claro.neon-skin .dashboard-premium-shell .font-display,
@@ -1490,3 +1489,86 @@ html.modo-claro .fichaje-accion {
   --tw-ring-color: transparent;
 }
 html.modo-claro .fichaje-accion.fichaje-principal { background: #491a89; color: #ffffff; }
+
+/* Portada de Inicio: igual que en oscuro (fondo oscuro detrás de la foto, el logo y el decorado de la barbería);
+   recién abajo, donde empiezan las tarjetas deslizables, se funde con la página clara. */
+html.modo-claro .inicio-portada .public-hero[data-theme="dark"] {
+  background:
+    radial-gradient(circle at 18% 0%, rgb(139 92 246 / 0.34), transparent 42%),
+    radial-gradient(circle at 82% 2%, rgb(79 125 255 / 0.30), transparent 44%),
+    oklch(0.135 0.028 282) !important;
+}
+html.modo-claro .inicio-portada .hero-extension { isolation: isolate; }
+html.modo-claro .inicio-portada .hero-extension::before {
+  content: "";
+  position: absolute;
+  inset: -36px 0 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(246 247 251 / 0) 0, #f6f7fb 36px);
+}
+html.modo-claro .inicio-portada .hero-extension {
+  --color-white: #17172b;
+}
+
+/* Tarjetas deslizables (Reservas online, Control de caja…): lavanda suave, título azul noche, ícono violeta.
+   Se ve una parte de la tarjeta siguiente para que se entienda que se desliza. */
+html.modo-claro .modulo-tarjeta {
+  --color-white: #17172b;
+  background-image: none !important;
+  background-color: #e6e3f1;
+  color: #17172b;
+}
+html.modo-claro .modulo-tarjeta .modulo-chip {
+  background-color: #ffffff;
+  color: #491a89;
+}
+
+/* Próximos turnos: una sola tarjeta blanca, filas con líneas finas, agrupadas por día. */
+.turnos-dia, .turno-hora-claro { display: none; }
+html.modo-claro .turnos-lista { display: flex; flex-direction: column; gap: 0; }
+html.modo-claro .turnos-lista > * { margin: 0 !important; }
+html.modo-claro .turnos-dia {
+  display: block;
+  margin-top: 0.75rem !important;
+  padding: 0.25rem 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a5870;
+}
+html.modo-claro .turnos-dia:first-child { margin-top: 0 !important; }
+html.modo-claro .dashboard-premium-shell .turno-fila.turno-fila {
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  --tw-ring-color: transparent;
+  padding: 0.7rem 0;
+  border-top: 1px solid #eceaf3;
+}
+html.modo-claro .turnos-dia + .turno-fila.turno-fila { border-top-color: transparent; }
+html.modo-claro .turno-hora-oscuro { display: none; }
+html.modo-claro .turno-hora-claro { display: inline; color: #491a89; font-variant-numeric: tabular-nums; }
+html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
+
+/* Clippi con lugar propio en el celular: se acomoda a la derecha del menú inferior, que se corre para
+   dejarle el espacio. Así nunca tapa nombres, horarios ni botones. Si el usuario lo movió, queda donde lo dejó. */
+@media (max-width: 1023px) {
+  html.modo-claro .clippi-burbuja:not([style]) {
+    width: 3rem;
+    height: 3rem;
+    right: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 13px);
+    z-index: 41;
+  }
+  html.modo-claro body:has(> .clippi-burbuja:not([style])) .app-barra {
+    right: 4.25rem !important;
+  }
+}
+
+/* Cabecera: sol con buen contraste y "WWW" en blanco sobre el verde. */
+html.modo-claro .tema-pista { background-color: #e6e3f1; border-color: #d6d1e8; }
+html.modo-claro .tema-perilla { background-color: #491a89; color: #ffffff; }
+html.modo-claro .www-pastilla { color: #ffffff; }

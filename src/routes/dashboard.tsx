@@ -419,6 +419,22 @@ function cuandoCorto(iso: string) {
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
 }
 
+/** "Hoy", "Mañana" o la fecha corta: encabezado de cada día en Próximos turnos. */
+function diaCorto(iso: string) {
+  const d = new Date(iso);
+  const hoy = new Date();
+  if (d.toDateString() === hoy.toDateString()) return "Hoy";
+  const manana = new Date(hoy);
+  manana.setDate(hoy.getDate() + 1);
+  if (d.toDateString() === manana.toDateString()) return "Mañana";
+  return d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** Hora en formato de 24 horas: 14:00. */
+function hora24(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Buenos_Aires" });
+}
+
 function diaYHoraCorta(iso: string) {
   const d = new Date(iso);
   const hoy = new Date();
@@ -444,31 +460,39 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
           Ver todos <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
-      <div className="mt-3 space-y-2.5">
+      <div className="turnos-lista mt-3 space-y-2.5">
         {widgets.loading ? (
           <div className="text-sm text-muted-foreground">Cargando…</div>
         ) : widgets.proximosTurnos.length === 0 ? (
           <div className="text-sm text-muted-foreground">Sin turnos próximos.</div>
         ) : (
-          widgets.proximosTurnos.map((t) => (
-            // Dos renglones: cliente y horario arriba, servicio y profesional abajo.
-            // Al tocarlo abre ese turno en la Agenda.
-            <Link
-              key={t.id}
-              to="/agenda"
-              search={{ date: cajaDateKeyBA(new Date(t.starts_at)), turno: t.id }}
-              className="block rounded-xl bg-violet-500/[0.14] px-3 py-2.5 ring-1 ring-violet-300/30 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(196,181,253,.26),transparent_60%)] shadow-[0_0_22px_-10px_rgba(167,139,250,.55)] transition active:scale-[0.98]"
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-base font-semibold text-foreground">{t.client_name ?? "Cliente"}</span>
-                <span className="shrink-0 text-sm font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</span>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
-                {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-white">Con {t.employee_name}</span>}
-              </div>
-            </Link>
-          ))
+          widgets.proximosTurnos.map((t, i, todos) => {
+            const dia = diaCorto(t.starts_at);
+            const nuevoDia = i === 0 || diaCorto(todos[i - 1].starts_at) !== dia;
+            return (
+              <React.Fragment key={t.id}>
+                {/* Encabezado del día: solo se ve en modo claro (ver styles.css). */}
+                {nuevoDia && <div className="turnos-dia">{dia}</div>}
+                {/* Dos renglones: cliente y horario arriba, servicio y profesional abajo.
+                    Al tocarlo abre ese turno en la Agenda. */}
+                <Link
+                  to="/agenda"
+                  search={{ date: cajaDateKeyBA(new Date(t.starts_at)), turno: t.id }}
+                  className="turno-fila block rounded-xl bg-violet-500/[0.14] px-3 py-2.5 ring-1 ring-violet-300/30 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(196,181,253,.26),transparent_60%)] shadow-[0_0_22px_-10px_rgba(167,139,250,.55)] transition active:scale-[0.98]"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate text-base font-semibold text-foreground">{t.client_name ?? "Cliente"}</span>
+                    <span className="turno-hora-oscuro shrink-0 text-sm font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</span>
+                    <span className="turno-hora-claro shrink-0 text-sm font-semibold">{hora24(t.starts_at)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
+                    {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-white">Con {t.employee_name}</span>}
+                  </div>
+                </Link>
+              </React.Fragment>
+            );
+          })
         )}
       </div>
     </div>

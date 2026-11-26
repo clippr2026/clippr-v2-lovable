@@ -28,10 +28,10 @@ export function ColorModeToggle({ className }: { className?: string }) {
       }}
       className={cn("flex h-10 w-14 shrink-0 items-center justify-center", className)}
     >
-      <span className="relative block h-6 w-12 rounded-full border border-white/20 bg-white/10">
+      <span className="tema-pista relative block h-6 w-12 rounded-full border border-white/20 bg-white/10">
         <span
           className={cn(
-            "absolute left-0.5 top-0.5 grid h-[18px] w-[18px] place-items-center rounded-full bg-white text-black transition-transform duration-200",
+            "tema-perilla absolute left-0.5 top-0.5 grid h-[18px] w-[18px] place-items-center rounded-full bg-white text-black transition-transform duration-200",
             light && "translate-x-6",
           )}
         >

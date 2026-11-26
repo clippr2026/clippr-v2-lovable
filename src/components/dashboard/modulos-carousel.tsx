@@ -36,7 +36,7 @@ export const EVENTO_VER_ASISTENCIA = "clippr:ver-asistencia";
 function Contenido({ m }: { m: Modulo }) {
   return (
     <>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-black/35 py-1 pl-2 pr-2.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
+      <span className="modulo-chip inline-flex items-center gap-1.5 rounded-full bg-black/35 py-1 pl-2 pr-2.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
         <m.icono aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
         {m.nombre}
       </span>
@@ -87,7 +87,7 @@ export function ModulosCarousel() {
   const ref = React.useRef<HTMLDivElement>(null);
   useEnfoque(ref);
 
-  const base = "block h-full w-full rounded-[24px] px-4 py-3 text-left";
+  const base = "modulo-tarjeta block h-full w-full rounded-[24px] px-4 py-3 text-left";
   const clase = `${base} transition-transform duration-150 active:scale-[0.97]`;
 
   return (

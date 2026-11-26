@@ -498,7 +498,7 @@ function PublicSiteMenu() {
           aria-label="Reservas online"
           className="inline-flex h-10 items-center gap-2 rounded-xl glass glass-hover px-2.5 text-sm font-medium text-white/85 transition active:scale-[0.96] hover:text-white"
         >
-          <span className="rounded-full bg-emerald-400 px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white">
+          <span className="www-pastilla rounded-full bg-emerald-400 px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white">
             WWW
           </span>
         </button>
