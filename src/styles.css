@@ -1604,3 +1604,7 @@ html.modo-claro .calendario-grande { background: #ffffff !important; border-colo
 html.modo-claro .encabezado-agenda .boton-hoy { background: #ffffff; border-color: #e6e3f1; box-shadow: 0 1px 2px rgba(23, 23, 43, 0.06); }
 html.modo-claro .encabezado-agenda .boton-mas { background: #e6e3f1; color: #491a89; }
 html.modo-claro .encabezado-agenda button[aria-label="Ver calendario"], html.modo-claro .encabezado-agenda button[aria-label="Ver lista de turnos"] { color: #491a89; }
+.encabezado-agenda .titulo-mes { color: #ffffff; }
+.encabezado-agenda .subtitulo-dia { color: rgba(255, 255, 255, 0.72); }
+html.modo-claro .encabezado-agenda .titulo-mes { color: #17172b; }
+html.modo-claro .encabezado-agenda .subtitulo-dia { color: #4a4860; }

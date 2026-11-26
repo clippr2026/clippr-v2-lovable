@@ -1637,7 +1637,7 @@ function AgendaPage() {
               type="button"
               onClick={(e) => openCalendar(e.currentTarget)}
               aria-label="Elegir fecha"
-              className="block max-w-full truncate text-left text-[22px] font-extrabold leading-tight tracking-tight text-white"
+              className="titulo-mes block max-w-full whitespace-nowrap text-left text-[21px] font-extrabold leading-tight tracking-tight"
             >
               {cap(cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" }))}
             </button>
@@ -1645,7 +1645,7 @@ function AgendaPage() {
               <button type="button" onClick={() => move(-1)} aria-label="Día anterior" className="-ml-1.5 grid h-7 w-7 place-items-center rounded-full text-white/55 active:bg-white/10">
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="whitespace-nowrap text-[13px] font-bold uppercase tracking-[0.08em] text-white/60">
+              <span className="subtitulo-dia whitespace-nowrap text-[13px] font-bold uppercase tracking-[0.08em]">
                 {cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))} {cursor.getDate()}
               </span>
               <button type="button" onClick={() => move(1)} aria-label="Día siguiente" className="grid h-7 w-7 place-items-center rounded-full text-white/55 active:bg-white/10">
