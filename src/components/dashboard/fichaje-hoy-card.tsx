@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, QrCode, X } from "lucide-react";
+import { ClipboardCheck, Clock, QrCode, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
@@ -117,14 +117,14 @@ export function FichajeHoyCard({
             <button
               type="button"
               onClick={() => setListOpen(true)}
-              className="h-11 rounded-2xl border border-violet-400/80 bg-violet-500/15 text-base font-semibold text-white transition active:scale-[0.98]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-500 to-violet-700 text-base font-semibold text-white shadow-[0_6px_18px_-6px_rgba(139,92,246,.75),inset_0_1px_0_rgba(255,255,255,.25)] ring-1 ring-violet-300/40 transition active:scale-[0.97]"
             >
-              Ver asistencia
+              <ClipboardCheck className="h-5 w-5" /> Ver asistencia
             </button>
             <button
               type="button"
               onClick={() => setQrOpen(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/80 bg-violet-500/15 text-base font-semibold text-white transition active:scale-[0.98]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-500 to-violet-700 text-base font-semibold text-white shadow-[0_6px_18px_-6px_rgba(139,92,246,.75),inset_0_1px_0_rgba(255,255,255,.25)] ring-1 ring-violet-300/40 transition active:scale-[0.97]"
             >
               <QrCode className="h-5 w-5" /> Mostrar QR
             </button>
@@ -142,9 +142,11 @@ export function FichajeHoyCard({
               <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
                 <div className="min-w-0">
                   <div className="text-lg font-semibold">Asistencia de hoy</div>
-                  <div className="truncate text-sm capitalize text-white/55">
-                    {[branchName, new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })].filter(Boolean).join(" · ")}
+                  {/* Fecha en su propio renglón, completa y en blanco para que se lea bien. */}
+                  <div className="mt-0.5 text-base font-medium text-white/90 first-letter:uppercase">
+                    {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                   </div>
+                  {branchName && <div className="truncate text-sm text-white/60">{branchName}</div>}
                 </div>
                 <button type="button" onClick={() => setListOpen(false)} aria-label="Cerrar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/5 ring-1 ring-white/10">
                   <X className="h-5 w-5" />
