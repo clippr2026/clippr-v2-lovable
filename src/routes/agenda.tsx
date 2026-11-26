@@ -200,7 +200,9 @@ function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProp
     // que el tono final sea idéntico al del turno.
     background: `${STATUS_DARKEN}, ${statusFade(bg)}, #111323`,
     boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${mixAlpha(border, 24)}`,
-  };
+    // Modo claro: el color del estado pasa a un punto o una línea sobre fondo neutro (ver styles.css).
+    ["--estado" as string]: border,
+  } as React.CSSProperties;
 }
 
 // ---------------------------------------------------------------------------
@@ -1681,7 +1683,8 @@ function AgendaPage() {
                   setFilterModal(k);
                   setActiveDrawer("filter");
                 }}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
+                className="estado-chip inline-flex items-center gap-1 rounded-lg px-2 py-0.5 pr-4 text-xs font-medium transition-all hover:brightness-110 shrink-0"
+                data-cero={!((counts as Record<string, number>)[k] ?? 0)}
                 style={statusNeonStyle(color, ring, bg)}
               >
                 <span className="font-semibold tabular-nums text-sm">
@@ -1849,7 +1852,8 @@ function AgendaPage() {
                 setFilterModal(k);
                 setActiveDrawer("filter");
               }}
-              className="flex w-[calc((100%-0.75rem)/3)] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
+              className="estado-chip flex w-[calc((100%-0.75rem)/3)] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
+              data-cero={!((counts as Record<string, number>)[k] ?? 0)}
               style={statusNeonStyle(color, ring, bg)}
             >
               <span className="font-semibold tabular-nums text-sm leading-none">

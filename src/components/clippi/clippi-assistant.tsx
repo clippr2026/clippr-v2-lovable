@@ -246,7 +246,7 @@ export function BurbujaClippi({
         onContextMenu={(e) => e.preventDefault()}
         aria-label={sinLeer ? "Abrir a Clippi: tenés una respuesta del asesor" : "Abrir a Clippi, tu asistente"}
         style={lugar ? { left: lugar.x, top: lugar.y, right: "auto", bottom: "auto" } : undefined}
-        className={`no-invert fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 h-14 w-14 touch-none select-none rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] [-webkit-touch-callout:none] lg:bottom-6 lg:right-6 ${arrastre ? (arrastre.sobre ? "z-[10011] scale-75 opacity-30" : "z-[10011] scale-105") : "z-30 transition-transform active:scale-95"}`}
+        className={`clippi-burbuja fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 h-14 w-14 touch-none select-none rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] [-webkit-touch-callout:none] lg:bottom-6 lg:right-6 ${arrastre ? (arrastre.sobre ? "z-[10011] scale-75 opacity-30" : "z-[10011] scale-105") : "z-30 transition-transform active:scale-95"}`}
       >
         <img src={FOTO} alt="" draggable={false} className="pointer-events-none h-full w-full rounded-full object-cover" />
         {sinLeer > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-black bg-rose-500" />}

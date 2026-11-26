@@ -710,6 +710,49 @@ html.neon-skin .dashboard-premium-shell .senas-neon-card {
 }
 
 
+/* Caja: señas y saldos pendientes en tarjetas blancas; el color queda en el ícono o el importe
+   y la acción ("Revisar", "Cerrar", "Ver") se ve como botón. */
+html.modo-claro .aviso-caja,
+html.modo-claro.neon-skin .senas-neon-card,
+html.modo-claro .senas-neon-card {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: #e4e2ee !important;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04), 0 8px 24px -18px rgb(23 23 43 / 0.22) !important;
+}
+html.modo-claro .aviso-boton {
+  border-color: transparent;
+  background: #491a89;
+  color: #ffffff;
+}
+html.modo-claro .aviso-boton:hover { background: #3c1572; }
+html.modo-claro .senas-casillero {
+  background: #f7f7fb !important;
+  color: #5a5870 !important;
+  box-shadow: inset 0 0 0 1px #e4e2ee !important;
+}
+html.modo-claro .senas-casillero > :nth-child(2) { color: #17172b; }
+html.modo-claro .senas-casillero[data-activo="true"] > :nth-child(2),
+html.modo-claro .senas-casillero[data-activo="true"] > :nth-child(3) { color: #0369a1; }
+
+/* Configuración: opciones agrupadas en tarjetas blancas, íconos violetas sobre lavanda y nombres oscuros. */
+html.modo-claro .ajuste-grupo {
+  border: 1px solid #e4e2ee;
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 0.25rem;
+}
+html.modo-claro .ajuste-item { color: #17172b; }
+html.modo-claro .ajuste-item:is(:hover, [class*="lg:bg-white"]) { background-color: #f3f2f8; }
+html.modo-claro .ajuste-icono {
+  background: #e6e3f1;
+  background-image: none;
+  color: #491a89;
+  box-shadow: none;
+  --tw-ring-color: transparent;
+}
+html.modo-claro .ajuste-icono svg { color: #491a89; }
+
 /* Avisos (toasts) con estilo Clippr en toda la app: tarjeta oscura con borde violeta y luz;
    el borde y el brillo cambian de color según el tipo (error, éxito, aviso). */
 [data-sonner-toaster] [data-sonner-toast] {
@@ -775,96 +818,675 @@ html.neon-skin .dashboard-premium-shell .senas-neon-card {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Modo claro (clase "modo-claro" en <html>, ver lib/color-mode.ts): invierte
-   toda la app. El filtro va SOLO en la raíz: en cualquier otro elemento
-   rompería los position: fixed. Fotos, videos, QR, mapas y logos se vuelven
-   a invertir para verse normales; para marcar otro elemento, usar "no-invert".
+   Modo claro (clase "modo-claro" en <html>, ver lib/color-mode.ts).
+   Tema claro de verdad en toda la app de gestión, sin invertir colores. Toma
+   como referencia el Inicio claro: fondo blanco perla, tarjetas blancas con
+   borde fino, texto azul noche y violeta profundo solo donde hay acción.
+   Funciona cambiando las variables que leen las utilidades de Tailwind:
+   "text-white" pasa a ser el texto principal, "bg-white/5" un gris suave y
+   los tonos claros de cada color (que en oscuro son texto) pasan a tonos
+   oscuros legibles. Las variables se cambian en <body>; en <html> quedan las
+   originales para devolvérselas a la portada de cada barbería, que se ve
+   igual en los dos modos. El modo oscuro no se toca.
    ───────────────────────────────────────────────────────────────────────── */
-html.modo-claro {
-  filter: invert(1) hue-rotate(180deg);
+html {
+  --orig-white: var(--color-white);
+  --orig-violet-50: var(--color-violet-50);
+  --orig-violet-100: var(--color-violet-100);
+  --orig-violet-200: var(--color-violet-200);
+  --orig-violet-300: var(--color-violet-300);
+  --orig-violet-400: var(--color-violet-400);
+  --orig-purple-50: var(--color-purple-50);
+  --orig-purple-100: var(--color-purple-100);
+  --orig-purple-200: var(--color-purple-200);
+  --orig-purple-300: var(--color-purple-300);
+  --orig-purple-400: var(--color-purple-400);
+  --orig-fuchsia-50: var(--color-fuchsia-50);
+  --orig-fuchsia-100: var(--color-fuchsia-100);
+  --orig-fuchsia-200: var(--color-fuchsia-200);
+  --orig-fuchsia-300: var(--color-fuchsia-300);
+  --orig-fuchsia-400: var(--color-fuchsia-400);
+  --orig-indigo-50: var(--color-indigo-50);
+  --orig-indigo-100: var(--color-indigo-100);
+  --orig-indigo-200: var(--color-indigo-200);
+  --orig-indigo-300: var(--color-indigo-300);
+  --orig-indigo-400: var(--color-indigo-400);
+  --orig-blue-50: var(--color-blue-50);
+  --orig-blue-100: var(--color-blue-100);
+  --orig-blue-200: var(--color-blue-200);
+  --orig-blue-300: var(--color-blue-300);
+  --orig-blue-400: var(--color-blue-400);
+  --orig-sky-50: var(--color-sky-50);
+  --orig-sky-100: var(--color-sky-100);
+  --orig-sky-200: var(--color-sky-200);
+  --orig-sky-300: var(--color-sky-300);
+  --orig-sky-400: var(--color-sky-400);
+  --orig-cyan-50: var(--color-cyan-50);
+  --orig-cyan-100: var(--color-cyan-100);
+  --orig-cyan-200: var(--color-cyan-200);
+  --orig-cyan-300: var(--color-cyan-300);
+  --orig-cyan-400: var(--color-cyan-400);
+  --orig-teal-50: var(--color-teal-50);
+  --orig-teal-100: var(--color-teal-100);
+  --orig-teal-200: var(--color-teal-200);
+  --orig-teal-300: var(--color-teal-300);
+  --orig-teal-400: var(--color-teal-400);
+  --orig-emerald-50: var(--color-emerald-50);
+  --orig-emerald-100: var(--color-emerald-100);
+  --orig-emerald-200: var(--color-emerald-200);
+  --orig-emerald-300: var(--color-emerald-300);
+  --orig-emerald-400: var(--color-emerald-400);
+  --orig-green-50: var(--color-green-50);
+  --orig-green-100: var(--color-green-100);
+  --orig-green-200: var(--color-green-200);
+  --orig-green-300: var(--color-green-300);
+  --orig-green-400: var(--color-green-400);
+  --orig-lime-50: var(--color-lime-50);
+  --orig-lime-100: var(--color-lime-100);
+  --orig-lime-200: var(--color-lime-200);
+  --orig-lime-300: var(--color-lime-300);
+  --orig-lime-400: var(--color-lime-400);
+  --orig-amber-50: var(--color-amber-50);
+  --orig-amber-100: var(--color-amber-100);
+  --orig-amber-200: var(--color-amber-200);
+  --orig-amber-300: var(--color-amber-300);
+  --orig-amber-400: var(--color-amber-400);
+  --orig-yellow-50: var(--color-yellow-50);
+  --orig-yellow-100: var(--color-yellow-100);
+  --orig-yellow-200: var(--color-yellow-200);
+  --orig-yellow-300: var(--color-yellow-300);
+  --orig-yellow-400: var(--color-yellow-400);
+  --orig-orange-50: var(--color-orange-50);
+  --orig-orange-100: var(--color-orange-100);
+  --orig-orange-200: var(--color-orange-200);
+  --orig-orange-300: var(--color-orange-300);
+  --orig-orange-400: var(--color-orange-400);
+  --orig-red-50: var(--color-red-50);
+  --orig-red-100: var(--color-red-100);
+  --orig-red-200: var(--color-red-200);
+  --orig-red-300: var(--color-red-300);
+  --orig-red-400: var(--color-red-400);
+  --orig-rose-50: var(--color-rose-50);
+  --orig-rose-100: var(--color-rose-100);
+  --orig-rose-200: var(--color-rose-200);
+  --orig-rose-300: var(--color-rose-300);
+  --orig-rose-400: var(--color-rose-400);
+  --orig-pink-50: var(--color-pink-50);
+  --orig-pink-100: var(--color-pink-100);
+  --orig-pink-200: var(--color-pink-200);
+  --orig-pink-300: var(--color-pink-300);
+  --orig-pink-400: var(--color-pink-400);
+  --orig-slate-50: var(--color-slate-50);
+  --orig-slate-100: var(--color-slate-100);
+  --orig-slate-200: var(--color-slate-200);
+  --orig-slate-300: var(--color-slate-300);
+  --orig-slate-400: var(--color-slate-400);
+  --orig-gray-50: var(--color-gray-50);
+  --orig-gray-100: var(--color-gray-100);
+  --orig-gray-200: var(--color-gray-200);
+  --orig-gray-300: var(--color-gray-300);
+  --orig-gray-400: var(--color-gray-400);
+  --orig-zinc-50: var(--color-zinc-50);
+  --orig-zinc-100: var(--color-zinc-100);
+  --orig-zinc-200: var(--color-zinc-200);
+  --orig-zinc-300: var(--color-zinc-300);
+  --orig-zinc-400: var(--color-zinc-400);
+  --orig-neutral-50: var(--color-neutral-50);
+  --orig-neutral-100: var(--color-neutral-100);
+  --orig-neutral-200: var(--color-neutral-200);
+  --orig-neutral-300: var(--color-neutral-300);
+  --orig-neutral-400: var(--color-neutral-400);
 }
-html.modo-claro :is(img, video, canvas, iframe, svg image, .no-invert) {
-  filter: invert(1) hue-rotate(180deg) !important;
-}
-html.modo-claro .no-invert :is(img, video, canvas, iframe, svg image, .no-invert) {
-  filter: none !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Inicio en modo claro (clase "inicio-claro" en <html>). No invierte nada:
-   la foto, el logo y el carrusel quedan idénticos al modo oscuro; detrás del
-   banner hay violeta y desde "Fichaje de hoy" hacia abajo todo es claro.
-   Las ventanas emergentes (portales) siguen oscuras.
-   ───────────────────────────────────────────────────────────────────────── */
-.inicio-fondo { display: none; }
-html.inicio-claro,
-html.inicio-claro body { background-color: #f4f3f8; }
-html.inicio-claro body::before { display: none; }
-html.inicio-claro .inicio-fondo {
-  display: block;
-  position: absolute;
-  inset: 0 0 64px;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(to bottom, #2a0f5c 0, #4c1d95 calc(100% - 90px), rgb(76 29 149 / 0) 100%);
-}
-/* Sin la línea que separaba el banner: el violeta se funde con el fondo. */
-html.inicio-claro .public-hero > section { border-color: transparent !important; }
-/* Las tarjetas del carrusel no se transparentan sobre el fondo claro. */
-html.inicio-claro [aria-label="Qué podés hacer en Clippr"] > div { opacity: 1 !important; }
-
-/* Parte operativa: las utilidades de Tailwind leen estas variables. */
-html.inicio-claro .dashboard-premium-shell {
-  --color-white: #1b1630;
-  --foreground: #1b1630;
-  --muted-foreground: #625d77;
-  --primary: #6d28d9;
-  --color-violet-100: #5b21b6;
-  --color-violet-200: #6d28d9;
-  --color-violet-300: #7c3aed;
+html.modo-claro { color-scheme: light; background-color: #f6f7fb; }
+html.modo-claro body {
+  --background: #f6f7fb;
+  --foreground: #17172b;
+  --card: #ffffff;
+  --card-foreground: #17172b;
+  --popover: #ffffff;
+  --popover-foreground: #17172b;
+  --primary: #491a89;
+  --primary-foreground: #ffffff;
+  --secondary: #e6e3f1;
+  --secondary-foreground: #491a89;
+  --muted: #eeedf4;
+  --muted-foreground: #5a5870;
+  --accent: #491a89;
+  --accent-foreground: #ffffff;
+  --destructive: #c0263f;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --border: #e4e2ee;
+  --input: #dedbea;
+  --ring: #491a89;
+  --neon-blue: #1d4ed8;
+  --neon-purple: #491a89;
+  --neon-cyan: #0e7490;
+  --neon-orange: #c2410c;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #17172b;
+  --sidebar-primary: #491a89;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6e3f1;
+  --sidebar-accent-foreground: #491a89;
+  --sidebar-border: #e4e2ee;
+  --sidebar-ring: #491a89;
+  --shadow-glow-blue: 0 1px 2px rgb(23 23 43 / 0.06);
+  --shadow-glow-purple: 0 1px 2px rgb(23 23 43 / 0.06);
+  --color-white: #17172b;
+  --color-violet-50: #4a1d8f;
+  --color-violet-100: #491a89;
+  --color-violet-200: #491a89;
+  --color-violet-300: #491a89;
+  --color-violet-400: #5b2aa6;
+  --color-purple-50: #5b1a8a;
+  --color-purple-100: #5b1a8a;
+  --color-purple-200: #5b1a8a;
+  --color-purple-300: #6b21a8;
+  --color-purple-400: #7e22ce;
+  --color-fuchsia-50: #86198f;
+  --color-fuchsia-100: #86198f;
+  --color-fuchsia-200: #86198f;
+  --color-fuchsia-300: #a21caf;
+  --color-fuchsia-400: #a21caf;
+  --color-indigo-50: #3730a3;
+  --color-indigo-100: #3730a3;
+  --color-indigo-200: #3730a3;
+  --color-indigo-300: #4338ca;
+  --color-indigo-400: #4338ca;
+  --color-blue-50: #1e40af;
+  --color-blue-100: #1e40af;
+  --color-blue-200: #1e40af;
+  --color-blue-300: #1d4ed8;
+  --color-blue-400: #1d4ed8;
+  --color-sky-50: #075985;
   --color-sky-100: #075985;
+  --color-sky-200: #075985;
   --color-sky-300: #0369a1;
+  --color-sky-400: #0369a1;
+  --color-cyan-50: #155e75;
+  --color-cyan-100: #155e75;
+  --color-cyan-200: #155e75;
+  --color-cyan-300: #0e7490;
+  --color-cyan-400: #0e7490;
+  --color-teal-50: #115e59;
+  --color-teal-100: #115e59;
+  --color-teal-200: #115e59;
+  --color-teal-300: #0f766e;
+  --color-teal-400: #0f766e;
+  --color-emerald-50: #065f46;
+  --color-emerald-100: #065f46;
   --color-emerald-200: #047857;
   --color-emerald-300: #047857;
+  --color-emerald-400: #047857;
+  --color-green-50: #166534;
+  --color-green-100: #166534;
+  --color-green-200: #15803d;
+  --color-green-300: #15803d;
+  --color-green-400: #15803d;
+  --color-lime-50: #3f6212;
+  --color-lime-100: #3f6212;
+  --color-lime-200: #4d7c0f;
+  --color-lime-300: #4d7c0f;
+  --color-lime-400: #4d7c0f;
+  --color-amber-50: #92400e;
   --color-amber-100: #92400e;
-  --color-amber-300: #b45309;
-  color: var(--foreground);
+  --color-amber-200: #92400e;
+  --color-amber-300: #a35208;
+  --color-amber-400: #b45309;
+  --color-yellow-50: #854d0e;
+  --color-yellow-100: #854d0e;
+  --color-yellow-200: #854d0e;
+  --color-yellow-300: #a16207;
+  --color-yellow-400: #a16207;
+  --color-orange-50: #9a3412;
+  --color-orange-100: #9a3412;
+  --color-orange-200: #9a3412;
+  --color-orange-300: #c2410c;
+  --color-orange-400: #c2410c;
+  --color-red-50: #991b1b;
+  --color-red-100: #991b1b;
+  --color-red-200: #991b1b;
+  --color-red-300: #b91c1c;
+  --color-red-400: #b91c1c;
+  --color-rose-50: #9f1239;
+  --color-rose-100: #9f1239;
+  --color-rose-200: #9f1239;
+  --color-rose-300: #be123c;
+  --color-rose-400: #be123c;
+  --color-pink-50: #9d174d;
+  --color-pink-100: #9d174d;
+  --color-pink-200: #9d174d;
+  --color-pink-300: #be185d;
+  --color-pink-400: #be185d;
+  --color-slate-50: #334155;
+  --color-slate-100: #334155;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #475569;
+  --color-gray-50: #374151;
+  --color-gray-100: #374151;
+  --color-gray-200: #374151;
+  --color-gray-300: #4b5563;
+  --color-gray-400: #4b5563;
+  --color-zinc-50: #3f3f46;
+  --color-zinc-100: #3f3f46;
+  --color-zinc-200: #3f3f46;
+  --color-zinc-300: #52525b;
+  --color-zinc-400: #52525b;
+  --color-neutral-50: #404040;
+  --color-neutral-100: #404040;
+  --color-neutral-200: #404040;
+  --color-neutral-300: #525252;
+  --color-neutral-400: #525252;
+  background-color: #f6f7fb;
+  color: #17172b;
 }
-html.inicio-claro .dashboard-premium-shell::before { display: none; }
-html.inicio-claro.neon-skin .dashboard-premium-shell .glass.glass {
-  border-color: #e4e0f0;
-  background-color: #fff;
-  background-image: none;
-  box-shadow: 0 10px 28px -20px rgb(46 16 101 / 0.35);
-}
-html.inicio-claro.neon-skin .dashboard-premium-shell .font-display,
-html.inicio-claro.neon-skin .dashboard-premium-shell [class*="uppercase"][class*="tracking-"] {
-  color: var(--foreground);
-}
-html.inicio-claro.neon-skin .dashboard-premium-shell .glass [class*="ring-white/8"] {
-  background-color: #f7f6fb;
-  background-image: none;
-  box-shadow: inset 0 0 0 1px #e4e0f0;
-}
-html.inicio-claro .dashboard-premium-shell button[class*="ring-white/20"] {
-  background-color: #f5f2ff;
-  box-shadow: inset 0 0 0 1px #d9d0f5;
-}
-/* Sobre botones de color el texto sigue blanco. */
-html.inicio-claro .dashboard-premium-shell [class*="from-sky-400"] { --color-white: #fff; }
 
-/* En modo claro, en todas las pantallas: encabezado negro (como en oscuro) y barra inferior
-   clara con el botón de la sección actual en violeta. Ambos llevan "no-invert". */
-html:is(.inicio-claro, .modo-claro) .app-encabezado { background: #000; }
-html:is(.inicio-claro, .modo-claro) .app-barra {
-  --color-white: #4b4563;
-  border-color: #e4e0f0;
-  background-color: #fff;
+/* La portada de la barbería (foto, logo y fondo decorativo) queda igual que en oscuro. */
+html.modo-claro .public-hero {
+  --color-white: var(--orig-white);
+  --color-violet-50: var(--orig-violet-50);
+  --color-violet-100: var(--orig-violet-100);
+  --color-violet-200: var(--orig-violet-200);
+  --color-violet-300: var(--orig-violet-300);
+  --color-violet-400: var(--orig-violet-400);
+  --color-purple-50: var(--orig-purple-50);
+  --color-purple-100: var(--orig-purple-100);
+  --color-purple-200: var(--orig-purple-200);
+  --color-purple-300: var(--orig-purple-300);
+  --color-purple-400: var(--orig-purple-400);
+  --color-fuchsia-50: var(--orig-fuchsia-50);
+  --color-fuchsia-100: var(--orig-fuchsia-100);
+  --color-fuchsia-200: var(--orig-fuchsia-200);
+  --color-fuchsia-300: var(--orig-fuchsia-300);
+  --color-fuchsia-400: var(--orig-fuchsia-400);
+  --color-indigo-50: var(--orig-indigo-50);
+  --color-indigo-100: var(--orig-indigo-100);
+  --color-indigo-200: var(--orig-indigo-200);
+  --color-indigo-300: var(--orig-indigo-300);
+  --color-indigo-400: var(--orig-indigo-400);
+  --color-blue-50: var(--orig-blue-50);
+  --color-blue-100: var(--orig-blue-100);
+  --color-blue-200: var(--orig-blue-200);
+  --color-blue-300: var(--orig-blue-300);
+  --color-blue-400: var(--orig-blue-400);
+  --color-sky-50: var(--orig-sky-50);
+  --color-sky-100: var(--orig-sky-100);
+  --color-sky-200: var(--orig-sky-200);
+  --color-sky-300: var(--orig-sky-300);
+  --color-sky-400: var(--orig-sky-400);
+  --color-cyan-50: var(--orig-cyan-50);
+  --color-cyan-100: var(--orig-cyan-100);
+  --color-cyan-200: var(--orig-cyan-200);
+  --color-cyan-300: var(--orig-cyan-300);
+  --color-cyan-400: var(--orig-cyan-400);
+  --color-teal-50: var(--orig-teal-50);
+  --color-teal-100: var(--orig-teal-100);
+  --color-teal-200: var(--orig-teal-200);
+  --color-teal-300: var(--orig-teal-300);
+  --color-teal-400: var(--orig-teal-400);
+  --color-emerald-50: var(--orig-emerald-50);
+  --color-emerald-100: var(--orig-emerald-100);
+  --color-emerald-200: var(--orig-emerald-200);
+  --color-emerald-300: var(--orig-emerald-300);
+  --color-emerald-400: var(--orig-emerald-400);
+  --color-green-50: var(--orig-green-50);
+  --color-green-100: var(--orig-green-100);
+  --color-green-200: var(--orig-green-200);
+  --color-green-300: var(--orig-green-300);
+  --color-green-400: var(--orig-green-400);
+  --color-lime-50: var(--orig-lime-50);
+  --color-lime-100: var(--orig-lime-100);
+  --color-lime-200: var(--orig-lime-200);
+  --color-lime-300: var(--orig-lime-300);
+  --color-lime-400: var(--orig-lime-400);
+  --color-amber-50: var(--orig-amber-50);
+  --color-amber-100: var(--orig-amber-100);
+  --color-amber-200: var(--orig-amber-200);
+  --color-amber-300: var(--orig-amber-300);
+  --color-amber-400: var(--orig-amber-400);
+  --color-yellow-50: var(--orig-yellow-50);
+  --color-yellow-100: var(--orig-yellow-100);
+  --color-yellow-200: var(--orig-yellow-200);
+  --color-yellow-300: var(--orig-yellow-300);
+  --color-yellow-400: var(--orig-yellow-400);
+  --color-orange-50: var(--orig-orange-50);
+  --color-orange-100: var(--orig-orange-100);
+  --color-orange-200: var(--orig-orange-200);
+  --color-orange-300: var(--orig-orange-300);
+  --color-orange-400: var(--orig-orange-400);
+  --color-red-50: var(--orig-red-50);
+  --color-red-100: var(--orig-red-100);
+  --color-red-200: var(--orig-red-200);
+  --color-red-300: var(--orig-red-300);
+  --color-red-400: var(--orig-red-400);
+  --color-rose-50: var(--orig-rose-50);
+  --color-rose-100: var(--orig-rose-100);
+  --color-rose-200: var(--orig-rose-200);
+  --color-rose-300: var(--orig-rose-300);
+  --color-rose-400: var(--orig-rose-400);
+  --color-pink-50: var(--orig-pink-50);
+  --color-pink-100: var(--orig-pink-100);
+  --color-pink-200: var(--orig-pink-200);
+  --color-pink-300: var(--orig-pink-300);
+  --color-pink-400: var(--orig-pink-400);
+  --color-slate-50: var(--orig-slate-50);
+  --color-slate-100: var(--orig-slate-100);
+  --color-slate-200: var(--orig-slate-200);
+  --color-slate-300: var(--orig-slate-300);
+  --color-slate-400: var(--orig-slate-400);
+  --color-gray-50: var(--orig-gray-50);
+  --color-gray-100: var(--orig-gray-100);
+  --color-gray-200: var(--orig-gray-200);
+  --color-gray-300: var(--orig-gray-300);
+  --color-gray-400: var(--orig-gray-400);
+  --color-zinc-50: var(--orig-zinc-50);
+  --color-zinc-100: var(--orig-zinc-100);
+  --color-zinc-200: var(--orig-zinc-200);
+  --color-zinc-300: var(--orig-zinc-300);
+  --color-zinc-400: var(--orig-zinc-400);
+  --color-neutral-50: var(--orig-neutral-50);
+  --color-neutral-100: var(--orig-neutral-100);
+  --color-neutral-200: var(--orig-neutral-200);
+  --color-neutral-300: var(--orig-neutral-300);
+  --color-neutral-400: var(--orig-neutral-400);
+}
+
+/* Sobre botones y etiquetas de color sólido el texto sigue blanco. */
+html.modo-claro :is(
+  [class~="bg-primary"], [class~="bg-destructive"], [class~="bg-black"],
+  [class~="bg-violet-500"], [class~="bg-violet-600"], [class~="bg-violet-700"], [class~="bg-purple-600"],
+  [class~="bg-emerald-500"], [class~="bg-emerald-600"], [class~="bg-green-600"],
+  [class~="bg-rose-500"], [class~="bg-rose-600"], [class~="bg-red-500"], [class~="bg-red-600"],
+  [class~="bg-sky-500"], [class~="bg-blue-500"], [class~="bg-blue-600"], [class~="bg-amber-500"],
+  [class*="from-sky-400"]:not([class*="from-sky-400/"]),
+  [class*="from-violet-500"]:not([class*="from-violet-500/"]),
+  [class*="from-violet-600"]:not([class*="from-violet-600/"]),
+  [class*="from-emerald-5"]:not([class*="from-emerald-5"][class*="/"]),
+  [class*="from-rose-5"]:not([class*="from-rose-5"][class*="/"])
+) {
+  --color-white: #ffffff;
+}
+
+/* Fondo: sin resplandores decorativos. */
+html.modo-claro body::before,
+html.modo-claro .dashboard-premium-shell::before,
+html.modo-claro .cash-register-page::before,
+html.modo-claro .cash-register-page::after,
+html.modo-claro .donut-chart-glow::before { display: none; }
+html.modo-claro [class*="pointer-events-none"]:is([class*="bg-[radial-gradient"], [class*=" blur-"], [class^="blur-"]):not(.public-hero *) {
+  display: none;
+}
+
+/* Superficies oscuras fijas → blancas. */
+html.modo-claro :is(
+  [class*="bg-[#0"], [class*="bg-[#1"], [class*="bg-[rgba(10,10,16"], [class*="bg-[rgba(0,0,0"],
+  [class~="bg-zinc-950"], [class~="bg-zinc-900"], [class*="bg-zinc-950/"], [class*="bg-zinc-900/"],
+  [class*="bg-slate-950"], [class*="bg-slate-900"]
+):not(.public-hero *) {
+  background-color: #ffffff;
+}
+/* Casilleros con negro translúcido → gris muy suave. Los fondos de ventanas (fixed) quedan oscuros. */
+html.modo-claro [class*="bg-black/"]:not([class*="fixed"]):not(.public-hero *) {
+  background-color: rgb(23 23 43 / 0.04);
+}
+html.modo-claro [class*="fixed"][class*="bg-black/"]:not(.public-hero *) {
+  background-color: rgb(23 23 43 / 0.42);
+}
+
+/* Tarjetas: blancas, borde fino y sombra neutra suave. */
+html.modo-claro :is(.glass, .glass-strong),
+html.modo-claro.neon-skin :is(.glass, .glass-strong),
+html.modo-claro.neon-skin :is(.glass, .glass-strong):not(:hover),
+html.modo-claro.neon-skin .dashboard-premium-shell .glass.glass {
+  border-color: #e4e2ee;
+  background: #ffffff;
+  background-image: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  box-shadow: 0 12px 30px -14px rgb(46 16 101 / 0.35);
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04), 0 8px 24px -18px rgb(23 23 43 / 0.22);
 }
-html:is(.inicio-claro, .modo-claro) .app-barra [class*="from-sky-400"] {
-  --color-white: #fff;
-  background-image: linear-gradient(to bottom, #4f7dff, #8b5cf6);
+html.modo-claro :is(.glass, .glass-strong)::before { display: none; }
+html.modo-claro .glass-hover:hover {
+  border-color: #cfc8e6;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.05), 0 10px 26px -16px rgb(23 23 43 / 0.25);
 }
+html.modo-claro :is(.dashboard-date-glow, .stat-glow-primary, .stat-glow-danger, .stat-glow-success,
+  .dashboard-chart-glow, .dashboard-donut-glow, .glow-blue, .glow-purple, .ring-glow) {
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.05);
+}
+html.modo-claro .revenue-area-glow .recharts-area-curve { filter: none; }
+html.modo-claro .text-gradient { background: none; color: #491a89; }
+html.modo-claro .bg-gradient-primary { background: #491a89; }
+
+/* Sin brillos decorativos dentro de las tarjetas. */
+html.modo-claro [class*="[background-image:"]:not(.public-hero *) { background-image: none; }
+/* Bordes violeta tenues de las ventanas → finos y neutros (los contornos marcados quedan). */
+html.modo-claro :is(
+  [class*="border-violet-400/2"], [class*="border-violet-400/3"], [class*="border-violet-400/4"],
+  [class*="border-violet-300/2"], [class*="border-violet-300/3"], [class*="border-violet-300/4"],
+  [class*="border-violet-500/2"], [class*="border-violet-500/3"], [class*="border-violet-500/4"]
+):not(.public-hero *) {
+  border-color: #e4e2ee;
+}
+
+/* Bordes: finos y neutros (no violeta luminoso). */
+html.modo-claro.neon-skin :is(
+  [class*="border-white/5"], [class*="border-white/10"], [class*="border-white/15"],
+  [class*="border-white/[0.0"], [class*="border-white/[0.1"]
+):not(:hover) {
+  border-color: #e4e2ee;
+}
+
+/* Sin halos ni sombras de color. */
+html.modo-claro [class*="shadow-[0_0"]:not(.public-hero *) { box-shadow: none; }
+html.modo-claro [class*="shadow-["]:not([class*="shadow-[0_0"]):not(.public-hero *) {
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.05), 0 8px 22px -16px rgb(23 23 43 / 0.22);
+}
+html.modo-claro [class*="drop-shadow-[0_0"]:not(.public-hero *) { filter: none; }
+html.modo-claro.neon-skin h1 { text-shadow: none; }
+html.modo-claro [class*="text-shadow"]:not(.public-hero *) { text-shadow: none; }
+
+/* Botón principal: violeta profundo sólido, texto blanco, sin degradé ni brillo. */
+html.modo-claro :is(button, a)[class*="from-sky-400"]:not([class*="from-sky-400/"]),
+html.modo-claro :is(button, a)[class*="from-violet-500"]:not([class*="from-violet-500/"]),
+html.modo-claro :is(button, a)[class*="from-violet-600"]:not([class*="from-violet-600/"]),
+html.modo-claro.neon-skin :is(button, a)[class*="from-sky-400"][class*="to-violet-500"],
+html.modo-claro.neon-skin :is(button, a)[class*="from-sky-400"][class*="to-fuchsia"] {
+  background: #491a89;
+  background-image: none;
+  color: #ffffff;
+  box-shadow: none;
+}
+html.modo-claro :is(button, a)[class*="from-sky-400"]:not([class*="from-sky-400/"]):not(:disabled):hover { background: #3c1572; filter: none; }
+
+/* Selecciones, pestañas activas y acciones secundarias: lavanda grisáceo con violeta. */
+html.modo-claro.neon-skin a[class*="from-primary/20"],
+html.modo-claro [class*="from-primary/20"],
+html.modo-claro [class*="from-sky-400/"],
+html.modo-claro [class*="from-violet-500/"],
+html.modo-claro.neon-skin [class*="ring-violet-200/28"] {
+  background: #e6e3f1;
+  background-image: none;
+  box-shadow: none;
+  --color-white: #491a89;
+}
+
+/* Cabecera y selector de sucursal: claros. */
+html.modo-claro .app-encabezado.app-encabezado.app-encabezado {
+  --color-white: #17172b;
+  background: #ffffff !important;
+  border-color: #e4e2ee;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Menú inferior: blanco, íconos grises, pestaña activa con ícono violeta sobre lavanda. */
+html.modo-claro .app-barra {
+  --color-white: #6b6880;
+  border-color: #e4e2ee;
+  background-color: #ffffff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.05), 0 10px 26px -16px rgb(23 23 43 / 0.3);
+}
+html.modo-claro .app-barra [class*="from-sky-400/"] {
+  --color-white: #491a89;
+  background: #e6e3f1;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Clippi en el celular: más chico y pegado al borde, para no tapar buscador, botones ni datos de la agenda.
+   Si el usuario lo movió, manda su posición. */
+@media (max-width: 1023px) {
+  html.modo-claro .clippi-burbuja {
+    width: 2.75rem;
+    height: 2.75rem;
+    right: 0.25rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 4.75rem);
+    border-color: #e4e2ee;
+    box-shadow: 0 4px 14px -6px rgb(23 23 43 / 0.35);
+  }
+}
+
+/* Estados de Agenda y Mi Panel: el color queda en un punto o una línea, sobre una superficie neutra.
+   statusNeonStyle deja el color del estado en --estado. */
+html.modo-claro [style*="--estado:"] {
+  --estado-fuerte: color-mix(in oklab, var(--estado) 62%, #17172b);
+  color: #17172b !important;
+  background: color-mix(in srgb, var(--estado) 9%, #ffffff) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--estado) 32%, #e4e2ee), inset 3px 0 0 var(--estado-fuerte) !important;
+}
+html.modo-claro .estado-chip[style*="--estado:"] {
+  position: relative;
+  background: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #e4e2ee !important;
+}
+html.modo-claro .estado-chip[style*="--estado:"]::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--estado-fuerte);
+}
+/* Descanso: rayado suave para distinguirlo de un turno. */
+html.modo-claro [style*="--estado:"][style*="repeating-linear-gradient"] {
+  background: repeating-linear-gradient(135deg, rgb(23 23 43 / 0.05) 0 8px, transparent 8px 16px), color-mix(in srgb, var(--estado) 9%, #ffffff) !important;
+}
+/* En cero: se lee, pero pesa menos. */
+html.modo-claro .estado-chip[data-cero="true"][style*="--estado:"] { color: #8a879c !important; }
+html.modo-claro .estado-chip[data-cero="true"][style*="--estado:"]::after { opacity: 0.35; }
+html.modo-claro .estado-chip[data-cero="true"] :is(.font-semibold, .font-bold) { font-weight: 500; }
+
+/* Clientes: tarjetas de grupos blancas, números oscuros; el acento queda para los que requieren atención. */
+html.modo-claro .segmento-cliente {
+  background: #ffffff !important;
+  border-color: #e4e2ee !important;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04);
+}
+html.modo-claro .segmento-cliente [style*="color"] { color: #17172b !important; }
+html.modo-claro .segmento-cliente[data-atencion="true"] { border-color: #f3c4cf !important; }
+html.modo-claro .segmento-cliente[data-atencion="true"] [style*="color"] { color: #be123c !important; }
+
+/* Caja: señas y saldos pendientes en tarjetas blancas; el color queda en el ícono o el importe
+   y la acción ("Revisar", "Cerrar", "Ver") se ve como botón. */
+html.modo-claro .aviso-caja,
+html.modo-claro.neon-skin .senas-neon-card,
+html.modo-claro .senas-neon-card {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: #e4e2ee !important;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04), 0 8px 24px -18px rgb(23 23 43 / 0.22) !important;
+}
+html.modo-claro .aviso-boton {
+  border-color: transparent;
+  background: #491a89;
+  color: #ffffff;
+}
+html.modo-claro .aviso-boton:hover { background: #3c1572; }
+html.modo-claro .senas-casillero {
+  background: #f7f7fb !important;
+  color: #5a5870 !important;
+  box-shadow: inset 0 0 0 1px #e4e2ee !important;
+}
+html.modo-claro .senas-casillero > :nth-child(2) { color: #17172b; }
+html.modo-claro .senas-casillero[data-activo="true"] > :nth-child(2),
+html.modo-claro .senas-casillero[data-activo="true"] > :nth-child(3) { color: #0369a1; }
+
+/* Configuración: opciones agrupadas en tarjetas blancas, íconos violetas sobre lavanda y nombres oscuros. */
+html.modo-claro .ajuste-grupo {
+  border: 1px solid #e4e2ee;
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 0.25rem;
+}
+html.modo-claro .ajuste-item { color: #17172b; }
+html.modo-claro .ajuste-item:is(:hover, [class*="lg:bg-white"]) { background-color: #f3f2f8; }
+html.modo-claro .ajuste-icono {
+  background: #e6e3f1;
+  background-image: none;
+  color: #491a89;
+  box-shadow: none;
+  --tw-ring-color: transparent;
+}
+html.modo-claro .ajuste-icono svg { color: #491a89; }
+
+/* Avisos (toasts): tarjeta blanca; el color queda en el ícono. */
+html.modo-claro [data-sonner-toaster] [data-sonner-toast],
+html.modo-claro [data-sonner-toaster] [data-sonner-toast][data-type] {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #17172b !important;
+  border: 1px solid #e4e2ee !important;
+  box-shadow: 0 10px 30px -14px rgb(23 23 43 / 0.3) !important;
+}
+html.modo-claro [data-sonner-toaster] [data-sonner-toast] [data-title] { color: #17172b !important; }
+html.modo-claro [data-sonner-toaster] [data-sonner-toast] [data-description] { color: #5a5870 !important; }
+html.modo-claro [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] { color: #be123c; }
+html.modo-claro [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] { color: #15803d; }
+html.modo-claro [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] { color: #b45309; }
+
+/* Barras de desplazamiento claras. */
+html.modo-claro * { scrollbar-color: rgb(23 23 43 / 0.18) transparent; }
+html.modo-claro *::-webkit-scrollbar-thumb { background: rgb(23 23 43 / 0.14); background-clip: padding-box; }
+
+/* ── Inicio ── */
+.inicio-fondo { display: none; }
+/* Las tarjetas del carrusel no se transparentan sobre el fondo claro. */
+html.modo-claro [aria-label="Qué podés hacer en Clippr"] > div { opacity: 1 !important; }
+html.modo-claro.neon-skin .dashboard-premium-shell .font-display,
+html.modo-claro.neon-skin .dashboard-premium-shell [class*="uppercase"][class*="tracking-"] { color: #17172b; }
+html.modo-claro.neon-skin .dashboard-premium-shell .glass [class*="ring-white/8"] {
+  background-color: #f7f7fb;
+  background-image: none;
+  box-shadow: inset 0 0 0 1px #e4e2ee;
+}
+html.modo-claro.neon-skin .dashboard-premium-shell .senas-neon-card {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04), 0 8px 24px -18px rgb(23 23 43 / 0.22) !important;
+}
+/* Tarjetas internas con brillo (Efectivo en caja, Próximos turnos…): blancas con borde fino. */
+html.modo-claro .dashboard-premium-shell :is(button, a)[class*="[background-image:"] {
+  background-color: #f7f7fb;
+  background-image: none;
+  border-color: #e4e2ee;
+  --tw-ring-color: #e4e2ee;
+  box-shadow: none;
+}
+/* Ver asistencia: principal (violeta sólido). Mostrar QR: secundaria (lavanda). */
+html.modo-claro .fichaje-accion {
+  background: #e6e3f1;
+  background-image: none;
+  color: #491a89;
+  box-shadow: none;
+  --tw-ring-color: transparent;
+}
+html.modo-claro .fichaje-accion.fichaje-principal { background: #491a89; color: #ffffff; }

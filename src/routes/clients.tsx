@@ -299,8 +299,9 @@ function StatCard({
   ) : null;
   return (
     <div
+      data-atencion={centerLink || undefined}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:border-white/20",
+        "segmento-cliente relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:border-white/20",
         featured && "border-violet-400/35",
         className,
       )}

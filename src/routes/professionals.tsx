@@ -1054,7 +1054,9 @@ function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProp
     color: dot,
     background: `${STATUS_DARKEN}, linear-gradient(115deg, ${bg} 0%, color-mix(in srgb, ${bg} 30%, transparent) 100%), #111323`,
     boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${glow}`,
-  };
+    // Modo claro: el color del estado pasa a un punto o una línea sobre fondo neutro (ver styles.css).
+    ["--estado" as string]: border,
+  } as React.CSSProperties;
 }
 
 function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl, showWhatsapp = false }: {
@@ -1668,9 +1670,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all",
+              "estado-chip flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all",
               card.onClick ? "cursor-pointer hover:brightness-110 active:brightness-110" : "cursor-default",
             )}
+            data-cero={!card.count}
             style={statusNeonStyle(card.meta.dot, card.meta.border, card.meta.bg)}
           >
             <span className="text-sm font-semibold leading-none tabular-nums">{card.count}</span>

@@ -140,7 +140,7 @@ export function SenasCajaCard({
   if (variant === "avisos") {
     const aviso = (texto: string, monto: number, boton: string, onClick: () => void) => (
       <div
-        className="flex items-center gap-3 rounded-[20px] border border-sky-400/45 bg-white/[0.03] p-4"
+        className="aviso-caja flex items-center gap-3 rounded-[20px] border border-sky-400/45 bg-white/[0.03] p-4"
         style={{
           background: "radial-gradient(110% 90% at 100% 0%, rgba(56,189,248,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(56,189,248,.10), transparent 65%)",
           boxShadow: "0 0 26px -12px rgba(56,189,248,.55)",
@@ -154,7 +154,7 @@ export function SenasCajaCard({
         <button
           type="button"
           onClick={onClick}
-          className="h-9 shrink-0 rounded-full border border-sky-400/50 bg-sky-400/15 px-5 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/25"
+          className="aviso-boton h-9 shrink-0 rounded-full border border-sky-400/50 bg-sky-400/15 px-5 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/25"
         >
           {boton}
         </button>
@@ -200,7 +200,8 @@ export function SenasCajaCard({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            className="senas-casillero flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            data-activo={pend.items.length > 0}
             style={
               pend.items.length > 0
                 ? { background: "rgba(56,189,248,0.14)", color: "#7dd3fc", boxShadow: "inset 0 0 0 1.5px rgba(56,189,248,0.55), 0 0 18px rgba(56,189,248,0.2)" }
@@ -214,7 +215,8 @@ export function SenasCajaCard({
           <button
             type="button"
             onClick={() => setOpenReemb(true)}
-            className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            className="senas-casillero flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            data-activo={reemb.items.length > 0}
             style={
               reemb.items.length > 0
                 ? { background: "rgba(56,189,248,0.14)", color: "#7dd3fc", boxShadow: "inset 0 0 0 1.5px rgba(56,189,248,0.55), 0 0 18px rgba(56,189,248,0.2)" }

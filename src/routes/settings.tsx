@@ -412,7 +412,7 @@ function SettingsPage() {
                     <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 px-3 mb-2">
                       {g.label}
                     </div>
-                    <div className="space-y-1">
+                    <div className="ajuste-grupo space-y-1">
                       {g.items.map((it) => {
                         const isActive = active === it.id;
                         const Icon = it.icon;
@@ -421,7 +421,7 @@ function SettingsPage() {
                             key={it.id}
                             onClick={() => requestSectionChange(it.id)}
                             className={cn(
-                              "relative w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
+                              "ajuste-item relative w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
                               isActive
                                 ? "lg:bg-white/[0.07] lg:ring-1 lg:ring-white/15 text-foreground"
                                 : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]",
@@ -442,7 +442,7 @@ function SettingsPage() {
                             ) : null}
                             <span
                               className={cn(
-                                "h-8 w-8 rounded-lg grid place-items-center bg-gradient-to-br ring-1 transition-all shrink-0",
+                                "ajuste-icono h-8 w-8 rounded-lg grid place-items-center bg-gradient-to-br ring-1 transition-all shrink-0",
                                 it.glow,
                                 isActive
                                   ? "relative ring-current/40 shadow-[0_0_22px_-2px_currentColor]"

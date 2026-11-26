@@ -117,14 +117,14 @@ export function FichajeHoyCard({
             <button
               type="button"
               onClick={() => setListOpen(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-200 to-violet-300 text-base font-semibold text-violet-950 shadow-[0_6px_18px_-6px_rgba(196,181,253,.7),inset_0_1px_0_rgba(255,255,255,.5)] ring-1 ring-violet-100/60 transition active:scale-[0.97]"
+              className="fichaje-accion fichaje-principal inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-200 to-violet-300 text-base font-semibold text-violet-950 shadow-[0_6px_18px_-6px_rgba(196,181,253,.7),inset_0_1px_0_rgba(255,255,255,.5)] ring-1 ring-violet-100/60 transition active:scale-[0.97]"
             >
               <ClipboardCheck className="h-5 w-5" /> Ver asistencia
             </button>
             <button
               type="button"
               onClick={() => setQrOpen(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-200 to-violet-300 text-base font-semibold text-violet-950 shadow-[0_6px_18px_-6px_rgba(196,181,253,.7),inset_0_1px_0_rgba(255,255,255,.5)] ring-1 ring-violet-100/60 transition active:scale-[0.97]"
+              className="fichaje-accion inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-200 to-violet-300 text-base font-semibold text-violet-950 shadow-[0_6px_18px_-6px_rgba(196,181,253,.7),inset_0_1px_0_rgba(255,255,255,.5)] ring-1 ring-violet-100/60 transition active:scale-[0.97]"
             >
               <QrCode className="h-5 w-5" /> Mostrar QR
             </button>

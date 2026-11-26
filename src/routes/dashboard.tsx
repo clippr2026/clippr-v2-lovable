@@ -293,7 +293,7 @@ function CajaHoyCard({
       <div className="flex flex-col gap-3 empty:hidden">
       {caja.pendingCierres.length > 0 ? (
         <div
-          className="flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
+          className="aviso-caja flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
           style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
@@ -305,7 +305,7 @@ function CajaHoyCard({
           <Link
             to="/cash-register"
             search={{ ...emptyCashRegisterSearch, tab: "cierres" }}
-            className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
+            className="aviso-boton inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
           >
             Cerrar
           </Link>
