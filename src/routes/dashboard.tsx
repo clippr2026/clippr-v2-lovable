@@ -233,7 +233,7 @@ function MiniStat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-violet-500/[0.24] bg-violet-500/[0.18] ring-violet-300/35 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(196,181,253,.32),transparent_60%)] shadow-[0_0_24px_-10px_rgba(167,139,250,.6)]"
+        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.18] bg-white/[0.14] ring-white/35 [background-image:linear-gradient(160deg,rgba(255,255,255,.32),rgba(255,255,255,.04)_70%)] shadow-[0_0_24px_-10px_rgba(255,255,255,.6)]"
       >
         {content}
       </button>
