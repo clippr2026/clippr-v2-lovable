@@ -2015,8 +2015,7 @@ function AgendaPage() {
         {localOccupancy !== null && (
           <div className="mb-2.5 px-1 sm:hidden">
             {/* Una sola línea: «Ocupación», barra corta con el color según el nivel, porcentaje y la ⓘ. */}
-            <div className="flex items-center gap-2.5">
-              <span className="flex-1" />
+            <div className="flex items-center justify-center gap-2.5">
               <span className="whitespace-nowrap text-[13px] font-semibold text-white/75">Ocupación del local</span>
               <div className="ocupacion-pista h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
                 <div
