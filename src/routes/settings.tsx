@@ -399,7 +399,7 @@ function SettingsPage() {
                     onClick={abrirClippi}
                     className="flex w-full items-center gap-3 rounded-2xl border border-violet-400/40 bg-violet-500/10 px-2.5 py-2.5 text-left transition hover:bg-violet-500/20 active:scale-[0.99]"
                   >
-                    <img src="/clippi-v3.webp" alt="" className="no-invert h-11 w-11 shrink-0 rounded-full border border-violet-400/70 bg-white object-cover shadow-[0_0_16px_-4px_rgba(139,92,246,0.9)]" />
+                    <img src="/clippi-v4.webp" alt="" className="no-invert h-11 w-11 shrink-0 rounded-full border border-violet-400/70 bg-white object-cover shadow-[0_0_16px_-4px_rgba(139,92,246,0.9)]" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold text-foreground">Clippi</span>
                       <span className="block text-xs text-muted-foreground">Hablá con tu asistente</span>

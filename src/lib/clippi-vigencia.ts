@@ -26,3 +26,16 @@ export function consultaVisible(
   if (!consulta || consulta.estado === "cerrada") return false;
   return consulta.estado === "abierta" || consulta.sin_leer > 0 || mensajes.some((m) => m.de === "asesor");
 }
+
+/**
+ * Con una consulta sin contestar: lo que dice Clippi cuando no tiene una respuesta propia (en vez
+ * de volver a ofrecer un asesor). `null` si puede contestar.
+ */
+export function avisoEnEspera(
+  r: { tema?: unknown; sugerencias?: unknown; derivar?: string },
+  enviado: boolean,
+): string | null {
+  const sabe = r.derivar !== "asesor" && Boolean(r.tema || r.sugerencias);
+  if (sabe) return null;
+  return enviado ? "Se lo sumé a tu consulta. El asesor te responde por este chat." : "No pude enviar el mensaje al asesor. Probá de nuevo.";
+}
