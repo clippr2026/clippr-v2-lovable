@@ -1,5 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { Appointment } from "@/components/agenda/use-agenda-data";
 import { cn } from "@/lib/utils";
@@ -175,16 +176,16 @@ export function TurnosDeEstado({
   onTurno: (a: Appointment) => void;
   onCerrar: () => void;
 }) {
+  // Mismo bloqueo de scroll que el resto de los modales (contador común): si se abre el detalle de un turno
+  // desde acá, al cerrarse todo la página vuelve a desplazarse.
+  useBodyScrollLock(true);
+  const cerrarRef = React.useRef(onCerrar);
+  cerrarRef.current = onCerrar;
   React.useEffect(() => {
-    const tecla = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
+    const tecla = (e: KeyboardEvent) => e.key === "Escape" && cerrarRef.current();
     window.addEventListener("keydown", tecla);
-    const previo = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", tecla);
-      document.body.style.overflow = previo;
-    };
-  }, [onCerrar]);
+    return () => window.removeEventListener("keydown", tecla);
+  }, []);
   const ordenados = [...turnos].sort((x, y) => new Date(x.starts_at).getTime() - new Date(y.starts_at).getTime());
   return createPortal(
     <div className="fixed inset-0 z-[10020] flex items-end bg-black/60 sm:items-center sm:justify-center sm:p-4" onClick={onCerrar}>
