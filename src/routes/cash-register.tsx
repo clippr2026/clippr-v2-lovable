@@ -17816,7 +17816,6 @@ export function NuevaVentaTab({
                   aplica su descuento (se ve debajo, como siempre); «Sin promoción» la quita. */}
               {!isSinCargo && validPromotions.length > 0 && (
                 <div className="mb-1.5 flex items-center gap-2 px-1">
-                  <span className="shrink-0 text-sm text-white/70">Promoción</span>
                   <SelectClippr
                     compact
                     className="min-w-0 flex-1"
