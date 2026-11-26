@@ -221,7 +221,7 @@ function MiniStat({
 }) {
   const content = (
     <>
-      <div className="flex items-center gap-1.5 text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-white">
         <Icon className="h-4 w-4 shrink-0" />
         <span className="truncate text-sm leading-tight">{label}</span>
       </div>
