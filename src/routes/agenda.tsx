@@ -6,7 +6,7 @@ import { whatsappHref as armarWhatsappHref } from "@/lib/contacto-valido";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
-  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft, Check,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AgendaLista } from "@/components/agenda/agenda-lista"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft, Check, LayoutGrid, List,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -364,6 +364,25 @@ function AgendaPage() {
   // Estados que se ven en la grilla (celular, desde el desplegable «Todos»). null = todos.
   const [estadosVisibles, setEstadosVisibles] = React.useState<string[] | null>(null);
   const [estadosMenuAbierto, setEstadosMenuAbierto] = React.useState(false);
+  // Vista del celular: calendario (grilla) o lista de turnos. Se recuerda por usuario en este dispositivo.
+  const claveVista = session?.user?.id ? `clippr_agenda_vista_${session.user.id}` : null;
+  const [vistaAgenda, setVistaAgenda] = React.useState<"calendario" | "lista">("calendario");
+  React.useEffect(() => {
+    if (!claveVista) return;
+    setVistaAgenda(window.localStorage.getItem(claveVista) === "lista" ? "lista" : "calendario");
+  }, [claveVista]);
+  const cambiarVista = (v: "calendario" | "lista") => {
+    setVistaAgenda(v);
+    if (claveVista) window.localStorage.setItem(claveVista, v);
+  };
+  const [esCelular, setEsCelular] = React.useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches);
+  React.useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const cambio = () => setEsCelular(mql.matches);
+    cambio();
+    mql.addEventListener("change", cambio);
+    return () => mql.removeEventListener("change", cambio);
+  }, []);
   const [profFilterOpen, setProfFilterOpen] = React.useState(false);
   // Ocupación de todo el local en el día (la calcula la grilla del día).
   // Servicios del catálogo (no productos) para registrar por cuál se fue un cliente por el precio.
@@ -1775,85 +1794,9 @@ function AgendaPage() {
           )}
         </div>
 
-        {/* Filtro por profesional (Fase 6) — EXCLUSIVO de mobile. En desktop
-            no existe: siempre se ven todas las columnas (hay espacio de
-            sobra + scroll horizontal), nunca filtradas aunque haya algo
-            guardado en sessionStorage de una sesión mobile anterior — el
-            gating real está en DayView (isMobileForProfFilter), esto es
-            solo para no mostrar el selector en pantallas grandes. Filtra
-            solo la grilla de abajo, no los conteos de estado. Sin
-            backdrop-filter en este wrapper (a diferencia de la barra de
-            arriba, que es ".glass") para no necesitar portal: el dropdown
-            no queda atrapado en ningún stacking context raro. */}
-        <div className="relative z-[90] mb-1.5 flex items-center gap-2 sm:hidden">
-          <button
-            type="button"
-            onClick={() => setProfFilterOpen((v) => !v)}
-            className="inline-flex shrink-0 sm:hidden items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-125 active:translate-y-px active:brightness-95"
-            style={{
-              background: "linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.08))",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28), inset 0 1px 0 rgba(255,255,255,0.30), 0 3px 8px -2px rgba(0,0,0,0.6)",
-            }}
-          >
-            {profFilterId ? (
-              <UserRound className="h-3.5 w-3.5 shrink-0 text-white" />
-            ) : (
-              <Users className="h-3.5 w-3.5 shrink-0 text-white" />
-            )}
-            <span className="min-w-0 flex-1 truncate text-left">
-              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
-            </span>
-            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-white transition-transform", profFilterOpen && "rotate-180")} />
-          </button>
-          {profFilterOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setProfFilterOpen(false)} />
-              <div className="absolute left-0 top-full z-50 mt-1.5 max-h-72 w-56 overflow-y-auto rounded-xl glass-strong p-1 animate-fade-up">
-                <button
-                  type="button"
-                  onClick={() => {
-                    selectProfFilter(null);
-                    setProfFilterOpen(false);
-                  }}
-                  className={cn(
-                    "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition",
-                    !profFilterId && "text-primary font-medium",
-                  )}
-                >
-                  Todos los profesionales
-                </button>
-                {data.employees.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => {
-                      selectProfFilter(e.id);
-                      setProfFilterOpen(false);
-                    }}
-                    className={cn(
-                      "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition truncate",
-                      profFilterId === e.id && "text-primary font-medium",
-                    )}
-                  >
-                    {e.full_name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {/* Cliente que entró y se fue sin atender (todos ocupados): cuenta del mes con día y hora. */}
-          <ClientesNoAtendidosButton
-            businessId={data.businessId}
-            branchId={data.activeBranchId}
-            createdByName={(profile as any)?.full_name ?? null}
-            employees={data.employees}
-            servicios={serviciosSeFue}
-            className="flex-1 justify-center"
-          />
-        </div>
-
-        {/* Estados — mobile: «Todos» es un desplegable para elegir qué estados se ven en la grilla; los demás
-            filtros abren su lista de turnos como siempre. Todo en una sola fila con scroll horizontal. */}
+        {/* Controles del celular en una sola fila: profesionales (ícono con desplegable), «Todos» (desplegable de
+            estados con contadores: elige qué se ve), «Se fueron» compacto y el botón para cambiar de vista
+            (calendario ↔ lista). En desktop esta fila no existe. */}
         {(() => {
           const total = STATUS_FILTERS.reduce((t, [key]) => t + ((counts as Record<string, number>)[key] ?? 0), 0);
           const elegidos = estadosVisibles ?? STATUS_FILTERS.map(([k]) => k);
@@ -1871,46 +1814,102 @@ function AgendaPage() {
             const siguiente = elegidos.includes(k) ? elegidos.filter((x) => x !== k) : [...elegidos, k];
             setEstadosVisibles(siguiente.length === 0 || siguiente.length === STATUS_FILTERS.length ? null : siguiente);
           };
+          const profElegido = profFilterId ? data.employees.find((e) => e.id === profFilterId) : null;
           return (
             <div className="relative z-[80] sm:hidden">
-              <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 pb-0.5" style={{ scrollbarWidth: "none" }}>
+              <div className="mb-2 flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setEstadosMenuAbierto((v) => !v)}
+                  onClick={() => {
+                    setEstadosMenuAbierto(false);
+                    setProfFilterOpen((v) => !v);
+                  }}
+                  aria-label={profElegido ? `Profesional: ${profElegido.full_name}` : "Todos los profesionales"}
+                  aria-expanded={profFilterOpen}
+                  data-activo={profElegido ? true : undefined}
+                  className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1 rounded-full pl-2 pr-1.5 text-xs font-semibold"
+                  style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
+                >
+                  {profElegido?.avatar_url ? (
+                    <img src={profElegido.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
+                  ) : profElegido ? (
+                    <UserRound className="h-4 w-4" />
+                  ) : (
+                    <Users className="h-4 w-4" />
+                  )}
+                  {profElegido && <span className="max-w-[72px] truncate">{(profElegido.full_name ?? "").split(" ")[0]}</span>}
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", profFilterOpen && "rotate-180")} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfFilterOpen(false);
+                    setEstadosMenuAbierto((v) => !v);
+                  }}
                   aria-expanded={estadosMenuAbierto}
-                  data-activo={!(activeDrawer === "filter" && filterModal) || undefined}
-                  className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
+                  data-activo={true}
+                  className="filtro-estado inline-flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full px-3 text-xs font-semibold"
                   style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
                 >
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
-                  <span className="whitespace-nowrap">{etiqueta}</span>
+                  <span className="truncate">{etiqueta}</span>
                   <span className="filtro-numero tabular-nums">{filtrando ? nVisibles : total}</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", estadosMenuAbierto && "rotate-180")} />
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", estadosMenuAbierto && "rotate-180")} />
                 </button>
-                {STATUS_FILTERS.map(([k, label, color]) => {
-                  const n = (counts as Record<string, number>)[k] ?? 0;
-                  const activo = activeDrawer === "filter" && filterModal === k;
-                  return (
+                <ClientesNoAtendidosButton
+                  businessId={data.businessId}
+                  branchId={data.activeBranchId}
+                  createdByName={(profile as any)?.full_name ?? null}
+                  employees={data.employees}
+                  servicios={serviciosSeFue}
+                  className="se-fueron-compacto h-8 shrink-0 !rounded-full !px-2.5 !py-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => cambiarVista(vistaAgenda === "lista" ? "calendario" : "lista")}
+                  aria-label={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
+                  title={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
+                  className="filtro-estado ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-full"
+                >
+                  {vistaAgenda === "lista" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                </button>
+              </div>
+              {profFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setProfFilterOpen(false)} />
+                  <div className="absolute left-0 top-9 z-50 max-h-72 w-56 overflow-y-auto rounded-xl glass-strong p-1 animate-fade-up">
                     <button
-                      key={k}
                       type="button"
                       onClick={() => {
-                        setEstadosMenuAbierto(false);
-                        setFilterModal(k);
-                        setActiveDrawer("filter");
+                        selectProfFilter(null);
+                        setProfFilterOpen(false);
                       }}
-                      data-activo={activo || undefined}
-                      data-cero={n === 0 || undefined}
-                      className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
-                      style={{ ["--c" as string]: color } as React.CSSProperties}
+                      className={cn(
+                        "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition",
+                        !profFilterId && "text-primary font-medium",
+                      )}
                     >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-                      <span className="whitespace-nowrap">{label}</span>
-                      <span className="filtro-numero tabular-nums">{n}</span>
+                      Todos los profesionales
                     </button>
-                  );
-                })}
-              </div>
+                    {data.employees.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => {
+                          selectProfFilter(e.id);
+                          setProfFilterOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition truncate",
+                          profFilterId === e.id && "text-primary font-medium",
+                        )}
+                      >
+                        {e.full_name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               {estadosMenuAbierto && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setEstadosMenuAbierto(false)} />
@@ -2120,10 +2119,24 @@ function AgendaPage() {
         )}
 
         {/* Always day view */}
-        {data.loading ? (
+        {data.loading && !(esCelular && vistaAgenda === "lista") ? (
           <div className="grid min-h-[330px] place-items-center rounded-3xl border border-white/10 bg-white/[0.03]">
             <ClipprLoader size="screen" delayMs={130} />
           </div>
+        ) : esCelular && vistaAgenda === "lista" ? (
+          <AgendaLista
+            fecha={cursor}
+            onFecha={(d) => setCursor(startOfDay(d))}
+            turnos={data.appointments.filter(
+              (a) =>
+                a.status !== "blocked" &&
+                (!profFilterId || a.employee_id === profFilterId) &&
+                (estadosVisibles ? estadosVisibles.includes(grupoEstado(a)) : a.status !== "cancelled"),
+            )}
+            empleados={data.employees}
+            metaDe={(a) => metaForAppt(a)}
+            onTurno={handleApptClick}
+          />
         ) : (
           <DayView
             date={cursor}

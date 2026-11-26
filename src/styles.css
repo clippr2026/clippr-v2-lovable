@@ -1586,3 +1586,15 @@ html.modo-claro .filtro-estado[data-activo] { background: color-mix(in srgb, var
 html.modo-claro .encabezado-seccion h1 { color: #17172b; }
 /* Agenda: menú del desplegable «Todos» en modo claro. */
 html.modo-claro .menu-estados { background: #ffffff; border-color: #e6e3f1; box-shadow: 0 18px 40px -20px rgba(23, 23, 43, 0.35); }
+
+/* Agenda — vista lista (celular). Tarjetas sólidas con el color del estado en el borde. */
+.turno-lista { background: color-mix(in srgb, var(--c) 10%, #111019); border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+.turno-lista .estado-turno { background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); }
+html.modo-claro .agenda-semana { background: #ffffff; border-color: #e6e3f1; }
+html.modo-claro .agenda-semana .dia-semana[data-elegido] { background: #491a89; color: #ffffff; }
+html.modo-claro .agenda-semana .dia-semana[data-elegido] span { color: #ffffff; }
+html.modo-claro .agenda-lista > div[class*="bg-[#111019]"] { background: #ffffff; border-color: #e6e3f1; }
+html.modo-claro .turno-lista { background: #ffffff; border-color: color-mix(in srgb, var(--c) 55%, #e6e3f1); box-shadow: 0 1px 2px rgba(23, 23, 43, 0.05); }
+html.modo-claro .turno-lista .estado-turno { background: color-mix(in srgb, var(--c) 16%, #ffffff); color: color-mix(in srgb, var(--c) 55%, #17172b); }
+/* «Se fueron» compacto en la fila de controles. */
+.se-fueron-compacto { font-size: 12px; gap: 0.3rem; }
