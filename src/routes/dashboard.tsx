@@ -315,7 +315,7 @@ function CajaHoyCard({
 
       <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+        <div className="flex items-center gap-2 text-base font-semibold text-white">
           Caja de hoy
           {caja.cajaCerradaHoy && (
             <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold tracking-normal text-emerald-300 ring-1 ring-emerald-400/25">
@@ -432,8 +432,8 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <CalendarClock className="h-4 w-4 text-violet-300" />
+        <div className="flex items-center gap-2.5 text-base font-semibold text-white">
+          <CalendarClock className="h-5 w-5 text-violet-300" />
           Próximos turnos
         </div>
         <Link

@@ -831,8 +831,7 @@ html.inicio-claro .dashboard-premium-shell {
   color: var(--foreground);
 }
 html.inicio-claro .dashboard-premium-shell::before { display: none; }
-html.inicio-claro.neon-skin .dashboard-premium-shell .glass.glass,
-html.inicio-claro .dashboard-premium-shell .inicio-tarjeta {
+html.inicio-claro.neon-skin .dashboard-premium-shell .glass.glass {
   border-color: #e4e0f0;
   background-color: #fff;
   background-image: none;

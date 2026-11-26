@@ -69,8 +69,9 @@ export function FichajeHoyCard({
     return () => window.removeEventListener(EVENTO_VER_ASISTENCIA, ver);
   }, [puedeVer, navigate]);
 
+  // "glass": mismo borde iluminado que Caja de hoy y Próximos turnos.
   return (
-    <div className="inicio-tarjeta rounded-3xl border border-violet-400/35 bg-[#0b0914] px-4 py-3 shadow-[0_0_28px_-14px_rgba(139,92,246,0.8)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] sm:px-5">
+    <div className="glass rounded-2xl p-4 ring-1 ring-white/5 sm:p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 text-base font-semibold text-white">
           <Clock className="h-5 w-5 text-emerald-300" />
@@ -123,7 +124,7 @@ export function FichajeHoyCard({
             <button
               type="button"
               onClick={() => setQrOpen(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/[0.03] text-base font-semibold text-white transition active:scale-[0.98]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/80 bg-violet-500/15 text-base font-semibold text-white transition active:scale-[0.98]"
             >
               <QrCode className="h-5 w-5" /> Mostrar QR
             </button>
