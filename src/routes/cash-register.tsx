@@ -15684,7 +15684,9 @@ export function NuevaVentaTab({
   // sigue la regla de siempre (base = el menor entre el precio efectivo y lo cobrado).
   const { profile: authProfile } = useAuth();
   // También se puede desde Mi Panel (barbero fijo): lo que se bloquea es el acceso "profesional", no el panel.
-  const canEditPrice = turnoChargeMode !== "manual" && authProfile?.role !== "profesional";
+  // Quien puede cobrar puede cambiar el precio (lápiz), también desde Mi Panel. El cambio queda en el historial y
+  // la comisión mantiene su tope.
+  const canEditPrice = turnoChargeMode !== "manual";
   const [priceOverrides, setPriceOverrides] = React.useState<Record<string, number>>({});
   // Lápiz del precio: el precio final que se puso para cada servicio (por unidad). Funciona como descuento y
   // no cambia al cambiar el método de pago: el descuento se recalcula para que quede ese precio.
