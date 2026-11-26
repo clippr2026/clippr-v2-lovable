@@ -947,7 +947,34 @@ function CashRegisterPage() {
     ],
   );
 
-  const activePendingCharge = pendingToCharge ?? routePendingCharge;
+  // Desde la Agenda el turno llega por la dirección (sin la promo): se lee la promo del turno para que el cobro la
+  // aplique igual que desde Mi Panel.
+  const [promoTurnoRuta, setPromoTurnoRuta] = useState<{ id: string; promotion_id: string | null; promotion_snapshot: unknown } | null>(null);
+  useEffect(() => {
+    const idTurno = routePendingCharge?.id;
+    if (!idTurno) return setPromoTurnoRuta(null);
+    let vigente = true;
+    void supabase
+      .from("appointments")
+      .select("id,promotion_id,promotion_snapshot")
+      .eq("id", idTurno)
+      .maybeSingle()
+      .then(({ data: fila }) => {
+        if (vigente && fila) setPromoTurnoRuta(fila as never);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [routePendingCharge?.id]);
+  const routePendingChargeConPromo = React.useMemo(
+    () =>
+      routePendingCharge && promoTurnoRuta && promoTurnoRuta.id === routePendingCharge.id && promoTurnoRuta.promotion_id
+        ? ({ ...routePendingCharge, promotion_id: promoTurnoRuta.promotion_id, promotion_snapshot: promoTurnoRuta.promotion_snapshot } as typeof routePendingCharge)
+        : routePendingCharge,
+    [routePendingCharge, promoTurnoRuta],
+  );
+
+  const activePendingCharge = pendingToCharge ?? routePendingChargeConPromo;
 
   // Causa raíz del bug "Nueva venta conserva el cliente anterior": pasar
   // de la pestaña "nueva" a "resumen" (cobro terminado, cancelado, o
@@ -15771,6 +15798,15 @@ export function NuevaVentaTab({
     setTipPanelOpen(false);
   }, [pendingCharge]);
 
+  // La promo del turno puede llegar un instante después (cobro abierto desde la Agenda): se aplica una sola vez.
+  const promoTurnoAplicadaRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const promo = (pendingCharge as { promotion_id?: string | null } | null)?.promotion_id;
+    if (!pendingCharge || !promo || promoTurnoAplicadaRef.current === pendingCharge.id) return;
+    promoTurnoAplicadaRef.current = pendingCharge.id;
+    setPromotionId(promo);
+  }, [pendingCharge]);
+
   // Servicio principal del pendingCharge + productos ya reservados (turno
   // cobrado desde Mi Agenda, ver pendingChargeExtraItems) — todos se
   // precargan igual: se intenta matchear por nombre contra el catálogo
@@ -15987,8 +16023,12 @@ export function NuevaVentaTab({
     setPriceEditId(null);
     if (n <= 0) return;
     const item = cartItems.find((c) => c.svc.id === id);
+    // El lápiz manda: si el servicio tenía una promo, se quita y queda el precio que se escribió (por ejemplo,
+    // cobrar el precio de lista porque paga con crédito).
+    const sacaPromo = !!(item && selectedPromotion && promoAppliesToItem(item.svc));
+    if (sacaPromo) setPromotionId("");
     const unit = item ? Math.round(cartUnitPrice(item.svc)) : 0;
-    if (item && !selectedPromotion && unit > 0 && n < unit) {
+    if (item && (!selectedPromotion || sacaPromo) && unit > 0 && n < unit) {
       // Un precio menor es un descuento: el precio original queda tachado.
       setPriceDiscounts((prev) => ({ ...prev, [id]: n }));
       setPriceOverrides((prev) => {
