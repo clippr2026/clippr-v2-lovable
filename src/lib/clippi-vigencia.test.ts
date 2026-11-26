@@ -6,9 +6,10 @@ const clippi = [{ de: "yo" }, { de: "clippi" }];
 const conAsesor = [...clippi, { de: "asesor" }];
 
 describe("cuánto dura el chat de Clippi", () => {
-  it("solo con Clippi dura una hora", () => {
-    expect(chatVigente({ fecha: 0, mensajes: clippi }, H - 1)).toBe(true);
-    expect(chatVigente({ fecha: 0, mensajes: clippi }, H)).toBe(false);
+  it("solo con Clippi dura 10 minutos", () => {
+    const M10 = 10 * 60 * 1000;
+    expect(chatVigente({ fecha: 0, mensajes: clippi }, M10 - 1)).toBe(true);
+    expect(chatVigente({ fecha: 0, mensajes: clippi }, M10)).toBe(false);
   });
 
   it("esperando al asesor no se borra", () => {

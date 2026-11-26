@@ -301,6 +301,15 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     if (mensajes.length) finRef.current?.scrollIntoView({ block: "end" });
   }, [mensajes, consultando, area?.height]);
 
+  // Si pasa el tiempo sin mensajes nuevos (10 min hablando solo con Clippi), se borra aunque
+  // el chat esté abierto.
+  React.useEffect(() => {
+    const reloj = window.setInterval(() => {
+      if (!leerGuardado(cuenta)) setMensajes((m) => (m.length ? [] : m));
+    }, 30_000);
+    return () => window.clearInterval(reloj);
+  }, [cuenta]);
+
   React.useEffect(() => {
     const tecla = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", tecla);
@@ -524,11 +533,6 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
               <button type="button" onClick={resuelto} className="rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold">Sí</button>
               <button type="button" onClick={() => void hablarConAsesor(PIDE_TRAS_PROBAR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">No, hablar con un asesor</button>
             </div>
-          )}
-          {!consultando && !conAsesor && mensajes.at(-1)?.de === "clippi" && !mensajes.at(-1)?.derivar && (
-            <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="block text-sm font-semibold text-violet-300 underline underline-offset-4">
-              ¿No te sirvió? Hablar con un asesor
-            </button>
           )}
           {!consultando && !conAsesor && mensajes.at(-1)?.derivar === "asesor" && (
             <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">

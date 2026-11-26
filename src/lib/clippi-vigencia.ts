@@ -1,10 +1,10 @@
 // Cuánto dura la conversación guardada en el dispositivo, contado desde el último mensaje:
-// · hablando solo con Clippi: 1 hora;
+// · hablando solo con Clippi: 10 minutos;
 // · esperando que conteste un asesor: no se borra;
 // · cuando el asesor contestó y nadie volvió a escribir: 12 horas, y se da por cerrada.
 
 const HORA = 60 * 60 * 1000;
-export const DURA_CLIPPI_MS = HORA;
+export const DURA_CLIPPI_MS = 10 * 60 * 1000;
 export const DURA_ASESOR_MS = 12 * HORA;
 
 export type ChatGuardado<M> = { fecha: number; mensajes: M[]; esperando?: boolean };
