@@ -6,7 +6,7 @@ import React from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app-shell";
 import { usaClippi } from "@/components/clippi/clippi-assistant";
-import { abrirClippi } from "@/lib/clippi-burbuja";
+import { abrirClippi, leerBurbuja } from "@/lib/clippi-burbuja";
 import { Topbar } from "@/components/topbar";
 import {
   Check,
@@ -276,7 +276,10 @@ function SettingsPage() {
   // aside y section siguen lado a lado, sin drill-down.
   const [mobileDrilledIn, setMobileDrilledIn] = useState(false);
 
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  // Si la burbuja de Clippi está oculta, la opción se llama "Mostrar asistente Clippi" (la vuelve a mostrar y abre el chat).
+  const [clippiOculto, setClippiOculto] = useState(false);
+  useEffect(() => setClippiOculto(Boolean(user?.id) && leerBurbuja(user!.id).guardada), [user?.id]);
   const { section: sectionParam } = Route.useSearch();
   useEffect(() => {
     if (!sectionParam || !groups.some((g) => g.items.some((i) => i.id === sectionParam))) return;
@@ -396,13 +399,18 @@ function SettingsPage() {
                   // Abre el chat; no es una sección de Configuración.
                   <button
                     type="button"
-                    onClick={abrirClippi}
+                    onClick={() => {
+                      abrirClippi();
+                      setClippiOculto(false);
+                    }}
                     className="flex w-full items-center gap-3 rounded-2xl border border-violet-400/40 bg-violet-500/10 px-2.5 py-2.5 text-left transition hover:bg-violet-500/20 active:scale-[0.99]"
                   >
                     <img src="/clippi-v4.webp" alt="" className="no-invert h-11 w-11 shrink-0 rounded-full border border-violet-400/70 bg-white object-cover shadow-[0_0_16px_-4px_rgba(139,92,246,0.9)]" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-foreground">Clippi</span>
-                      <span className="block text-xs text-muted-foreground">Hablá con tu asistente</span>
+                      <span className="block text-sm font-semibold text-foreground">{clippiOculto ? "Mostrar asistente Clippi" : "Clippi"}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {clippiOculto ? "Vuelve a aparecer abajo a la derecha" : "Hablá con tu asistente"}
+                      </span>
                     </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
                   </button>

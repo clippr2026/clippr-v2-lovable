@@ -22,8 +22,6 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
-import { abrirClippi } from "@/lib/clippi-burbuja";
-import { usaClippi } from "@/components/clippi/clippi-assistant";
 import { ROLE_LABEL_BY_ID } from "@/components/settings/equipo-section";
 import { BranchSelector } from "@/components/branch-selector";
 import { ColorModeToggle } from "@/components/color-mode";
@@ -799,18 +797,7 @@ export function AppSidebar() {
           <div className="ml-auto flex items-center gap-2">
             {/* Modo claro/oscuro: en el celular, centrado en el encabezado (justo
                 arriba del selector de sucursal); en desktop, junto al resto. */}
-            <ColorModeToggle className="tema-toggle absolute left-1/2 top-1 -translate-x-1/2 lg:static lg:translate-x-0" />
-            {/* Clippi en la cabecera: solo en el celular y en modo claro (ver styles.css); ahí reemplaza a la burbuja flotante. */}
-            {usaClippi(profile?.role) && (
-              <button
-                type="button"
-                onClick={abrirClippi}
-                aria-label="Abrir a Clippi, tu asistente"
-                className="clippi-cabecera absolute left-1/2 top-2 h-8 w-8 rounded-full border border-violet-400/70 bg-white"
-              >
-                <img src="/clippi-v4.webp" alt="" className="h-full w-full rounded-full object-cover" />
-              </button>
-            )}
+            <ColorModeToggle className="absolute left-1/2 top-1 -translate-x-1/2 lg:static lg:translate-x-0" />
             {/* Selector de sucursal — único en toda la app, siempre visible.
                 Cerca del perfil/menú de usuario en desktop (ver spec: "cerca
                 del nombre/logo o del perfil"). Con 1 sola sucursal muestra

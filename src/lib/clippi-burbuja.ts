@@ -4,8 +4,8 @@
 export type Punto = { x: number; y: number };
 export type Burbuja = { posicion: Punto | null; guardada: boolean };
 
-/** Diámetro de la burbuja (h-14 w-14). */
-export const TAMANO_BURBUJA = 56;
+/** Diámetro de la burbuja (h-12 w-12). */
+export const TAMANO_BURBUJA = 48;
 const MARGEN = 8;
 // Hasta cuántos píxeles se mueve el dedo y sigue contando como un toque.
 const TOQUE_PX = 8;
@@ -18,6 +18,19 @@ export const seArrastro = (desde: Punto, hasta: Punto) => Math.hypot(hasta.x - d
 export function dentroDePantalla(p: Punto, ancho: number, alto: number): Punto {
   const limitar = (valor: number, largo: number) => Math.min(Math.max(valor, MARGEN), Math.max(MARGEN, largo - TAMANO_BURBUJA - MARGEN));
   return { x: limitar(p.x, ancho), y: limitar(p.y, alto) };
+}
+
+// Al soltarla no queda debajo del encabezado y la sucursal (arriba) ni de la barra de navegación (abajo).
+const LIBRE_ARRIBA = 96;
+const LIBRE_ABAJO = 84;
+
+/** Al soltarla se pega al borde izquierdo o derecho más cercano, sin tapar encabezado ni barra de abajo. */
+export function pegarAlBorde(p: Punto, ancho: number, alto: number): Punto {
+  const derecha = p.x + TAMANO_BURBUJA / 2 > ancho / 2;
+  const x = derecha ? Math.max(MARGEN, ancho - TAMANO_BURBUJA - MARGEN) : MARGEN;
+  const techo = Math.min(LIBRE_ARRIBA, Math.max(MARGEN, alto - TAMANO_BURBUJA - MARGEN));
+  const piso = Math.max(techo, alto - TAMANO_BURBUJA - LIBRE_ABAJO);
+  return { x, y: Math.min(Math.max(p.y, techo), piso) };
 }
 
 /** `centro` es el centro del basurero y `p` la esquina de la burbuja. */

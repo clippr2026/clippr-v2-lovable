@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TAMANO_BURBUJA, dentroDePantalla, seArrastro, sobreBasurero } from "./clippi-burbuja";
+import { TAMANO_BURBUJA, dentroDePantalla, pegarAlBorde, seArrastro, sobreBasurero } from "./clippi-burbuja";
 
 describe("burbuja de Clippi", () => {
   it("un toque con el dedo apenas movido no cuenta como arrastre", () => {
@@ -11,6 +11,13 @@ describe("burbuja de Clippi", () => {
     expect(dentroDePantalla({ x: -200, y: -50 }, 390, 800)).toEqual({ x: 8, y: 8 });
     expect(dentroDePantalla({ x: 900, y: 2000 }, 390, 800)).toEqual({ x: 390 - TAMANO_BURBUJA - 8, y: 800 - TAMANO_BURBUJA - 8 });
     expect(dentroDePantalla({ x: 120, y: 300 }, 390, 800)).toEqual({ x: 120, y: 300 });
+  });
+
+  it("al soltarla se pega al borde más cercano sin tapar el encabezado ni la barra de abajo", () => {
+    expect(pegarAlBorde({ x: 60, y: 300 }, 390, 800)).toEqual({ x: 8, y: 300 });
+    expect(pegarAlBorde({ x: 250, y: 300 }, 390, 800)).toEqual({ x: 390 - TAMANO_BURBUJA - 8, y: 300 });
+    expect(pegarAlBorde({ x: 250, y: 10 }, 390, 800).y).toBe(96);
+    expect(pegarAlBorde({ x: 250, y: 790 }, 390, 800).y).toBe(800 - TAMANO_BURBUJA - 84);
   });
 
   it("se guarda solo si se suelta sobre el basurero", () => {

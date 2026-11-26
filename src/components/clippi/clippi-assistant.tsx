@@ -4,7 +4,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, ArrowUp, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
-import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
+import { alPedirClippi, dentroDePantalla, guardarBurbuja, pegarAlBorde, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
 import { nombreDePila, saludar } from "@/lib/clippi-saludo";
 import { DERIVADO, chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
@@ -127,12 +127,6 @@ export function ClippiAssistant() {
     };
   }, [revisar]);
 
-  // Para el Clippi de la cabecera (celular, modo claro): muestra el mismo punto rojo que la burbuja.
-  const avisoRojo = sinLeer > 0 && !abierto && dueno;
-  React.useEffect(() => {
-    document.documentElement.toggleAttribute("data-clippi-sin-leer", avisoRojo);
-  }, [avisoRojo]);
-
   if (loading || !user || !dueno || typeof document === "undefined") return null;
 
   // Dueño y administrador general ven todas las pantallas.
@@ -212,7 +206,7 @@ export function BurbujaClippi({
           <span className="rounded-full bg-black/50 px-3 py-0.5 text-xs font-semibold text-white">Ocultar</span>
         </div>
       )}
-      {/* "no-invert": en modo claro Clippi se ve con sus colores. "touch-none": arrastrar no mueve la pantalla. */}
+      {/* "touch-none": arrastrar no mueve la pantalla. Con transición suave al pegarse al borde. */}
       <button
         type="button"
         onPointerDown={(e) => {
@@ -236,7 +230,7 @@ export function BurbujaClippi({
           if (g.movido) {
             const { en, sobre } = ubicar(e);
             if (sobre) onGuardar();
-            else onMover(en);
+            else onMover(pegarAlBorde(en, window.innerWidth, window.innerHeight));
           }
           gesto.current = null;
           setArrastre(null);
@@ -252,7 +246,7 @@ export function BurbujaClippi({
         onContextMenu={(e) => e.preventDefault()}
         aria-label={sinLeer ? "Abrir a Clippi: tenés una respuesta del asesor" : "Abrir a Clippi, tu asistente"}
         style={lugar ? { left: lugar.x, top: lugar.y, right: "auto", bottom: "auto" } : undefined}
-        className={`clippi-burbuja fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 h-14 w-14 touch-none select-none rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] [-webkit-touch-callout:none] lg:bottom-6 lg:right-6 ${arrastre ? (arrastre.sobre ? "z-[10011] scale-75 opacity-30" : "z-[10011] scale-105") : "z-30 transition-transform active:scale-95"}`}
+        className={`clippi-burbuja fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] right-3 h-12 w-12 touch-none select-none rounded-full border border-violet-400/70 bg-white shadow-[0_0_24px_-6px_rgba(139,92,246,0.9),0_10px_24px_-10px_rgba(0,0,0,0.8)] [-webkit-touch-callout:none] lg:bottom-6 lg:right-6 ${arrastre ? (arrastre.sobre ? "z-[10011] scale-75 opacity-30" : "z-[10011] scale-105") : "z-30 transition-[transform,left,top] duration-200 active:scale-95"}`}
       >
         <img src={FOTO} alt="" draggable={false} className="pointer-events-none h-full w-full rounded-full object-cover" />
         {sinLeer > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-black bg-rose-500" />}
