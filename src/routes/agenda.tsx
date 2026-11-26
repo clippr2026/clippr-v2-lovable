@@ -2292,7 +2292,7 @@ function AgendaPage() {
               className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
               style={{
                 left: Math.min(slotMenu.x, window.innerWidth - 272),
-                top: Math.max(8, Math.min(slotMenu.y, window.innerHeight - 240 - MOBILE_BOTTOM_NAV_CLEARANCE)),
+                top: Math.max(8, Math.min(slotMenu.y, window.innerHeight - 130 - MOBILE_BOTTOM_NAV_CLEARANCE)),
               }}
             >
               {/* Siempre las mismas opciones, aunque el horario esté fuera del horario de atención: al agendar ahí
@@ -2312,29 +2312,6 @@ function AgendaPage() {
               >
                 <Pencil className="h-4 w-4 shrink-0 text-violet-300" />
                 <span className="whitespace-nowrap">Horario especial</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSlotMenu(null);
-                  setClosuresOpen(true);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-              >
-                <CalendarOff className="h-4 w-4 shrink-0 text-rose-300" />
-                <span className="whitespace-nowrap">Día cerrado</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const hora = slotMenu.startsAt;
-                  setSlotMenu(null);
-                  setSeFueHorario(hora);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-              >
-                <DoorOpen className="h-4 w-4 shrink-0 text-[#ff8f86]" />
-                <span className="whitespace-nowrap">Se fue un cliente</span>
               </button>
             </div>
           </MobileSafePortal>
