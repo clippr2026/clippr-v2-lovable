@@ -1562,6 +1562,18 @@ html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
   html.modo-claro .clippi-cabecera { display: block; margin-left: 4px; }
   html.modo-claro .app-encabezado:has(.clippi-cabecera) .tema-toggle { transform: translateX(calc(-100% - 2px)); }
   html.modo-claro .clippi-burbuja { display: none; }
+  /* Punto rojo cuando el asesor respondió. */
+  html.modo-claro[data-clippi-sin-leer] .clippi-cabecera::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    border: 2px solid #ffffff;
+    background: #f43f5e;
+  }
 }
 
 /* Cabecera: sol con buen contraste y "WWW" en blanco sobre el verde. */

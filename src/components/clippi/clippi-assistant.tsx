@@ -127,6 +127,12 @@ export function ClippiAssistant() {
     };
   }, [revisar]);
 
+  // Para el Clippi de la cabecera (celular, modo claro): muestra el mismo punto rojo que la burbuja.
+  const avisoRojo = sinLeer > 0 && !abierto && dueno;
+  React.useEffect(() => {
+    document.documentElement.toggleAttribute("data-clippi-sin-leer", avisoRojo);
+  }, [avisoRojo]);
+
   if (loading || !user || !dueno || typeof document === "undefined") return null;
 
   // Dueño y administrador general ven todas las pantallas.

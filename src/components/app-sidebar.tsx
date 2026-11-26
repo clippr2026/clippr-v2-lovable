@@ -806,9 +806,9 @@ export function AppSidebar() {
                 type="button"
                 onClick={abrirClippi}
                 aria-label="Abrir a Clippi, tu asistente"
-                className="clippi-cabecera absolute left-1/2 top-2 h-8 w-8 overflow-hidden rounded-full border border-violet-400/70 bg-white"
+                className="clippi-cabecera absolute left-1/2 top-2 h-8 w-8 rounded-full border border-violet-400/70 bg-white"
               >
-                <img src="/clippi-v4.webp" alt="" className="h-full w-full object-cover" />
+                <img src="/clippi-v4.webp" alt="" className="h-full w-full rounded-full object-cover" />
               </button>
             )}
             {/* Selector de sucursal — único en toda la app, siempre visible.
