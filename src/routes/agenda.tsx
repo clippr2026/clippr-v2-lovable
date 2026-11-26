@@ -1818,7 +1818,7 @@ function AgendaPage() {
             {/* Ocupación del local (como en el celular): nombre, barra corta, porcentaje y ⓘ. */}
             {localOccupancy !== null && localOccupancy.agendada != null && (
               <div className="relative mr-1 flex shrink-0 items-center gap-2" title={OCUPACION_AGENDADA_TEXTO}>
-                <span className="text-sm font-semibold text-white/75">Ocupación</span>
+                <span className="whitespace-nowrap text-sm font-semibold text-white/75">Ocupación del local</span>
                 <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
                   <div className="h-full rounded-full" style={{ width: `${localOccupancy.agendada}%`, background: occupancyColor(localOccupancy.agendada).fill }} />
                 </div>
@@ -2017,8 +2017,8 @@ function AgendaPage() {
             {/* Una sola línea: «Ocupación», barra corta con el color según el nivel, porcentaje y la ⓘ. */}
             <div className="flex items-center gap-2.5">
               <span className="flex-1" />
-              <span className="text-[13px] font-semibold text-white/75">Ocupación</span>
-              <div className="ocupacion-pista h-1.5 w-28 overflow-hidden rounded-full bg-white/10">
+              <span className="whitespace-nowrap text-[13px] font-semibold text-white/75">Ocupación del local</span>
+              <div className="ocupacion-pista h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full transition-[width] duration-500"
                   style={{ width: `${localOccupancy.agendada ?? 0}%`, background: occupancyColor(localOccupancy.agendada ?? 0).fill }}
