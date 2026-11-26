@@ -629,8 +629,8 @@ function AgendaPage() {
   const [calOpen, setCalOpen] = React.useState(false);
   const dateBtnRef = React.useRef<HTMLButtonElement>(null);
   const [calPos, setCalPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const openCalendar = () => {
-    const r = dateBtnRef.current?.getBoundingClientRect();
+  const openCalendar = (desde?: HTMLElement | null) => {
+    const r = (desde ?? dateBtnRef.current)?.getBoundingClientRect();
     if (r) {
       const centered = r.left + r.width / 2;
       // Mantener el popover (≈280px) dentro de la pantalla en móvil.
@@ -1621,6 +1621,58 @@ function AgendaPage() {
             En mobile (sm-) queda solo Hoy + navegación de fecha + el botón "+" (en el lugar
             del indicador de tiempo real) — sin scroll horizontal. Los conteos de estado se
             ocultan acá y reaparecen debajo, en su propio bloque. */}
+        {/* Celular: encabezado simple. Botón «Hoy» a la izquierda, mes y año grandes (tocar abre el calendario),
+            debajo el día con flechas para ir al anterior o al siguiente, y a la derecha el cambio de vista y el +. */}
+        <div className="encabezado-agenda mb-2 flex items-center gap-3 px-0.5 pt-1 sm:hidden">
+          <button
+            type="button"
+            onClick={() => setCursor(startOfDay(new Date()))}
+            disabled={isCursorToday}
+            className="boton-hoy grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 bg-[#15131f] text-[13px] font-bold text-white transition active:scale-95 disabled:text-white/45"
+          >
+            Hoy
+          </button>
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={(e) => openCalendar(e.currentTarget)}
+              aria-label="Elegir fecha"
+              className="block max-w-full truncate text-left text-[22px] font-extrabold leading-tight tracking-tight text-white"
+            >
+              {cap(cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" }))}
+            </button>
+            <div className="mt-0.5 flex items-center gap-1">
+              <button type="button" onClick={() => move(-1)} aria-label="Día anterior" className="-ml-1.5 grid h-7 w-7 place-items-center rounded-full text-white/55 active:bg-white/10">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="whitespace-nowrap text-[13px] font-bold uppercase tracking-[0.08em] text-white/60">
+                {cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))} {cursor.getDate()}
+              </span>
+              <button type="button" onClick={() => move(1)} aria-label="Día siguiente" className="grid h-7 w-7 place-items-center rounded-full text-white/55 active:bg-white/10">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => cambiarVista(vistaAgenda === "lista" ? "calendario" : "lista")}
+            aria-label={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
+            title={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-violet-300 active:bg-white/10"
+          >
+            {vistaAgenda === "lista" ? <LayoutGrid className="h-6 w-6" /> : <List className="h-6 w-6" />}
+          </button>
+          <button
+            ref={newBtnRefMobile}
+            type="button"
+            aria-label="Nuevo"
+            onClick={() => toggleNewMenu(newBtnRefMobile, false)}
+            className="boton-mas grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/20 text-violet-200 transition active:scale-95"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        </div>
+
         <div
           // relative + z-index alto: ".glass" usa backdrop-filter, que crea su
           // propio stacking context — sin esto, el menú del "+" (adentro, con
@@ -1628,7 +1680,7 @@ function AgendaPage() {
           // se ordena por posición en el DOM contra la grilla de la agenda
           // (que viene después en el markup), terminando pintada por detrás.
           // Mismo bug y misma solución que el selector de fecha del Dashboard.
-          className="relative z-[100] glass rounded-2xl mb-2 px-3 py-2 sm:rounded-xl sm:px-2.5 sm:py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
+          className="relative z-[100] glass mb-2 hidden rounded-xl px-2.5 py-1 animate-fade-up sm:flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
         >
           {/* Hoy */}
@@ -1665,7 +1717,7 @@ function AgendaPage() {
             </button>
             <button
               ref={dateBtnRef}
-              onClick={openCalendar}
+              onClick={() => openCalendar()}
               aria-label="Elegir fecha"
               className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base sm:text-sm font-semibold sm:min-w-[205px] sm:flex-none sm:overflow-visible text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
             >
@@ -1731,14 +1783,7 @@ function AgendaPage() {
 
           {/* "+" en mobile — mismo lugar donde en desktop está el puntito verde de sync.
               Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
-          <Button
-            ref={newBtnRefMobile}
-            className="sm:hidden h-11 w-11 rounded-full p-0 ml-auto shrink-0"
-            aria-label="Nuevo"
-            onClick={() => toggleNewMenu(newBtnRefMobile, true)}
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
+
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
           <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
@@ -1943,15 +1988,6 @@ function AgendaPage() {
                   <span className="filtro-numero tabular-nums">{nVisibles}</span>
                   <span className="flex-1" />
                   <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", estadosMenuAbierto && "rotate-180")} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cambiarVista(vistaAgenda === "lista" ? "calendario" : "lista")}
-                  aria-label={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
-                  title={vistaAgenda === "lista" ? "Ver calendario" : "Ver lista de turnos"}
-                  className="filtro-estado grid h-8 w-8 shrink-0 place-items-center rounded-full"
-                >
-                  {vistaAgenda === "lista" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
                 </button>
               </div>
               {profFilterOpen && (
