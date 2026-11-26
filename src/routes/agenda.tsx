@@ -6,7 +6,7 @@ import { whatsappHref as armarWhatsappHref } from "@/lib/contacto-valido";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
-  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AgendaLista } from "@/components/agenda/agenda-lista"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft, Check, LayoutGrid, List, DoorOpen,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AgendaLista, TurnosDeEstado } from "@/components/agenda/agenda-lista"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft, Check, LayoutGrid, List, DoorOpen,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -409,6 +409,8 @@ function AgendaPage() {
   const [seFueronTick, setSeFueronTick] = React.useState(0);
   // «Se fue un cliente» desde el menú de un horario: hora tocada.
   const [seFueHorario, setSeFueHorario] = React.useState<Date | null>(null);
+  // Estado cuyos turnos se ven en la ventana de encima (celular).
+  const [estadoAbierto, setEstadoAbierto] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!data.businessId) return setSeFueronDia([]);
@@ -1869,12 +1871,19 @@ function AgendaPage() {
             estados con contadores: elige uno solo, o Todos; incluye «Se fueron») y el botón para cambiar de vista
             (calendario ↔ lista). «Se fue un cliente» se registra tocando un horario de la grilla. En desktop esta fila no existe. */}
         {(() => {
-          const total = STATUS_FILTERS.reduce((t, [key]) => t + ((counts as Record<string, number>)[key] ?? 0), 0);
-          // Un solo estado a la vez (o Todos). «Se fueron» muestra en la grilla a qué hora se fue cada cliente.
+          // Contadores del día; con un profesional elegido, solo los suyos. Tocar un estado abre sus turnos encima.
+          const delProf = (a: Appointment) => !profFilterId || a.employee_id === profFilterId;
+          const cuenta = (k: string) => data.appointments.filter((a) => delProf(a) && grupoEstado(a) === k).length;
           const opciones: Array<[string, string, string, number]> = [
-            ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, (counts as Record<string, number>)[k] ?? 0] as [string, string, string, number]),
-            ["se_fueron", "Se fueron", SE_FUERON_META.dot, seFueronDia.length],
+            ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, cuenta(k)] as [string, string, string, number]),
+            [
+              "se_fueron",
+              "Se fueron",
+              SE_FUERON_META.dot,
+              seFueronDia.filter((r) => !profFilterId || r.requested_employee_id === profFilterId).length,
+            ],
           ];
+          const total = opciones.slice(0, STATUS_FILTERS.length).reduce((t, o) => t + o[3], 0);
           const elegido = estadosVisibles?.[0] ?? null;
           const filtrando = elegido !== null;
           const opcionElegida = opciones.find(([k]) => k === elegido);
@@ -1985,8 +1994,9 @@ function AgendaPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setEstadosVisibles(k === "todos" ? null : [k]);
+                              setEstadosVisibles(null);
                               setEstadosMenuAbierto(false);
+                              setEstadoAbierto(k === "todos" ? null : k);
                             }}
                             className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-white/[0.06]", marcado && "font-semibold")}
                           >
@@ -2282,6 +2292,43 @@ function AgendaPage() {
             </div>
           </MobileSafePortal>
         ) : null}
+
+        {/* Turnos del estado elegido en «Todos», en una ventana encima de la Agenda. */}
+        {estadoAbierto && (() => {
+          const nombre = (id: string | null | undefined) => (data.employees.find((x) => x.id === id)?.full_name ?? "").trim();
+          const etiquetas: Record<string, [string, string]> = {
+            pending: ["Reservados", "No hay turnos reservados"],
+            deposit: ["Seña pendiente", "No hay turnos con seña pendiente"],
+            confirmed: ["Confirmados", "No hay turnos confirmados"],
+            charged: ["Cobrados", "No hay turnos cobrados"],
+            cancelled: ["Cancelados", "No hay turnos cancelados"],
+            no_show: ["No asistió", "No hay turnos con «No asistió»"],
+            se_fueron: ["Se fueron", "No se fue ningún cliente"],
+          };
+          const [titulo, vacio] = etiquetas[estadoAbierto] ?? ["Turnos", "No hay turnos"];
+          const lista =
+            estadoAbierto === "se_fueron"
+              ? seFueronComoTurnos(
+                  seFueronDia.filter((r) => !profFilterId || r.requested_employee_id === profFilterId),
+                  null,
+                  nombre,
+                )
+              : data.appointments.filter((a) => (!profFilterId || a.employee_id === profFilterId) && grupoEstado(a) === estadoAbierto);
+          return (
+            <TurnosDeEstado
+              titulo={titulo}
+              vacio={vacio}
+              turnos={lista}
+              metaDe={(a) => metaForAppt(a)}
+              nombreDe={nombre}
+              onTurno={(a) => {
+                if (!String(a.id).startsWith("sefue-")) setEstadoAbierto(null);
+                handleApptClick(a);
+              }}
+              onCerrar={() => setEstadoAbierto(null)}
+            />
+          );
+        })()}
 
         {/* «Se fue un cliente» desde un horario de la grilla: misma ventana que el botón de siempre. */}
         <ClientesNoAtendidosButton

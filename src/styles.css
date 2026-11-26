@@ -1598,3 +1598,4 @@ html.modo-claro .turno-lista { background: #ffffff; border-color: color-mix(in s
 html.modo-claro .turno-lista .estado-turno { background: color-mix(in srgb, var(--c) 16%, #ffffff); color: color-mix(in srgb, var(--c) 55%, #17172b); }
 /* «Se fueron» compacto en la fila de controles. */
 .se-fueron-compacto { font-size: 12px; gap: 0.3rem; }
+html.modo-claro .turnos-estado { background: #f6f7fb; border-color: #e6e3f1; }
