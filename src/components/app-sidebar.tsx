@@ -672,14 +672,29 @@ function MobileFixedBottom({ children }: { children: React.ReactNode }) {
 
 export function AppSidebar() {
   const { branches, profile } = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { items: navItems } = useMobileNavItems();
   const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
+  // Celular: la cabecera completa (logo, tema, WWW, campanita y perfil) vive solo en Inicio. En las demás
+  // secciones va una cabecera compacta con el título a la izquierda y la sucursal a la derecha. Si la persona
+  // no tiene Inicio, se mantiene la completa (si no, se quedaría sin perfil ni cerrar sesión).
+  const tieneInicio = navItems.some((i) => i.to === "/dashboard");
+  const seccion = navItems.find((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
+  const compacta = tieneInicio && !!seccion && seccion.to !== "/dashboard";
   return (
     <>
+      {compacta && (
+        <header className="app-encabezado encabezado-seccion lg:hidden sticky top-0 z-40 flex h-12 w-full items-center gap-3 border-b border-white/10 bg-black px-4">
+          <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight text-white">{seccion!.label}</h1>
+          <BranchSelector className="min-w-0 max-w-[58%]" />
+        </header>
+      )}
       <header
         className={cn(
           "app-encabezado sticky top-0 z-40 w-full border-white/10 bg-black",
           // Con selector de sucursal abajo (celular), sin línea entre los dos: forman un solo bloque.
           hasBranchBar ? "lg:border-b" : "border-b",
+          compacta && "max-lg:hidden",
         )}
       >
         <div className="max-w-[1600px] mx-auto h-12 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
@@ -717,7 +732,7 @@ export function AppSidebar() {
           desaparezca. MobileSectionBanner suma esta altura a su propio
           offset para no superponerse (dos sticky con el mismo `top` se
           pisan, no se apilan solos). */}
-      {hasBranchBar && (
+      {hasBranchBar && !compacta && (
         <div className="app-encabezado lg:hidden sticky top-12 z-30 flex h-12 items-center justify-center border-b border-white/[0.06] bg-black pb-1.5">
           <BranchSelector />
         </div>

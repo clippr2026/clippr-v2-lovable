@@ -114,7 +114,7 @@ export function ClientesNoAtendidosButton({
         }}
       >
         <DoorOpen className="h-3.5 w-3.5 text-[#ff8f86]" />
-        Se fue
+        Se fueron
         <span className="rounded-full bg-[#7f1d2d] px-1.5 text-[11px] font-semibold tabular-nums text-white">{countHoy}</span>
       </button>
       {open &&
@@ -128,7 +128,7 @@ export function ClientesNoAtendidosButton({
             >
               <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-rose-300/70 to-transparent" />
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-lg font-bold leading-tight text-white">¿Se fue un cliente sin atender?</h3>
+                <h3 className="text-lg font-bold leading-tight text-white">Clientes sin atender</h3>
                 <button type="button" aria-label="Cerrar" onClick={cerrar} className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
                   <X className="h-4 w-4" />
                 </button>
@@ -164,7 +164,8 @@ export function ClientesNoAtendidosButton({
                   <p className="mt-2.5 text-sm font-medium text-rose-200">
                     Hoy {countHoy === 1 ? "se fue 1 cliente" : `se fueron ${countHoy} clientes`}.
                   </p>
-                  <p className="mt-4 text-sm font-semibold text-white">¿Quería atenderse con un barbero en especial?</p>
+                  <p className="mt-4 text-[15px] font-bold text-white">Registrar cliente que se fue</p>
+                  <p className="mt-0.5 text-sm text-white/70">¿Quería atenderse con un barbero en especial?</p>
                   <div className="mt-2.5 grid gap-2.5">
                     <button
                       type="button"

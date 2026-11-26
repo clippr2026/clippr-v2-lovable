@@ -1573,3 +1573,14 @@ html.modo-claro .turno-fila .turno-foto { box-shadow: 0 0 0 1px rgba(23, 23, 43,
 .turno-fila .turno-miniatura { width: 1.5rem; height: 1.5rem; border-radius: 6px !important; }
 .turno-fila .turno-miniatura img { border-radius: 0 !important; }
 .turno-fila .turno-foto { width: 1.5rem; height: 1.5rem; border-radius: 9999px !important; }
+
+/* Agenda (celular): filtros de estado compactos, superficie sólida, sin neón. */
+.filtro-estado { background: #15131f; border: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.85); }
+.filtro-estado .filtro-numero { color: #fff; font-weight: 700; }
+.filtro-estado[data-cero]:not([data-activo]) .filtro-numero { opacity: 0.45; }
+.filtro-estado[data-activo] { background: color-mix(in srgb, var(--c) 24%, #15131f); border-color: var(--c); color: #fff; }
+html.modo-claro .filtro-estado { background: #ffffff; border-color: #e6e3f1; color: #3a3850; }
+html.modo-claro .filtro-estado .filtro-numero { color: #17172b; }
+html.modo-claro .filtro-estado[data-activo] { background: color-mix(in srgb, var(--c) 14%, #ffffff); border-color: var(--c); color: #17172b; }
+/* Cabecera compacta de sección (celular). */
+html.modo-claro .encabezado-seccion h1 { color: #17172b; }

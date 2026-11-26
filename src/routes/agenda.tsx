@@ -218,7 +218,7 @@ const ROW_PX = 88;
 const AGENDA_ROW_PX = 94;
 // Alto de la ventana de la grilla en desktop/tablet: se mantiene igual que antes (11 bloques de 64 px).
 const AGENDA_WINDOW_ROW_PX = 64;
-const AGENDA_HEADER_PX = 78;
+const AGENDA_HEADER_PX = 62;
 const AGENDA_VISIBLE_ROWS = 11;
 const AGENDA_SLOT_OPTIONS = [20, 30, 40, 45, 50, 60] as const;
 const AGENDA_SLOT_STORAGE_KEY = "clippr-agenda-slot-minutes";
@@ -1524,7 +1524,7 @@ function AgendaPage() {
           // se ordena por posición en el DOM contra la grilla de la agenda
           // (que viene después en el markup), terminando pintada por detrás.
           // Mismo bug y misma solución que el selector de fecha del Dashboard.
-          className="relative z-[100] glass rounded-xl mb-2 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
+          className="relative z-[100] glass rounded-xl mb-1.5 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
         >
           {/* Hoy */}
@@ -1643,7 +1643,6 @@ function AgendaPage() {
                 {(
                   [
                     ["Agendado", localOccupancy.agendada, OCUPACION_AGENDADA_TEXTO],
-                    ["Atendido", localOccupancy.atendida, OCUPACION_ATENDIDA_TEXTO],
                   ] as const
                 ).map(([nombre, valor, ayuda]) =>
                   valor == null ? null : (
@@ -1660,7 +1659,7 @@ function AgendaPage() {
                 )}
                 <button
                   type="button"
-                  aria-label="Qué significan las ocupaciones"
+                  aria-label="Qué significa la ocupación agendada"
                   aria-expanded={ocupacionInfoOpen}
                   onClick={() => setOcupacionInfoOpen((v) => !v)}
                   className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70 hover:text-white"
@@ -1670,8 +1669,6 @@ function AgendaPage() {
                 {ocupacionInfoOpen && (
                   <div className="absolute right-0 top-9 z-50 w-[320px] rounded-2xl border border-violet-400/40 bg-[#08070f] p-3.5 text-xs leading-relaxed text-white/80 shadow-[0_20px_60px_-20px_rgba(0,0,0,.9)]">
                     <p>{OCUPACION_AGENDADA_TEXTO}</p>
-                    <p className="mt-2">{OCUPACION_ATENDIDA_TEXTO}</p>
-                    <p className="mt-2 text-white/60">{OCUPACION_EJEMPLO}</p>
                   </div>
                 )}
               </div>
@@ -1776,7 +1773,7 @@ function AgendaPage() {
             backdrop-filter en este wrapper (a diferencia de la barra de
             arriba, que es ".glass") para no necesitar portal: el dropdown
             no queda atrapado en ningún stacking context raro. */}
-        <div className="relative z-[90] mb-2 flex items-center gap-2 sm:hidden">
+        <div className="relative z-[90] mb-1.5 flex items-center gap-2 sm:hidden">
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
@@ -1843,25 +1840,44 @@ function AgendaPage() {
           />
         </div>
 
-        {/* Estados — mobile: 3 arriba y 2 abajo, cada fila centrada, sin scroll horizontal. */}
-        <div className="flex flex-wrap justify-center gap-1.5 mb-2 sm:hidden">
-          {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
-            <button
-              key={k}
-              onClick={() => {
-                setFilterModal(k);
-                setActiveDrawer("filter");
-              }}
-              className="estado-chip flex w-[calc((100%-0.75rem)/3)] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
-              data-cero={!((counts as Record<string, number>)[k] ?? 0)}
-              style={statusNeonStyle(color, ring, bg)}
-            >
-              <span className="font-semibold tabular-nums text-sm leading-none">
-                {(counts as Record<string, number>)[k] ?? 0}
-              </span>
-              <span className="text-[10px] leading-tight opacity-80 truncate max-w-full">{label}</span>
-            </button>
-          ))}
+        {/* Estados — mobile: filtros compactos en una sola fila con scroll horizontal. Tocar uno abre su lista
+            (igual que antes); «Todos» queda marcado cuando no hay ninguno abierto. */}
+        <div className="-mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:hidden" style={{ scrollbarWidth: "none" }}>
+          {(
+            [
+              ["todos", "Todos", "#a78bfa", null] as const,
+              ...STATUS_FILTERS.map(([k, label, color]) => [k, label, color, k] as const),
+            ]
+          ).map(([k, label, color, abre]) => {
+            const n =
+              k === "todos"
+                ? STATUS_FILTERS.reduce((t, [key]) => t + ((counts as Record<string, number>)[key] ?? 0), 0)
+                : (counts as Record<string, number>)[k] ?? 0;
+            const abierto = activeDrawer === "filter" && !!filterModal;
+            const activo = abre === null ? !abierto : abierto && filterModal === abre;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  if (abre === null) {
+                    if (activeDrawer === "filter") setActiveDrawer(null);
+                    return;
+                  }
+                  setFilterModal(abre);
+                  setActiveDrawer("filter");
+                }}
+                data-activo={activo || undefined}
+                data-cero={n === 0 || undefined}
+                className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-[0.97]"
+                style={{ ["--c" as string]: color } as React.CSSProperties}
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                <span className="whitespace-nowrap">{label}</span>
+                <span className="filtro-numero tabular-nums">{n}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Ocupación de todo el local: dos líneas finas entre los estados y el calendario (celular) */}
@@ -1872,7 +1888,6 @@ function AgendaPage() {
                 {(
                   [
                     ["Ocupación agendada", localOccupancy.agendada],
-                    ["Ocupación atendida", localOccupancy.atendida],
                   ] as const
                 ).map(([nombre, valor]) =>
                   valor == null ? null : (
@@ -1893,7 +1908,7 @@ function AgendaPage() {
               </div>
               <button
                 type="button"
-                aria-label="Qué significan las ocupaciones"
+                aria-label="Qué significa la ocupación agendada"
                 aria-expanded={ocupacionInfoOpen}
                 onClick={() => setOcupacionInfoOpen((v) => !v)}
                 className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70"
@@ -1904,8 +1919,6 @@ function AgendaPage() {
             {ocupacionInfoOpen && (
               <div className="mt-2 rounded-2xl border border-violet-400/40 bg-[#08070f] p-3 text-xs leading-relaxed text-white/80">
                 <p>{OCUPACION_AGENDADA_TEXTO}</p>
-                <p className="mt-2">{OCUPACION_ATENDIDA_TEXTO}</p>
-                <p className="mt-2 text-white/60">{OCUPACION_EJEMPLO}</p>
               </div>
             )}
           </div>
@@ -3390,10 +3403,10 @@ const DayView = React.memo(function DayView({
                     <div className="mt-1 text-xs leading-none text-muted-foreground">Sin horario</div>
                   ) : (
                     <div className="mt-1.5 space-y-1">
+                      {/* Solo la ocupación agendada: la atendida se ve en el Asesor IA. */}
                       {(
                         [
                           ["Agendado", occupancyPct],
-                          ["Atendido", atendidaPct ?? 0],
                         ] as const
                       ).map(([nombre, valor]) => (
                         <div key={nombre}>
