@@ -157,6 +157,8 @@ export type FichajeHoySummary = {
   pendientes: number;
   fichadosDetalle: FichajeHoyPersona[];
   pendientesNames: string[];
+  // Quienes todavía no ficharon, con su hora de entrada de hoy ("HH:MM") si se conoce.
+  pendientesDetalle: Array<{ id: string; name: string; inicio: string | null }>;
   // Personas con jornada hoy (más quien haya fichado sin tenerla): base del "N de M ficharon" y del listado del día.
   total: number;
   roster: Array<{ id: string; name: string; session: FichajeHoyPersona | null }>;
@@ -178,7 +180,8 @@ export async function getFichasDeAdministradores(businessId: string): Promise<Se
 
 // IDs de profesionales que HOY no tienen jornada (día libre propio, excepción puntual o negocio cerrado). Mismo
 // criterio que Agenda (resolveDaySchedule); si no hay ningún horario configurado, se los considera con jornada.
-async function profesionalesSinJornadaHoy(businessId: string, ids: string[]): Promise<Set<string>> {
+// También devuelve la hora de entrada de hoy ("HH:MM") de quien tiene jornada (para avisar si no fichó a horario).
+async function profesionalesSinJornadaHoy(businessId: string, ids: string[]): Promise<Set<string> & { inicio?: Map<string, string> }> {
   const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
   const raw = ((data?.schedule ?? {}) as Record<string, any>) || {};
   const biz = normalizeSchedule(raw);
@@ -203,10 +206,12 @@ async function profesionalesSinJornadaHoy(businessId: string, ids: string[]): Pr
     empSpecial[id] = map;
   }
   const now = new Date();
-  const off = new Set<string>();
+  const off: Set<string> & { inicio?: Map<string, string> } = new Set<string>();
+  off.inicio = new Map();
   for (const id of ids) {
     const day = resolveDaySchedule(biz, empSchedules, bizSpecial, empSpecial, id, now);
     if (day && day.enabled === false) off.add(id);
+    else if (day?.start) off.inicio.set(id, day.start);
   }
   return off;
 }
@@ -289,6 +294,7 @@ export async function getTodayFichajeSummary(
   ]);
   const fichadosDetalle: FichajeHoyPersona[] = [];
   const pendientesNames: string[] = [];
+  const pendientesDetalle: FichajeHoySummary["pendientesDetalle"] = [];
   const roster: FichajeHoySummary["roster"] = [];
 
   for (const e of activos) {
@@ -311,6 +317,7 @@ export async function getTodayFichajeSummary(
       roster.push({ id: e.id, name: e.full_name ?? "Profesional", session: fichadosDetalle[fichadosDetalle.length - 1] });
     } else {
       pendientesNames.push(e.full_name ?? "Profesional");
+      pendientesDetalle.push({ id: e.id, name: e.full_name ?? "Profesional", inicio: sinJornada.inicio?.get(e.id) ?? null });
       roster.push({ id: e.id, name: e.full_name ?? "Profesional", session: null });
     }
   }
@@ -330,6 +337,7 @@ export async function getTodayFichajeSummary(
     pendientes: pendientesNames.length,
     fichadosDetalle,
     pendientesNames,
+    pendientesDetalle,
     total: roster.length,
     roster,
   };

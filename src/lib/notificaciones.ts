@@ -1,12 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import { findAllPendingCierres } from "@/lib/caja-cierre";
+import { getTodayFichajeSummary } from "@/lib/fichaje";
 import type { PermKey } from "@/hooks/use-auth";
 
 // Centro de notificaciones. Todo sale de los datos reales del negocio (no hay una tabla de notificaciones):
-// · Importantes: cosas que piden una acción (reserva online nueva, seña por aprobar, caja sin cerrar, solicitud de la
-//   bolsa de trabajo, liquidación sin pagar).
-// · Actividad: historial de lo que pasó en el negocio (reservas, cancelaciones, fichajes, cobros, gastos, cierres,
-//   liquidaciones). Una reserva online aparece en las dos; leerla no la saca del historial.
+// · Importantes: SOLO lo que pide atención o una acción (turno por confirmar, seña por aprobar, caja sin cerrar,
+//   solicitud de un profesional, liquidación sin pagar, profesional que no fichó a horario, stock bajo).
+//   La campanita cuenta únicamente estos, sin leer.
+// · Actividad: lo informativo (reservas online confirmadas, cancelaciones, señas aprobadas, cobros, fichajes,
+//   gastos, cierres, liquidaciones, reseñas).
 // Cada aviso respeta la sucursal activa (cuando el dato la tiene) y los permisos del usuario.
 // Leído / no leído se guarda en el dispositivo, por negocio.
 
@@ -20,7 +22,10 @@ export type TipoAviso =
   | "fichaje"
   | "cobro"
   | "gasto"
-  | "cierre";
+  | "cierre"
+  | "tardanza"
+  | "stock"
+  | "resena";
 
 export type Aviso = {
   id: string;
@@ -72,21 +77,22 @@ export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
         const { data, error } = await porSucursal(
           supabase
             .from("appointments")
-            .select("id,client_name,service_name,starts_at,created_at,created_by_role,status,branch_id")
+            .select("id,client_name,service_name,starts_at,created_at,status,deposit_status,branch_id")
             .eq("business_id", businessId)
-            .gte("created_at", desde(14))
-            .order("created_at", { ascending: false })
+            .eq("status", "pending")
+            .gte("starts_at", new Date(Date.now() - 3_600_000).toISOString())
+            .order("starts_at", { ascending: true })
             .limit(LIMITE) as any,
           branchId,
         );
         if (error) throw error;
         return ((data ?? []) as any[])
-          .filter((a) => esOnline(a.created_by_role) && a.status !== "cancelled")
+          .filter((a) => a.deposit_status !== "pending")
           .map((a) => ({
-            id: `reserva-${a.id}`,
+            id: `confirmar-${a.id}`,
             tipo: "reserva" as const,
-            titulo: "Nueva reserva online",
-            detalle: `${a.client_name || "Un cliente"} reservó ${a.service_name ? `«${a.service_name}»` : "un turno"} desde tu web.`,
+            titulo: "Turno por confirmar",
+            detalle: `${a.client_name || "Un cliente"}${a.service_name ? ` · ${a.service_name}` : ""} · ${new Date(a.starts_at).toLocaleString("es-AR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
             fecha: a.created_at,
             to: "/agenda",
             search: { date: diaClave(a.starts_at), turno: a.id },
@@ -191,6 +197,64 @@ export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
     );
   }
 
+  if ((esDueno || puede("profesionales")) && branchId) {
+    tareas.push(
+      seguro(async () => {
+        const resumen = await getTodayFichajeSummary(businessId, branchId);
+        const ahora = new Date();
+        const hoy = ahora.toLocaleDateString("en-CA");
+        return resumen.pendientesDetalle
+          .filter((p) => {
+            if (!p.inicio) return false;
+            const [h, m] = p.inicio.split(":").map(Number);
+            const entrada = new Date(ahora);
+            entrada.setHours(h, m, 0, 0);
+            return ahora.getTime() > entrada.getTime() + 5 * 60_000; // 5 min de margen
+          })
+          .map((p) => {
+            const [h, m] = p.inicio!.split(":").map(Number);
+            const entrada = new Date(ahora);
+            entrada.setHours(h, m, 0, 0);
+            return {
+              id: `tarde-${p.id}-${hoy}`,
+              tipo: "tardanza" as const,
+              titulo: "No registró su ingreso",
+              detalle: `${p.name} entraba a las ${p.inicio} y todavía no fichó.`,
+              fecha: entrada.toISOString(),
+              to: "/dashboard",
+            };
+          });
+      }),
+    );
+  }
+
+  if (esDueno || puede("caja") || puede("catalogo")) {
+    tareas.push(
+      seguro(async () => {
+        let q = (supabase.from("price_catalog") as any)
+          .select("id,name,stock,stock_min,active")
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .not("stock", "is", null);
+        if (branchId) q = q.eq("branch_id", branchId);
+        const { data, error } = await q;
+        if (error) throw error;
+        const hoy = new Date().toLocaleDateString("en-CA");
+        return ((data ?? []) as any[])
+          .filter((p) => p.active !== false && Number(p.stock_min) > 0 && Number(p.stock) <= Number(p.stock_min))
+          .map((p) => ({
+            id: `stock-${p.id}-${Number(p.stock)}`,
+            tipo: "stock" as const,
+            titulo: "Stock insuficiente",
+            detalle: `Quedan ${Number(p.stock)} de «${p.name}» (mínimo ${Number(p.stock_min)}).`,
+            fecha: `${hoy}T08:00:00-03:00`,
+            to: "/cash-register",
+            search: { tab: "inventario" },
+          }));
+      }),
+    );
+  }
+
   return ordenar((await Promise.all(tareas)).flat());
 }
 
@@ -205,7 +269,7 @@ export async function cargarActividad(ctx: Contexto): Promise<Aviso[]> {
         const { data, error } = await porSucursal(
           supabase
             .from("appointments")
-            .select("id,client_name,service_name,starts_at,created_at,created_by_role,branch_id")
+            .select("id,client_name,service_name,starts_at,created_at,created_by_role,status,branch_id")
             .eq("business_id", businessId)
             .gte("created_at", inicio)
             .order("created_at", { ascending: false })
@@ -213,12 +277,14 @@ export async function cargarActividad(ctx: Contexto): Promise<Aviso[]> {
           branchId,
         );
         if (error) throw error;
-        return ((data ?? []) as any[]).map((a) => {
-          const online = esOnline(a.created_by_role);
+        // Solo reservas online ya confirmadas: las que esperan confirmación están en Importantes.
+        return ((data ?? []) as any[])
+          .filter((a) => esOnline(a.created_by_role) && a.status !== "pending" && a.status !== "cancelled")
+          .map((a) => {
           return {
             id: `act-reserva-${a.id}`,
             tipo: "reserva" as const,
-            titulo: online ? "Reserva online" : "Turno agendado",
+            titulo: "Nueva reserva online",
             detalle: `${a.client_name || "Cliente"}${a.service_name ? ` · ${a.service_name}` : ""} · ${new Date(a.starts_at).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
             fecha: a.created_at,
             to: "/agenda",
@@ -377,6 +443,54 @@ export async function cargarActividad(ctx: Contexto): Promise<Aviso[]> {
           fecha: r.prepared_at,
           to: "/cash-register",
           search: { tab: "profesionales" },
+        }));
+      }),
+    );
+  }
+
+  if (puede("senas") || puede("caja")) {
+    tareas.push(
+      seguro(async () => {
+        const { data, error } = await (supabase.from("appointment_deposits" as any) as any)
+          .select("id,paid_amount,amount,approved_at,appointments:appointment_id(client_name,branch_id)")
+          .eq("business_id", businessId)
+          .gte("approved_at", inicio)
+          .order("approved_at", { ascending: false })
+          .limit(LIMITE);
+        if (error) throw error;
+        return ((data ?? []) as any[])
+          .filter((d) => !branchId || !d.appointments?.branch_id || d.appointments.branch_id === branchId)
+          .map((d) => ({
+            id: `act-sena-${d.id}`,
+            tipo: "sena" as const,
+            titulo: "Seña aprobada",
+            detalle: `${d.appointments?.client_name || "Cliente"} · ${pesos(d.paid_amount ?? d.amount)}`,
+            fecha: d.approved_at,
+            to: "/cash-register",
+            search: { tab: "resumen" },
+          }));
+      }),
+    );
+  }
+
+  if (esDueno || puede("configuracion")) {
+    tareas.push(
+      seguro(async () => {
+        const { data, error } = await (supabase.from("reviews" as any) as any)
+          .select("id,client_name,rating,comment,created_at")
+          .eq("business_id", businessId)
+          .gte("created_at", inicio)
+          .order("created_at", { ascending: false })
+          .limit(LIMITE);
+        if (error) throw error;
+        return ((data ?? []) as any[]).map((r) => ({
+          id: `act-resena-${r.id}`,
+          tipo: "resena" as const,
+          titulo: "Nueva reseña",
+          detalle: `${r.client_name || "Un cliente"} · ${"★".repeat(Math.max(0, Math.min(5, Number(r.rating) || 0)))}${r.comment ? ` · ${r.comment}` : ""}`,
+          fecha: r.created_at,
+          to: "/settings",
+          search: { section: "resenas" },
         }));
       }),
     );

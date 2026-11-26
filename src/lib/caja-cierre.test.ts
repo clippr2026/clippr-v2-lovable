@@ -1312,11 +1312,11 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(fnMatch![1]).not.toMatch(/dayExpected/);
   });
 
-  it("el aviso de cajas pendientes vive en Inicio (caja.pendingCierres); Caja > Resumen ya no lo muestra", () => {
+  it("el aviso de cajas pendientes vive en Caja > Resumen (summary.pendingCierres); Inicio ya no lo muestra", () => {
     const dash = readSrc("src/routes/dashboard.tsx");
-    expect(dash).toMatch(/caja\.pendingCierres\.length > 0 \?/);
+    expect(dash).not.toMatch(/caja\.pendingCierres\.length > 0 \?/);
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).not.toMatch(/summary\.pendingCierres\.length > 0 && \(/);
+    expect(src).toMatch(/summary\.pendingCierres\.length > 0 \? \(/);
   });
 
   it("Caja > Resumen ya NO muestra la sección 'Saldos acumulados' — mismo criterio visual que Inicio", () => {
@@ -1340,14 +1340,13 @@ describe("CajaHoyCard (Inicio) — sin relleno ni saltos mientras se confirma el
   });
 
   it("mientras se confirma el aviso no se pinta ningún relleno (no hay salto hacia arriba al llegar el dato) y el aviso solo aparece con pendientes reales", () => {
-    const src = readSrc("src/routes/dashboard.tsx");
-    const fnMatch = src.match(/function CajaHoyCard\(([\s\S]*?)\n\}\n/);
+    // El aviso vive en Caja > Resumen (FacturacionPanel): depende solo de que haya pendientes...
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function FacturacionPanel\(([\s\S]*?)\nfunction TransferReceiptField/);
     expect(fnMatch).not.toBeNull();
-    // el aviso depende solo de que haya pendientes...
-    expect(fnMatch![1]).toMatch(/caja\.pendingCierres\.length > 0 \? \(/);
+    expect(fnMatch![1]).toMatch(/summary\.pendingCierres\.length > 0 \? \(/);
     // ...y no queda ningún esqueleto atado a pendingCierresLoading
-    expect(fnMatch![1]).not.toMatch(/caja\.pendingCierresLoading/);
-    expect(fnMatch![1]).not.toMatch(/animate-pulse/);
+    expect(fnMatch![1]).not.toMatch(/summary\.pendingCierresLoading/);
   });
 
   it("con un valor ya en caché de una navegación anterior en la misma sesión, no hay esqueleto — se pinta directo y se corrige solo", () => {

@@ -2,6 +2,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AlarmClock,
   ArrowLeft,
   Bell,
   Briefcase,
@@ -15,6 +16,8 @@ import {
   Wallet,
   WalletCards,
   Users,
+  Package,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
@@ -41,6 +44,9 @@ const ICONO: Record<TipoAviso, LucideIcon> = {
   cobro: WalletCards,
   gasto: Receipt,
   cierre: Wallet,
+  tardanza: AlarmClock,
+  stock: Package,
+  resena: Star,
 };
 
 const REVISAR_MS = 120_000;

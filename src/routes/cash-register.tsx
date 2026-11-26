@@ -13555,6 +13555,24 @@ function FacturacionPanel({
           Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
           una sola fila desde sm. */}
       <div className="flex flex-col gap-3 empty:hidden">
+        {/* Cajas pendientes de revisión: el aviso vive acá (no en Inicio). Solo aparece con pendientes reales. */}
+        {summary.pendingCierres.length > 0 ? (
+          <div className="aviso-caja flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-amber-400/[0.06] p-4">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
+            <p className="min-w-0 flex-1 text-sm font-semibold text-white">
+              {summary.pendingCierres.length === 1
+                ? `Caja del ${new Date(`${summary.pendingCierres[0].date}T12:00:00`).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} pendiente de revisión`
+                : `${summary.pendingCierres.length} cajas pendientes de revisión`}
+            </p>
+            <button
+              type="button"
+              onClick={() => onRevisarCierre(summary.pendingCierres[0].date)}
+              className="aviso-boton inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
+            >
+              {summary.pendingCierres.length === 1 ? "Revisar caja" : "Revisar cajas"}
+            </button>
+          </div>
+        ) : null}
         <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} variant="avisos" />
       </div>
 
