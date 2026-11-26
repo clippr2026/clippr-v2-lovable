@@ -1541,3 +1541,14 @@ html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
 html.modo-claro .tema-pista { background-color: #e6e3f1; border-color: #d6d1e8; }
 html.modo-claro .tema-perilla { background-color: #491a89; color: #ffffff; }
 html.modo-claro .www-pastilla { color: #ffffff; }
+
+/* Menús de la cabecera (WWW y cuenta): en claro, blancos con texto oscuro, borde suave y sombra sutil. */
+html.modo-claro .menu-tema {
+  background: #ffffff;
+  border-color: #e4e2ee;
+  color: #17172b;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.05), 0 16px 40px -18px rgb(23 23 43 / 0.28);
+}
+html.modo-claro .menu-tema [role="separator"] { background-color: #eceaf3; }

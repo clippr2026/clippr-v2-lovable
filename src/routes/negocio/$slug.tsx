@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ConMantenimiento } from "@/components/public-mantenimiento";
 import { guardarTokenDeInicio, tokenGuardado } from "@/lib/push";
 import { PushAvisosButton } from "@/components/push-avisos-button";
 import { publicButtonStyle } from "@/lib/public-button";
@@ -55,8 +56,18 @@ export const Route = createFileRoute("/negocio/$slug")({
       { name: "description", content: "Conocé el local, sus servicios y reservá tu turno online." },
     ],
   }),
-  component: PublicProfilePage,
+  component: PublicProfilePageConMantenimiento,
 });
+
+// En mantenimiento (botón WWW) se muestra el aviso en lugar de la página y no se puede reservar.
+function PublicProfilePageConMantenimiento() {
+  const { slug } = Route.useParams();
+  return (
+    <ConMantenimiento slug={slug}>
+      <PublicProfilePage />
+    </ConMantenimiento>
+  );
+}
 
 type Business = {
   id: string;

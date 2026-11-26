@@ -90,9 +90,9 @@ function Brand() {
         alt="Clippr"
         loading="eager"
         decoding="async"
-        className="h-8 w-8 rounded-xl object-cover ring-1 ring-white/10"
+        className="h-[37px] w-[37px] object-contain"
       />
-      <div className="font-display text-base font-semibold leading-none tracking-tight">Clippr</div>
+      <div className="font-display text-[18.5px] font-semibold leading-none tracking-tight">Clippr</div>
     </Link>
   );
 }
@@ -316,15 +316,15 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Cuenta"
-          className="h-10 w-10 rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
+          className="h-[46px] w-[46px] rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
         >
-          {avatar("h-9 w-9")}
+          {avatar("h-[41px] w-[41px]")}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         collisionPadding={16}
-        className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        className="menu-tema w-64 max-w-[calc(100vw-2rem)] rounded-2xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         <div className="flex items-center gap-3 px-1 py-1.5">
           {avatar("h-11 w-11")}
@@ -433,11 +433,20 @@ function PublicSiteMenu() {
       { onConflict: "business_id" },
     );
 
+    // Se vuelve a leer lo guardado: el aviso de éxito solo sale si de verdad quedó en la base.
+    const { data: saved, error: readError } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle();
+    const savedStatus = ((saved?.schedule ?? {}) as Record<string, unknown>)._publicSiteStatus as Record<string, unknown> | undefined;
+    const persisted = !readError && (savedStatus?.maintenance === true) === nextMaintenance;
+
     setSavingMaintenance(false);
 
-    if (error) {
+    if (error || !persisted) {
       setMaintenance(!nextMaintenance);
-      return toast.error("No se pudo actualizar el sitio público");
+      return toast.error("No se pudo guardar el estado del sitio público. Probá de nuevo.");
     }
 
     window.dispatchEvent(
@@ -498,7 +507,12 @@ function PublicSiteMenu() {
           aria-label="Reservas online"
           className="inline-flex h-10 items-center gap-2 rounded-xl glass glass-hover px-2.5 text-sm font-medium text-white/85 transition active:scale-[0.96] hover:text-white"
         >
-          <span className="www-pastilla rounded-full bg-emerald-400 px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white">
+          <span
+            className={cn(
+              "www-pastilla rounded-full px-2 py-1 text-[13px] font-black leading-none tracking-tight text-white",
+              maintenance ? "bg-amber-500" : "bg-violet-600",
+            )}
+          >
             WWW
           </span>
         </button>
@@ -507,7 +521,7 @@ function PublicSiteMenu() {
       <DropdownMenuContent
         align="end"
         collisionPadding={16}
-        className="w-[calc(100vw-2rem)] sm:w-[430px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
+        className="menu-tema w-[calc(100vw-2rem)] sm:w-[430px] rounded-3xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         {/* Fila 1: ícono + título (se trunca si hace falta) a la izquierda,
             badge de estado siempre a la derecha, sin superponerse — mismo
@@ -566,7 +580,7 @@ function PublicSiteMenu() {
 
         <div className="mt-4 rounded-2xl bg-white/[0.035] p-3 text-xs leading-relaxed text-white/50 ring-1 ring-white/10">
           {maintenance
-            ? "La página pública muestra un aviso de mantenimiento y no permite reservar."
+            ? "La página pública está en mantenimiento y no recibe reservas."
             : "La página pública está activa y permite recibir reservas."}
         </div>
 

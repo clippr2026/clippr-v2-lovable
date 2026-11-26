@@ -1,6 +1,7 @@
 import { buildServiceRestriction, EMPTY_SERVICE_SCHEDULE_CONFIG, normalizeServiceScheduleConfig, type ServiceScheduleConfig } from "@/lib/service-schedule";
 import { esAndroid } from "@/lib/es-android";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ConMantenimiento } from "@/components/public-mantenimiento";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
 import { EntrySplash, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
@@ -83,8 +84,18 @@ export const Route = createFileRoute("/reservar/$slug")({
       { name: "description", content: "Reservá tu turno online en Clippr." },
     ],
   }),
-  component: PublicBookingPage,
+  component: PublicBookingPageConMantenimiento,
 });
+
+// En mantenimiento (botón WWW) se muestra el aviso en lugar de la página y no se puede reservar.
+function PublicBookingPageConMantenimiento() {
+  const { slug } = Route.useParams();
+  return (
+    <ConMantenimiento slug={slug}>
+      <PublicBookingPage />
+    </ConMantenimiento>
+  );
+}
 
 type Business = {
   id: string;
