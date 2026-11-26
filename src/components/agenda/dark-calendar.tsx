@@ -23,11 +23,14 @@ export function DarkCalendar({
   value,
   onSelect,
   maxDate,
+  grande = false,
 }: {
   value: Date;
   onSelect: (date: Date) => void;
   /** Último día habilitado; los siguientes se ven bloqueados (límite de anticipación de reservas). */
   maxDate?: Date | null;
+  /** Más grande y con fondo sólido (selector de fecha de la Agenda). */
+  grande?: boolean;
 }) {
   const [viewMonth, setViewMonth] = React.useState(
     () => new Date(value.getFullYear(), value.getMonth(), 1),
@@ -60,10 +63,11 @@ export function DarkCalendar({
 
   return (
     <div
-      className="w-[280px] rounded-2xl p-3 select-none"
+      className={grande ? "calendario-grande w-[min(352px,calc(100vw-24px))] rounded-3xl p-4 select-none" : "w-[280px] rounded-2xl p-3 select-none"}
       style={{
-        background:
-          "linear-gradient(180deg, oklch(0.2 0.04 285 / 0.97), oklch(0.12 0.03 280 / 0.98))",
+        background: grande
+          ? "#15131f"
+          : "linear-gradient(180deg, oklch(0.2 0.04 285 / 0.97), oklch(0.12 0.03 280 / 0.98))",
         border: "1px solid oklch(1 0 0 / 0.1)",
         boxShadow:
           "inset 0 1px 0 oklch(1 0 0 / 0.07), 0 20px 52px -26px oklch(0 0 0 / 0.9)",
@@ -81,7 +85,7 @@ export function DarkCalendar({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-sm font-semibold text-white/90 capitalize">{monthLabel}</span>
+        <span className={grande ? "text-base font-semibold text-white capitalize" : "text-sm font-semibold text-white/90 capitalize"}>{monthLabel}</span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
@@ -116,7 +120,7 @@ export function DarkCalendar({
               title={blocked ? "Fuera del límite de reservas (Configuración → Horarios)" : undefined}
               onClick={() => onSelect(startOfDay(d))}
               className={[
-                "h-9 rounded-lg text-sm flex items-center justify-center transition-colors",
+                grande ? "h-11 rounded-xl text-base flex items-center justify-center transition-colors" : "h-9 rounded-lg text-sm flex items-center justify-center transition-colors",
                 blocked
                   ? "cursor-not-allowed text-white/20 line-through"
                   : selected

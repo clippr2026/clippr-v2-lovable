@@ -634,7 +634,7 @@ function AgendaPage() {
     if (r) {
       const centered = r.left + r.width / 2;
       // Mantener el popover (≈280px) dentro de la pantalla en móvil.
-      const left = Math.min(Math.max(centered, 150), window.innerWidth - 150);
+      const left = Math.min(Math.max(centered, 180), window.innerWidth - 180);
       setCalPos({ top: r.bottom + 6, left });
     }
     setCalOpen(true);
@@ -1689,6 +1689,7 @@ function AgendaPage() {
                 style={{ top: calPos.top, left: calPos.left, transform: "translateX(-50%)" }}
               >
                 <DarkCalendar
+                  grande
                   value={cursor}
                   onSelect={(d) => {
                     setCursor(startOfDay(d));
@@ -1732,11 +1733,11 @@ function AgendaPage() {
               Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
           <Button
             ref={newBtnRefMobile}
-            className="sm:hidden h-7 w-7 p-0 ml-auto shrink-0"
+            className="sm:hidden h-9 w-9 rounded-xl p-0 ml-auto shrink-0"
             aria-label="Nuevo"
             onClick={() => toggleNewMenu(newBtnRefMobile, true)}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
           </Button>
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
@@ -1823,7 +1824,7 @@ function AgendaPage() {
               <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
               <div
                 className={cn(
-                  "fixed z-[61] w-56 glass-strong rounded-xl p-1 animate-fade-up",
+                  "menu-estados fixed z-[61] w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#15131f] py-1 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up",
                   newMenuPos.centered && "left-1/2 -translate-x-1/2",
                 )}
                 style={
@@ -1835,7 +1836,7 @@ function AgendaPage() {
                 <button
                   disabled={!!closedToday}
                   className={cn(
-                    "w-full text-left text-sm px-3 py-2 rounded-lg transition flex items-center gap-2",
+                    "w-full text-left text-sm font-medium px-4 py-3 transition flex items-center gap-3",
                     closedToday ? "cursor-not-allowed opacity-35" : "hover:bg-white/[0.06]",
                   )}
                   title={closedToday ? "Este día está cerrado" : undefined}
@@ -1848,19 +1849,29 @@ function AgendaPage() {
                   <CalendarIcon className="h-4 w-4 shrink-0 text-primary" /> <span className="whitespace-nowrap">Agregar turno</span>
                 </button>
                 <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  className="w-full text-left text-sm font-medium px-4 py-3 hover:bg-white/[0.06] transition flex items-center gap-3"
                   onClick={() => openSpecialFromSlot(null, cursor)}
                 >
                   <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
                 </button>
                 <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  className="w-full text-left text-sm font-medium px-4 py-3 hover:bg-white/[0.06] transition flex items-center gap-3"
                   onClick={() => {
                     setNewMenu(false);
                     setClosuresOpen(true);
                   }}
                 >
                   <CalendarOff className="h-4 w-4 shrink-0 text-rose-300" /> <span className="whitespace-nowrap">Día cerrado</span>
+                </button>
+                {/* Las mismas opciones que al tocar un horario de la grilla. */}
+                <button
+                  className="w-full text-left text-sm font-medium px-4 py-3 hover:bg-white/[0.06] transition flex items-center gap-3"
+                  onClick={() => {
+                    setNewMenu(false);
+                    setSeFueHorario(new Date());
+                  }}
+                >
+                  <DoorOpen className="h-4 w-4 shrink-0 text-[#ff8f86]" /> <span className="whitespace-nowrap">Se fue un cliente</span>
                 </button>
               </div>
             </MobileSafePortal>

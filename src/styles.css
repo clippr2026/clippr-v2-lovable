@@ -1599,3 +1599,4 @@ html.modo-claro .turno-lista .estado-turno { background: color-mix(in srgb, var(
 /* «Se fueron» compacto en la fila de controles. */
 .se-fueron-compacto { font-size: 12px; gap: 0.3rem; }
 html.modo-claro .turnos-estado { background: #f6f7fb; border-color: #e6e3f1; }
+html.modo-claro .calendario-grande { background: #ffffff !important; border-color: #e6e3f1 !important; }
