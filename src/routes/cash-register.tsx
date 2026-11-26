@@ -17812,6 +17812,37 @@ export function NuevaVentaTab({
                   jerarquía visual que el resto de las filas (fondo propio,
                   texto más grande). Reactivo: ya incluye cualquier
                   descuento/propina cargado en Ajustes, debajo. */}
+              {/* Promociones vigentes que aplican a este cobro, en un desplegable arriba del total. Elegir una
+                  aplica su descuento (se ve debajo, como siempre); «Sin promoción» la quita. */}
+              {!isSinCargo && validPromotions.length > 0 && (
+                <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                  <span className="shrink-0 text-sm text-white/70">Promoción</span>
+                  <SelectClippr
+                    compact
+                    className="min-w-0 max-w-[65%]"
+                    valor={promotionId}
+                    onChange={(v) => {
+                      setPromotionId(v);
+                      if (v) {
+                        // Un solo descuento a la vez: la promo reemplaza al descuento manual y al del lápiz.
+                        setManualDiscountAmount("");
+                        setPriceDiscounts({});
+                      }
+                    }}
+                    opciones={[
+                      { id: "", label: "Sin promoción" },
+                      ...validPromotions.map((p) => {
+                        const ahorro = cartItems.reduce((acc, { svc, qty }) => {
+                          if (svc.is_catalog || !isPromotionApplicable(p, { serviceId: svc.id, employeeId, category: svc.category ?? null })) return acc;
+                          const sub = (priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
+                          return acc + (sub - applyPromotionDiscount(sub, p));
+                        }, 0);
+                        return { id: p.id, label: ahorro > 0 ? `${p.name} (−$${Math.round(ahorro).toLocaleString("es-AR")})` : p.name };
+                      }),
+                    ]}
+                  />
+                </div>
+              )}
               {depositApplied > 0 && (
                 <div className="mb-1.5 space-y-0.5 px-1 text-xs">
                   <div className="flex items-center justify-between text-white/70">
