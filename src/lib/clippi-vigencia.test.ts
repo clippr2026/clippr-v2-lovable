@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoEnEspera, chatVigente, consultaVisible } from "./clippi-vigencia";
-import { responderClippi } from "./clippi";
+import { chatVigente, consultaVisible } from "./clippi-vigencia";
 
 const H = 60 * 60 * 1000;
 const clippi = [{ de: "yo" }, { de: "clippi" }];
@@ -29,19 +28,5 @@ describe("cuánto dura el chat de Clippi", () => {
     expect(consultaVisible({ estado: "respondida", sin_leer: 1 }, [])).toBe(true);
     expect(consultaVisible({ estado: "abierta", sin_leer: 0 }, [])).toBe(true);
     expect(consultaVisible({ estado: "cerrada", sin_leer: 0 }, conAsesor)).toBe(false);
-  });
-});
-
-describe("un solo chat mientras se espera al asesor", () => {
-  const pregunta = (texto: string) => responderClippi(texto, () => true);
-
-  it("Clippi sigue contestando lo que sabe", () => {
-    expect(avisoEnEspera(pregunta("agendar un turno"), true)).toBeNull();
-  });
-
-  it("lo que no sabe queda sumado a la consulta", () => {
-    expect(avisoEnEspera(pregunta("quiero hablar con alguien"), true)).toContain("Se lo sumé a tu consulta");
-    expect(avisoEnEspera(pregunta("zzzz qwerty"), true)).toContain("Se lo sumé a tu consulta");
-    expect(avisoEnEspera(pregunta("zzzz qwerty"), false)).toContain("No pude enviar");
   });
 });

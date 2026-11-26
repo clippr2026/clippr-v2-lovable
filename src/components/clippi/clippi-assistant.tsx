@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { alPedirClippi, dentroDePantalla, guardarBurbuja, leerBurbuja, seArrastro, sobreBasurero, type Punto } from "@/lib/clippi-burbuja";
 import { nombreDePila, saludar } from "@/lib/clippi-saludo";
-import { avisoEnEspera, chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
+import { chatVigente, consultaVisible, type ChatGuardado } from "@/lib/clippi-vigencia";
 // Solo los tipos: las preguntas y respuestas se descargan recién al abrir el chat.
 import type { ClippiRespuesta, ClippiTema } from "@/lib/clippi";
 import {
@@ -285,11 +285,10 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
   const [consultando, setConsultando] = React.useState(false);
   // Última consulta con un asesor.
   const [consulta, setConsulta] = React.useState<MiConsulta | null>(null);
-  // Es un solo chat: con una consulta sin contestar responde Clippi y lo escrito también le llega
-  // al asesor; desde que el asesor contesta, la conversación es con él hasta que se cierre.
-  const hayConsulta = consultaVisible(consulta, mensajes);
-  const conAsesor = hayConsulta && mensajes.some((m) => m.de === "asesor");
-  const esperando = hayConsulta && !conAsesor;
+  // Es un solo chat: desde que se pide un asesor, lo que se escribe es para él y Clippi no
+  // contesta, hasta que la consulta se cierre.
+  const conAsesor = consultaVisible(consulta, mensajes);
+  const respondio = mensajes.some((m) => m.de === "asesor");
   React.useEffect(() => {
     // Si falla, se reintenta al preguntar.
     cargarMotor().then((m) => setTemas(m.CLIPPI_TEMAS)).catch(() => {});
@@ -423,17 +422,10 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     agregar({ de: "yo", texto: limpia });
     setConsultando(true);
     try {
-      const alAsesor = esperando && consulta
-        ? escribirAsesor(consulta.id, limpia).then(() => (marcarEspera(cuenta, true), true), () => false)
-        : null;
       const [motor] = await Promise.all([cargarMotor(), new Promise((listo) => setTimeout(listo, PAUSA_MS))]);
       const r = motor.responderClippi(limpia, puede);
       setTemas(motor.CLIPPI_TEMAS);
-      const enviado = alAsesor && (await alAsesor);
-      const aviso = alAsesor ? avisoEnEspera(r, Boolean(enviado)) : null;
-      if (aviso) agregar({ de: "clippi", texto: aviso });
-      else agregar({ de: "clippi", texto: r.tema?.id === "hola" ? saludar(r.texto, nombre) : r.texto, tema: r.tema, sugerencias: r.sugerencias, derivar: r.derivar });
-      if (alAsesor && !enviado) await traerRespuestas().catch(() => {});
+      agregar({ de: "clippi", texto: r.tema?.id === "hola" ? saludar(r.texto, nombre) : r.texto, tema: r.tema, sugerencias: r.sugerencias, derivar: r.derivar });
     } catch {
       agregar({ de: "clippi", texto: "No pude consultar. Revisá tu conexión y recargá la página." });
     } finally {
@@ -463,7 +455,7 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             </div>
             <div className="text-sm text-white/60">Clippr</div>
           </div>
-          {mensajes.length > 0 && !consultando && (
+          {(mensajes.length > 0 || conAsesor) && !consultando && (
             <button type="button" onClick={borrarChat} aria-label="Borrar conversación" title="Borrar conversación" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/5 ring-1 ring-white/10">
               <Trash2 className="h-5 w-5 text-white/70" />
             </button>
@@ -474,7 +466,13 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
         </div>
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">
-          {mensajes.length === 0 && (
+          {/* Consulta abierta sin conversación guardada (por ejemplo, pedida desde otro aparato). */}
+          {mensajes.length === 0 && conAsesor && (
+            <div className="w-fit max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 text-sm leading-relaxed">
+              Tu consulta ya está con un asesor. Te responde por este chat.
+            </div>
+          )}
+          {mensajes.length === 0 && !conAsesor && (
             <div className="pt-4">
               <div className="text-2xl font-bold tracking-tight">{saludar("¡Hola!", nombre)} Lo resolvemos juntos.</div>
               <div className="mt-1 text-sm text-white/65">Puedo ayudarte con turnos, caja, clientes, tu equipo y tu página de reservas.</div>
@@ -520,19 +518,19 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
             ),
           )}
           {/* Opciones solo debajo de la última respuesta. */}
-          {!consultando && !hayConsulta && mensajes.at(-1)?.derivar === "resolvio" && (
+          {!consultando && !conAsesor && mensajes.at(-1)?.derivar === "resolvio" && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="w-full text-sm font-semibold">¿Se resolvió?</span>
               <button type="button" onClick={resuelto} className="rounded-full border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold">Sí</button>
               <button type="button" onClick={() => void hablarConAsesor(PIDE_TRAS_PROBAR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">No, hablar con un asesor</button>
             </div>
           )}
-          {!consultando && !hayConsulta && mensajes.at(-1)?.de === "clippi" && !mensajes.at(-1)?.derivar && (
+          {!consultando && !conAsesor && mensajes.at(-1)?.de === "clippi" && !mensajes.at(-1)?.derivar && (
             <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="block text-sm font-semibold text-violet-300 underline underline-offset-4">
               ¿No te sirvió? Hablar con un asesor
             </button>
           )}
-          {!consultando && !hayConsulta && mensajes.at(-1)?.derivar === "asesor" && (
+          {!consultando && !conAsesor && mensajes.at(-1)?.derivar === "asesor" && (
             <button type="button" onClick={() => void hablarConAsesor(PIDE_ASESOR)} className="rounded-full border border-violet-400/70 bg-violet-500/20 px-5 py-2.5 text-sm font-semibold">
               Hablar con un asesor
             </button>
@@ -573,9 +571,9 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
           <input
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder={conAsesor ? "Escribile al asesor..." : esperando ? "Sumá un detalle (opcional)..." : "Preguntale a Clippi..."}
+            placeholder={!conAsesor ? "Preguntale a Clippi..." : respondio ? "Escribile al asesor..." : "Sumá un detalle (opcional)..."}
             enterKeyHint="send"
-            maxLength={hayConsulta ? 1000 : 200}
+            maxLength={conAsesor ? 1000 : 200}
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/40"
           />
           <button type="submit" disabled={!texto.trim() || consultando} aria-label="Enviar" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-sky-400 to-violet-500 disabled:opacity-40">
