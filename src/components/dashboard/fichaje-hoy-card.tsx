@@ -101,7 +101,7 @@ export function FichajeHoyCard({
         // Misma altura que la tarjeta cargada, para que al llegar los datos no se mueva nada.
         <div role="status" aria-label="Cargando fichaje" className="mt-1.5 animate-pulse">
           <div className="h-7 w-40 rounded bg-white/10" />
-          <div className="mt-0.5 h-5 w-64 max-w-full rounded bg-white/[0.07]" />
+          <div className="mt-0.5 h-6 w-64 max-w-full rounded bg-white/[0.07]" />
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             <div className="h-11 rounded-2xl bg-white/[0.06]" />
             <div className="h-11 rounded-2xl bg-white/[0.06]" />
@@ -112,7 +112,7 @@ export function FichajeHoyCard({
           <div className="mt-1.5 text-2xl font-bold leading-7 tracking-tight text-white">
             {summary.fichados} de {summary.total} ficharon
           </div>
-          <div className="mt-0.5 truncate text-sm leading-5 text-white/75">{lineaPorFichar(summary.pendientesNames, summary.total)}</div>
+          <div className="mt-0.5 truncate text-base leading-6 text-white/75">{lineaPorFichar(summary.pendientesNames, summary.total)}</div>
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             <button
               type="button"

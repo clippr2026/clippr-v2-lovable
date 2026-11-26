@@ -222,8 +222,8 @@ function MiniStat({
   const content = (
     <>
       <div className="flex items-center gap-1.5 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate text-[11px] leading-tight">{label}</span>
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate text-sm leading-tight">{label}</span>
       </div>
       <div className="mt-1 font-display text-lg font-semibold tracking-tight truncate">{value}</div>
     </>
@@ -327,7 +327,7 @@ function CajaHoyCard({
           <Link
             to="/cash-register"
             search={emptyCashRegisterSearch}
-            className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
+            className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary transition hover:text-primary/80"
           >
             Ver todo <ChevronRight className="h-3.5 w-3.5" />
           </Link>
@@ -348,8 +348,8 @@ function CajaHoyCard({
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
-            <span className="text-xs">Ingresos</span>
+            <TrendingUp className="h-4 w-4 text-blue-400" />
+            <span className="text-sm">Ingresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
             {montosOcultos ? MONTO_OCULTO : fmtAR(caja.revHoy)}
@@ -357,8 +357,8 @@ function CajaHoyCard({
         </div>
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-            <span className="text-xs">Egresos</span>
+            <TrendingDown className="h-4 w-4 text-rose-400" />
+            <span className="text-sm">Egresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
             {montosOcultos ? MONTO_OCULTO : fmtExpenseAR(caja.totalGastosHoy)}
@@ -438,7 +438,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
         </div>
         <Link
           to="/agenda"
-          className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
+          className="inline-flex items-center gap-0.5 text-sm font-semibold text-primary transition hover:text-primary/80"
         >
           Ver todos <ChevronRight className="h-3.5 w-3.5" />
         </Link>
@@ -456,15 +456,15 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
               key={t.id}
               to="/agenda"
               search={{ date: cajaDateKeyBA(new Date(t.starts_at)), turno: t.id }}
-              className="block rounded-xl bg-white/[0.03] px-3 py-1.5 transition active:scale-[0.98]"
+              className="block rounded-xl bg-white/[0.1] px-3 py-2 ring-1 ring-white/20 transition active:scale-[0.98]"
             >
               <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-sm font-medium text-foreground">{t.client_name ?? "Cliente"}</span>
-                <span className="shrink-0 text-xs font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</span>
+                <span className="min-w-0 truncate text-base font-semibold text-foreground">{t.client_name ?? "Cliente"}</span>
+                <span className="shrink-0 text-sm font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</span>
-                {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-xs font-medium text-violet-200/90">Con {t.employee_name}</span>}
+                <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
+                {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-violet-200">Con {t.employee_name}</span>}
               </div>
             </Link>
           ))
