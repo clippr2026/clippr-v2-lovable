@@ -8,6 +8,7 @@ export function AppShell({
   children,
   fullWidth = false,
   containedScroll = false,
+  anchoCompleto = false,
 }: {
   children: React.ReactNode;
   fullWidth?: boolean;
@@ -26,6 +27,8 @@ export function AppShell({
   // usuario y quedar sin efecto. Con containedScroll, <main> siempre es
   // scrolleable desde el pixel uno, sea cual sea el contenido.
   containedScroll?: boolean;
+  /** Sin ancho máximo (mismos márgenes): para contenido de borde a borde, como la portada de Inicio. */
+  anchoCompleto?: boolean;
 }) {
   const { loading, session, profile } = useAuth();
   const { loading: navLoading, visible: hasBottomNav } = useMobileNavItems();
@@ -154,7 +157,9 @@ export function AppShell({
             : "") +
           (fullWidth
             ? "px-2 sm:px-3 lg:px-4"
-            : "max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6")
+            : anchoCompleto
+              ? "px-3 sm:px-5 lg:px-6"
+              : "max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6")
         }
       >
         <div className="relative z-10">

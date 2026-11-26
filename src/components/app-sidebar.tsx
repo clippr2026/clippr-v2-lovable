@@ -229,7 +229,7 @@ function NotificationsButton() {
     >
       <DropdownMenuTrigger asChild>
         <button
-          className="hidden sm:grid h-10 w-10 place-items-center rounded-xl glass glass-hover relative"
+          className="grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-xl glass glass-hover relative"
           aria-label="Notificaciones"
         >
           <Bell className="h-4 w-4" />
@@ -544,7 +544,7 @@ function PublicSiteMenu() {
               "inline-flex shrink-0 items-center gap-2 rounded-full px-2 py-1 text-sm font-semibold ring-1 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45",
               maintenance
                 ? "bg-amber-500/12 text-amber-200 ring-amber-500/35"
-                : "bg-emerald-500/12 text-emerald-200 ring-emerald-500/35",
+                : "bg-violet-500/12 text-violet-200 ring-violet-500/35",
             ].join(" ")}
             title={maintenance ? "Pasar sitio a online" : "Poner sitio en mantenimiento"}
           >
@@ -553,7 +553,7 @@ function PublicSiteMenu() {
                 "relative h-7 w-12 shrink-0 rounded-full ring-1 transition",
                 maintenance
                   ? "bg-amber-500/25 ring-amber-400/35"
-                  : "bg-emerald-500/25 ring-emerald-400/35",
+                  : "bg-violet-500/25 ring-violet-400/35",
               ].join(" ")}
             >
               <span
@@ -561,7 +561,7 @@ function PublicSiteMenu() {
                   "absolute top-1 h-5 w-5 rounded-full shadow-lg transition-all",
                   maintenance
                     ? "left-1 bg-amber-300 shadow-amber-500/35"
-                    : "left-6 bg-emerald-300 shadow-emerald-500/35",
+                    : "left-6 bg-violet-500 shadow-violet-500/35",
                 ].join(" ")}
               />
             </span>
@@ -808,10 +808,10 @@ export function AppSidebar() {
           </div>
 
           {/* Right cluster */}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             {/* Modo claro/oscuro: en el celular, centrado en el encabezado (justo
                 arriba del selector de sucursal); en desktop, junto al resto. */}
-            <ColorModeToggle className="absolute left-1/2 top-1 -translate-x-1/2 lg:static lg:translate-x-0" />
+            <ColorModeToggle className="w-12 lg:w-14" />
             {/* Selector de sucursal — único en toda la app, siempre visible.
                 Cerca del perfil/menú de usuario en desktop (ver spec: "cerca
                 del nombre/logo o del perfil"). Con 1 sola sucursal muestra

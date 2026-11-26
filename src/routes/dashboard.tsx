@@ -24,7 +24,6 @@ import {
   TrendingDown,
   XCircle,
   ChevronRight,
-  AlertTriangle,
   ScanLine,
   CalendarClock,
   Activity,
@@ -70,11 +69,15 @@ function DashboardRoute() {
   const firstName = (profile?.full_name ?? "Usuario").split(" ")[0];
 
   return (
-    <AppShell containedScroll>
+    // Ancho completo: la portada y el carrusel llegan de borde a borde en la computadora;
+    // el resto de Inicio queda centrado con el mismo ancho máximo de siempre.
+    <AppShell containedScroll anchoCompleto>
       <NegocioHero businessId={businessId}>
         <ModulosCarousel />
       </NegocioHero>
-      <DashboardContent businessId={businessId} />
+      <div className="mx-auto max-w-[1392px]">
+        <DashboardContent businessId={businessId} />
+      </div>
     </AppShell>
   );
 }
@@ -199,12 +202,6 @@ function DashboardSkeleton() {
   );
 }
 
-function fechaCortaLabel(fecha: string) {
-  return new Date(`${fecha}T12:00:00`).toLocaleDateString("es-AR", {
-    day: "numeric",
-    month: "short",
-  });
-}
 
 function MiniStat({
   icon: Icon,
@@ -280,38 +277,7 @@ function CajaHoyCard({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Ninguna caja se cierra sola: este aviso solo lleva a la vista
-          previa de Caja > Cierres (ver sección 2/4 del pedido) — nunca
-          cierra nada desde Inicio. Lista TODAS las jornadas pendientes,
-          no solo la más vieja.
-          Mientras se averigua si hay pendientes NO se pinta nada (antes se
-          mostraba un rectángulo de relleno que desaparecía apenas llegaba el
-          dato, porque casi siempre no hay ninguna, y corría toda la tarjeta
-          hacia arriba en cada carga). El aviso aparece solo cuando de verdad
-          hay una caja pendiente; dentro de la misma sesión el hook recuerda
-          el último valor (pendingCierresCache), así que no vuelve a parpadear. */}
-      <div className="flex flex-col gap-3 empty:hidden">
-      {caja.pendingCierres.length > 0 ? (
-        <div
-          className="aviso-caja flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
-          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
-          <p className="min-w-0 flex-1 text-sm font-semibold text-white">
-            {caja.pendingCierres.length === 1
-              ? `Caja del ${fechaCortaLabel(caja.pendingCierres[0].date)} pendiente de revisión`
-              : `${caja.pendingCierres.length} cajas pendientes de revisión`}
-          </p>
-          <Link
-            to="/cash-register"
-            search={{ ...emptyCashRegisterSearch, tab: "cierres" }}
-            className="aviso-boton inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
-          >
-            {caja.pendingCierres.length === 1 ? "Revisar caja" : "Revisar cajas"}
-          </Link>
-        </div>
-      ) : null}
-      </div>
+      {/* El aviso de cajas pendientes de revisión vive en Caja, no en Inicio. */}
 
       <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -94,7 +94,7 @@ export function ModulosCarousel() {
     <div
       ref={ref}
       aria-label="Qué podés hacer en Clippr"
-      className="-mx-3 mb-3 flex snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:-mx-6 lg:scroll-px-6 lg:px-6 [&::-webkit-scrollbar]:hidden"
+      className="-mx-3 mb-3 flex snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:-mx-6 lg:scroll-px-[max(1.5rem,calc(1.5rem_+_(100%_-_1392px)_/_2))] lg:px-[max(1.5rem,calc(1.5rem_+_(100%_-_1392px)_/_2))] [&::-webkit-scrollbar]:hidden"
     >
       {MODULOS.map((m) => {
         const style = { backgroundImage: `linear-gradient(112deg, #05040b 0%, #17122f 46%, ${m.color} 100%)`, ["--modulo" as string]: m.color } as React.CSSProperties;
