@@ -233,7 +233,7 @@ function MiniStat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.16] bg-white/[0.12] ring-white/30 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.26),transparent_60%)] shadow-[0_0_24px_-10px_rgba(255,255,255,.55)]"
+        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-violet-500/[0.24] bg-violet-500/[0.18] ring-violet-300/35 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(196,181,253,.32),transparent_60%)] shadow-[0_0_24px_-10px_rgba(167,139,250,.6)]"
       >
         {content}
       </button>
@@ -457,7 +457,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
               key={t.id}
               to="/agenda"
               search={{ date: cajaDateKeyBA(new Date(t.starts_at)), turno: t.id }}
-              className="block rounded-xl bg-white/[0.07] px-3 py-2.5 ring-1 ring-white/20 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.16),transparent_60%)] shadow-[0_0_22px_-10px_rgba(255,255,255,.45)] transition active:scale-[0.98]"
+              className="block rounded-xl bg-violet-500/[0.14] px-3 py-2.5 ring-1 ring-violet-300/30 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(196,181,253,.26),transparent_60%)] shadow-[0_0_22px_-10px_rgba(167,139,250,.55)] transition active:scale-[0.98]"
             >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate text-base font-semibold text-foreground">{t.client_name ?? "Cliente"}</span>
