@@ -233,7 +233,7 @@ function MiniStat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.1] bg-white/[0.07] ring-white/20 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.16),transparent_60%)] shadow-[0_0_22px_-10px_rgba(255,255,255,.45)]"
+        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.16] bg-white/[0.12] ring-white/30 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.26),transparent_60%)] shadow-[0_0_24px_-10px_rgba(255,255,255,.55)]"
       >
         {content}
       </button>
@@ -315,7 +315,8 @@ function CajaHoyCard({
 
       <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold text-white">
+        <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
+          <Wallet className="h-5 w-5 text-violet-300" />
           Caja de hoy
           {caja.cajaCerradaHoy && (
             <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold tracking-normal text-emerald-300 ring-1 ring-emerald-400/25">
@@ -432,7 +433,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 text-base font-semibold text-white">
+        <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
           <CalendarClock className="h-5 w-5 text-violet-300" />
           Próximos turnos
         </div>
@@ -443,7 +444,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
           Ver todos <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
-      <div className="mt-3 space-y-1.5">
+      <div className="mt-3 space-y-2.5">
         {widgets.loading ? (
           <div className="text-sm text-muted-foreground">Cargando…</div>
         ) : widgets.proximosTurnos.length === 0 ? (
@@ -456,7 +457,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
               key={t.id}
               to="/agenda"
               search={{ date: cajaDateKeyBA(new Date(t.starts_at)), turno: t.id }}
-              className="block rounded-xl bg-white/[0.1] px-3 py-2 ring-1 ring-white/20 transition active:scale-[0.98]"
+              className="block rounded-xl bg-white/[0.07] px-3 py-2.5 ring-1 ring-white/20 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.16),transparent_60%)] shadow-[0_0_22px_-10px_rgba(255,255,255,.45)] transition active:scale-[0.98]"
             >
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate text-base font-semibold text-foreground">{t.client_name ?? "Cliente"}</span>
@@ -464,7 +465,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
-                {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-violet-200">Con {t.employee_name}</span>}
+                {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-white">Con {t.employee_name}</span>}
               </div>
             </Link>
           ))

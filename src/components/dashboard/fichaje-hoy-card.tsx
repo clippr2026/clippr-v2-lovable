@@ -73,8 +73,8 @@ export function FichajeHoyCard({
   return (
     <div className="glass rounded-2xl p-4 ring-1 ring-white/5 sm:p-5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 text-base font-semibold text-white">
-          <Clock className="h-5 w-5 text-emerald-300" />
+        <div className="flex items-center gap-2.5 text-lg font-semibold text-white">
+          <Clock className="h-5 w-5 text-violet-300" />
           Fichaje de hoy
         </div>
         {needsPicker && !branchId && (
