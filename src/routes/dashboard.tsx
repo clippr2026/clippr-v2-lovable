@@ -33,7 +33,9 @@ import {
   HandCoins,
   Eye,
   EyeOff,
+  Scissors,
 } from "lucide-react";
+import { ServiceImage } from "@/components/ui/service-image";
 import { MONTO_OCULTO, useMontosOcultos } from "@/hooks/use-montos-ocultos";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
@@ -451,9 +453,30 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
                     <span className="turno-hora-oscuro shrink-0 text-sm font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</span>
                     <span className="turno-hora-claro shrink-0 text-sm font-semibold">{hora24(t.starts_at)}</span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
-                    {t.employee_name && <span className="max-w-[45%] shrink-0 truncate text-sm font-medium text-white">Con {t.employee_name}</span>}
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <ServiceImage
+                        src={t.service_image}
+                        alt={t.service_name ?? "Servicio"}
+                        className="turno-miniatura h-6 w-6 rounded-md bg-violet-500/15 ring-1 ring-white/10"
+                        fallback={<Scissors className="h-3.5 w-3.5 text-violet-300" />}
+                      />
+                      <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>
+                    </span>
+                    {t.employee_name && (
+                      <span className="flex max-w-[45%] shrink-0 items-center gap-1.5">
+                        <img
+                          src={t.employee_avatar || "/avatar-barbero.webp"}
+                          alt=""
+                          loading="lazy"
+                          className="turno-foto h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-white/15"
+                          onError={(e) => {
+                            if (!e.currentTarget.src.endsWith("/avatar-barbero.webp")) e.currentTarget.src = "/avatar-barbero.webp";
+                          }}
+                        />
+                        <span className="truncate text-sm font-medium text-white">Con {t.employee_name}</span>
+                      </span>
+                    )}
                   </div>
                 </Link>
               </React.Fragment>

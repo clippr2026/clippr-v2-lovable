@@ -13,6 +13,10 @@ export type ProximoTurno = {
   starts_at: string;
   employee_id: string | null;
   employee_name: string | null;
+  /** Foto del profesional (null = usar la predeterminada). */
+  employee_avatar: string | null;
+  /** Imagen del servicio cargada en Configuración (null = usar la predeterminada). */
+  service_image: string | null;
 };
 
 export type ActividadItem =
@@ -67,20 +71,43 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
       .neq("status", "blocked");
     if (branchFilter) apptActivityQuery = apptActivityQuery.or(branchFilter);
 
-    const [proximosRes, paymentsRes, apptActivityRes, employeesRes] = await Promise.all([
+    const [proximosRes, paymentsRes, apptActivityRes, employeesRes, catalogoRes, ajustesRes] = await Promise.all([
       proximosQuery.order("starts_at", { ascending: true }).limit(LIMITE_PROXIMOS),
       paymentsQuery.order("created_at", { ascending: false }).limit(LIMITE_ACTIVIDAD),
       apptActivityQuery.order("created_at", { ascending: false }).limit(LIMITE_ACTIVIDAD),
-      supabase.from("employees").select("id,full_name").eq("business_id", businessId),
+      supabase.from("employees").select("id,full_name,avatar_url").eq("business_id", businessId),
+      // Imágenes de servicios: viven en business_settings.schedule._catalogImages (por id de price_catalog).
+      supabase.from("price_catalog").select("id,name").eq("business_id", businessId),
+      supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
     ]);
 
     const nombres = new Map<string, string>(
       ((employeesRes.data ?? []) as any[]).map((e) => [e.id as string, String(e.full_name ?? "").trim()]),
     );
     const profesional = (id: string | null | undefined) => (id ? nombres.get(id) || null : null);
+    const fotos = new Map<string, string>(
+      ((employeesRes.data ?? []) as any[]).filter((e) => e.avatar_url).map((e) => [e.id as string, String(e.avatar_url)]),
+    );
+    const imagenes = ((((ajustesRes.data as any)?.schedule ?? {}) as Record<string, unknown>)._catalogImages ?? {}) as Record<string, string>;
+    const clave = (n: string) => n.trim().toLowerCase();
+    const imagenPorNombre = new Map<string, string>();
+    for (const it of (catalogoRes.data ?? []) as any[]) {
+      const url = imagenes[it.id];
+      if (url && it.name && !imagenPorNombre.has(clave(it.name))) imagenPorNombre.set(clave(it.name), url);
+    }
+    // El turno guarda el nombre del servicio (si son varios, "A + B"): se busca el nombre completo y si no, el primero.
+    const imagenServicio = (nombre: string | null | undefined) => {
+      if (!nombre) return null;
+      return imagenPorNombre.get(clave(nombre)) ?? imagenPorNombre.get(clave(nombre.split(" + ")[0])) ?? null;
+    };
 
     setProximosTurnos(
-      ((proximosRes.data ?? []) as any[]).map((a) => ({ ...a, employee_name: profesional(a.employee_id) })) as ProximoTurno[],
+      ((proximosRes.data ?? []) as any[]).map((a) => ({
+        ...a,
+        employee_name: profesional(a.employee_id),
+        employee_avatar: a.employee_id ? fotos.get(a.employee_id) ?? null : null,
+        service_image: imagenServicio(a.service_name),
+      })) as ProximoTurno[],
     );
 
     const cobros: ActividadItem[] = ((paymentsRes.data ?? []) as any[]).map((p) => ({

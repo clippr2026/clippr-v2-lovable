@@ -1564,3 +1564,8 @@ html.modo-claro .aviso-fila { background-color: #ffffff; border-color: #e9e7f1; 
 html.modo-claro .aviso-fila[data-nueva] { background-color: #efecf8; border-color: #ddd6f0; }
 html.modo-claro .aviso-icono { background-color: #e6e3f1; color: #491a89; }
 html.modo-claro .notificaciones-centro { background-color: rgb(23 23 43 / 0.35); }
+
+/* Próximos turnos: miniatura del servicio y foto del profesional en modo claro. */
+html.modo-claro .turno-fila .turno-miniatura { background: #ede9fe; box-shadow: 0 0 0 1px rgba(73, 26, 137, 0.1); }
+html.modo-claro .turno-fila .turno-miniatura svg { color: #491a89; }
+html.modo-claro .turno-fila .turno-foto { box-shadow: 0 0 0 1px rgba(23, 23, 43, 0.1); --tw-ring-color: transparent; }
