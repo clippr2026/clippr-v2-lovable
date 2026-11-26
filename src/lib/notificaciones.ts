@@ -4,10 +4,10 @@ import { getTodayFichajeSummary } from "@/lib/fichaje";
 import type { PermKey } from "@/hooks/use-auth";
 
 // Centro de notificaciones. Todo sale de los datos reales del negocio (no hay una tabla de notificaciones):
-// · Importantes: SOLO lo que pide atención o una acción (turno por confirmar, seña por aprobar, caja sin cerrar,
+// · Importantes: SOLO lo que pide atención o una acción (seña por aprobar, caja sin cerrar,
 //   solicitud de un profesional, liquidación sin pagar, profesional que no fichó a horario, stock bajo).
 //   La campanita cuenta únicamente estos, sin leer.
-// · Actividad: lo informativo (reservas online confirmadas, cancelaciones, señas aprobadas, cobros, fichajes,
+// · Actividad: lo informativo (turnos reservados, reservas online confirmadas, cancelaciones, señas aprobadas, cobros, fichajes,
 //   gastos, cierres, liquidaciones, reseñas).
 // Cada aviso respeta la sucursal activa (cuando el dato la tiene) y los permisos del usuario.
 // Leído / no leído se guarda en el dispositivo, por negocio.
@@ -70,36 +70,6 @@ function porSucursal<Q extends { or: (f: string) => Q }>(q: Q, branchId: string 
 export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
   const { businessId, branchId, puede, esDueno } = ctx;
   const tareas: Array<Promise<Aviso[]>> = [];
-
-  if (puede("agenda")) {
-    tareas.push(
-      seguro(async () => {
-        const { data, error } = await porSucursal(
-          supabase
-            .from("appointments")
-            .select("id,client_name,service_name,starts_at,created_at,status,deposit_status,branch_id")
-            .eq("business_id", businessId)
-            .eq("status", "pending")
-            .gte("starts_at", new Date(Date.now() - 3_600_000).toISOString())
-            .order("starts_at", { ascending: true })
-            .limit(LIMITE) as any,
-          branchId,
-        );
-        if (error) throw error;
-        return ((data ?? []) as any[])
-          .filter((a) => a.deposit_status !== "pending")
-          .map((a) => ({
-            id: `confirmar-${a.id}`,
-            tipo: "reserva" as const,
-            titulo: "Turno por confirmar",
-            detalle: `${a.client_name || "Un cliente"}${a.service_name ? ` · ${a.service_name}` : ""} · ${new Date(a.starts_at).toLocaleString("es-AR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
-            fecha: a.created_at,
-            to: "/agenda",
-            search: { date: diaClave(a.starts_at), turno: a.id },
-          }));
-      }),
-    );
-  }
 
   if (puede("senas") || puede("caja")) {
     tareas.push(
@@ -269,7 +239,7 @@ export async function cargarActividad(ctx: Contexto): Promise<Aviso[]> {
         const { data, error } = await porSucursal(
           supabase
             .from("appointments")
-            .select("id,client_name,service_name,starts_at,created_at,created_by_role,status,branch_id")
+            .select("id,client_name,service_name,starts_at,created_at,created_by_role,status,deposit_status,branch_id")
             .eq("business_id", businessId)
             .gte("created_at", inicio)
             .order("created_at", { ascending: false })
@@ -277,14 +247,19 @@ export async function cargarActividad(ctx: Contexto): Promise<Aviso[]> {
           branchId,
         );
         if (error) throw error;
-        // Solo reservas online ya confirmadas: las que esperan confirmación están en Importantes.
+        // Turnos «Reservado» (estado pending, sin seña pendiente: esos van por el aviso de seña) y
+        // reservas online ya confirmadas.
         return ((data ?? []) as any[])
-          .filter((a) => esOnline(a.created_by_role) && a.status !== "pending" && a.status !== "cancelled")
+          .filter((a) =>
+            a.status === "pending"
+              ? a.deposit_status !== "pending"
+              : esOnline(a.created_by_role) && a.status !== "cancelled",
+          )
           .map((a) => {
           return {
             id: `act-reserva-${a.id}`,
             tipo: "reserva" as const,
-            titulo: "Nueva reserva online",
+            titulo: a.status === "pending" ? "Reservado" : "Nueva reserva online",
             detalle: `${a.client_name || "Cliente"}${a.service_name ? ` · ${a.service_name}` : ""} · ${new Date(a.starts_at).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
             fecha: a.created_at,
             to: "/agenda",

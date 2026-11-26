@@ -1030,7 +1030,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
 
 // Colores de los turnos de Mi Panel: los mismos que la Agenda general.
 const AGENDA_META = {
-  pending: { label: "Por confirmar", bg: "oklch(0.38 0.2 220 / 0.4)", border: "oklch(0.72 0.2 210)", dot: "oklch(0.82 0.18 210)" },
+  pending: { label: "Reservado", bg: "oklch(0.38 0.2 220 / 0.4)", border: "oklch(0.72 0.2 210)", dot: "oklch(0.82 0.18 210)" },
   confirmed: { label: "Confirmado", bg: "rgba(124, 58, 237, 0.24)", border: "#A78BFA", dot: "#C4B5FD" },
   charged: { label: "Cobrado", bg: "oklch(0.38 0.2 150 / 0.55)", border: "oklch(0.76 0.2 150)", dot: "oklch(0.76 0.2 150)" },
   cancelled: { label: "Cancelado", bg: "oklch(0.3 0.02 270 / 0.38)", border: "oklch(0.62 0.03 270)", dot: "oklch(0.76 0.02 270)" },
@@ -1359,7 +1359,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   // Status cards config
   const statusCards = [
-    { label: "Por confirmar", meta: AGENDA_META.pending, count: counts.pendientes, onClick: counts.pendientes > 0 ? () => setPendientesOpen(true) : undefined },
+    { label: "Reservados", meta: AGENDA_META.pending, count: counts.pendientes, onClick: counts.pendientes > 0 ? () => setPendientesOpen(true) : undefined },
     { label: "Seña pendiente", meta: AGENDA_META.deposit, count: counts.sena, onClick: counts.sena > 0 ? () => setSenaOpen(true) : undefined },
     { label: "Confirmados", meta: AGENDA_META.confirmed, count: counts.confirmados, onClick: counts.confirmados > 0 ? () => setConfirmadosOpen(true) : undefined },
     { label: "Cobrados", meta: AGENDA_META.charged, count: counts.finalizados, onClick: counts.finalizados > 0 ? () => setCobradosOpen(true) : undefined },

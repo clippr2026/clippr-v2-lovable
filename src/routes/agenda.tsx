@@ -112,7 +112,7 @@ function parseDateKey(value: string | undefined): Date | null {
 const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: string; dot: string }> =
   {
     pending: {
-      label: "Por confirmar",
+      label: "Reservado",
       bg: "oklch(0.38 0.2 220 / 0.4)",
       border: "oklch(0.72 0.2 210)",
       dot: "oklch(0.82 0.18 210)",
@@ -1489,7 +1489,7 @@ function AgendaPage() {
   // Compartido entre la barra de estados de desktop (fila con scroll) y la
   // grilla fija de mobile (3 arriba + 2 abajo, sin scroll).
   const STATUS_FILTERS: [string, string, string, string, string][] = [
-    ["pending", "Por confirmar", STATUS_META.pending.dot, STATUS_META.pending.border, STATUS_META.pending.bg],
+    ["pending", "Reservados", STATUS_META.pending.dot, STATUS_META.pending.border, STATUS_META.pending.bg],
     ["deposit", "Seña pendiente", DEPOSIT_PENDING_META.dot, DEPOSIT_PENDING_META.border, DEPOSIT_PENDING_META.bg],
     ["confirmed", "Confirmados", STATUS_META.confirmed.dot, STATUS_META.confirmed.border, STATUS_META.confirmed.bg],
     ["charged", "Cobrados", STATUS_META.charged.dot, STATUS_META.charged.border, STATUS_META.charged.bg],
@@ -1922,7 +1922,7 @@ function AgendaPage() {
               no_show: "no_show",
             };
             const labels: Record<string, string> = {
-              pending: "Por confirmar",
+              pending: "Reservados",
               deposit: "Seña pendiente",
               confirmed: "Confirmados",
               charged: "Cobrados",
@@ -4388,7 +4388,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
             ? "No asistió"
           : appointment.status === "in_service"
             ? "En servicio"
-            : "Por confirmar";
+            : "Reservado";
   // WhatsApp necesita el código de país: sin él, un número como 1166429042 se leía como +1 (EE.UU.).
   const whatsappHref = armarWhatsappHref(phone) ?? undefined;
   const noteText = clientNoteOnly(appointment.notes);

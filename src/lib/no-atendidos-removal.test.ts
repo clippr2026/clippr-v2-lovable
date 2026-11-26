@@ -17,7 +17,7 @@ describe("Agenda — estados visibles tras eliminar 'No atendidos'", () => {
     expect(match).not.toBeNull();
     const keys = [...match![1].matchAll(/\["(\w+)",\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
     expect(keys).toEqual([
-      ["pending", "Por confirmar"],
+      ["pending", "Reservados"],
       ["deposit", "Seña pendiente"],
       ["confirmed", "Confirmados"],
       ["charged", "Cobrados"],

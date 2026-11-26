@@ -46,7 +46,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("turno-cancelar", "Cancelar un turno", ["como cancelo un turno", "el cliente no puede venir", "borrar un turno", "dar de baja una reserva", "anular un turno"],
     "En la Agenda tocá el turno y elegí «Cancelar turno». Si tenía una seña paga, la app te pregunta si el cliente la pierde o si la reembolsás.", agenda),
   t("turno-confirmar", "Confirmar un turno", ["como confirmo un turno", "turnos por confirmar", "turno pendiente de confirmacion"],
-    "Los turnos «Por confirmar» se confirman tocándolos en la Agenda y eligiendo «Confirmar turno».", agenda),
+    "Los turnos «Reservado» se confirman tocándolos en la Agenda y eligiendo «Confirmar turno».", agenda),
   t("turno-no-asistio", "El cliente no vino", ["el cliente falto", "marcar no asistio", "no se presento al turno", "me dejaron plantado"],
     "Abrí el turno en la Agenda y marcalo como «No asistió». Queda en el historial y, si usás señas para quienes faltan, la próxima vez se le pide.", agenda),
   t("turno-cobrar", "Cobrar un turno", ["como cobro un turno de la agenda", "cobrar desde la agenda", "el cliente termino y quiere pagar"],

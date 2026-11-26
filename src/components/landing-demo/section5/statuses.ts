@@ -7,7 +7,7 @@
 export const STATUSES = [
   {
     id: "pending",
-    label: "Por confirmar",
+    label: "Reservados",
     color: "oklch(0.72 0.2 245)",
     bg: "oklch(0.72 0.2 245 / 0.12)",
     ring: "oklch(0.72 0.2 245 / 0.3)",

@@ -218,7 +218,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
     : a.status === "confirmed"
       ? { text: "Confirmado", bg: "#ede9fe", fg: "#6d28d9" }
       : active
-        ? { text: "Por confirmar", bg: "#eff6ff", fg: "#1d4ed8" }
+        ? { text: "Reservado", bg: "#eff6ff", fg: "#1d4ed8" }
         : { text: past ? "Finalizado" : a.status, bg: c.innerBg, fg: c.muted };
 
   const policy = active && !past && (!data.can_cancel || !data.can_reschedule);

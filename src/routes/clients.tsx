@@ -402,7 +402,7 @@ function formatApptDateTime(date: string): string {
 // "Confirmado" igual que ahí (es el mismo status, la Agenda nunca lo llama
 // "Completado" en la UI).
 const APPT_STATUS_LABEL: Record<string, string> = {
-  pending: "Por confirmar",
+  pending: "Reservado",
   confirmed: "Confirmado",
   completed: "Confirmado",
   charged: "Cobrado",
