@@ -17815,11 +17815,11 @@ export function NuevaVentaTab({
               {/* Promociones vigentes que aplican a este cobro, en un desplegable arriba del total. Elegir una
                   aplica su descuento (se ve debajo, como siempre); «Sin promoción» la quita. */}
               {!isSinCargo && validPromotions.length > 0 && (
-                <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                <div className="mb-1.5 flex items-center gap-2 px-1">
                   <span className="shrink-0 text-sm text-white/70">Promoción</span>
                   <SelectClippr
                     compact
-                    className="min-w-0 max-w-[65%]"
+                    className="min-w-0 flex-1"
                     valor={promotionId}
                     onChange={(v) => {
                       setPromotionId(v);
@@ -17837,10 +17837,13 @@ export function NuevaVentaTab({
                           const sub = (priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
                           return acc + (sub - applyPromotionDiscount(sub, p));
                         }, 0);
-                        return { id: p.id, label: ahorro > 0 ? `${p.name} (−$${Math.round(ahorro).toLocaleString("es-AR")})` : p.name };
+                        return { id: p.id, label: ahorro > 0 ? `${p.name} · −$${Math.round(ahorro).toLocaleString("es-AR")}` : p.name, nombre: p.name };
                       }),
-                    ]}
+                    ].map((o) => (o.id === promotionId && "nombre" in o ? { id: o.id, label: o.nombre } : { id: o.id, label: o.label }))}
                   />
+                  {selectedPromotion && discountAmount > 0 && (
+                    <span className="shrink-0 text-sm font-semibold tabular-nums text-violet-200">−${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                  )}
                 </div>
               )}
               {depositApplied > 0 && (
@@ -17877,12 +17880,6 @@ export function NuevaVentaTab({
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
-            {selectedPromotion && discountAmount > 0 && (
-              <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-1.5 text-sm">
-                <span className="min-w-0 truncate text-white/70">{selectedPromotion.name}</span>
-                <span className="shrink-0 font-semibold tabular-nums text-violet-200">−${Math.round(discountAmount).toLocaleString("es-AR")}</span>
-              </div>
-            )}
           </Card>
           </div>
 
