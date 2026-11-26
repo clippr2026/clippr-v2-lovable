@@ -162,7 +162,7 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
 
   const font = getPublicFont(data.fontKey);
   // En Inicio el logo es chico y está contra el borde: el globo arranca en el logo y crece hacia la derecha.
-  const posicionGlobo = { className: "!left-0 !translate-x-0", tailClassName: "left-9 sm:left-11" };
+  const posicionGlobo = { className: "!left-0 !translate-x-0 lg:min-w-[210px] lg:max-w-[250px] lg:px-4 lg:py-2.5 lg:text-sm", tailClassName: "left-9 sm:left-11 lg:left-14" };
   const bubble = text ? (
     <AnnouncementBubble {...posicionGlobo}>
       {canEdit ? (
@@ -176,10 +176,10 @@ export function NegocioHero({ businessId, children }: { businessId: string | nul
   ) : canEdit ? (
     <AnnouncementBubble {...posicionGlobo}>
       <button type="button" onClick={openEditor} className="flex cursor-pointer items-center justify-center gap-1.5 text-center" title="Escribir anuncio">
-        <Megaphone className="h-3.5 w-3.5 shrink-0 text-violet-600" />
+        <Megaphone className="h-3.5 w-3.5 shrink-0 text-violet-600 lg:h-5 lg:w-5" />
         <span>
           Escribí un anuncio
-          <span className="block text-[10px] font-medium text-zinc-500">se muestra 24 hs</span>
+          <span className="block text-[10px] font-medium text-zinc-500 lg:text-xs">se muestra 24 hs</span>
         </span>
       </button>
     </AnnouncementBubble>

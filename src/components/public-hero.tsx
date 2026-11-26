@@ -167,12 +167,12 @@ export function PublicHero(p: PublicHeroProps) {
               <CoverSweep effect={p.entryEffect} play={p.playFx} />
             </div>
           </div>
-          <div className={"relative z-10 flex flex-col px-4 sm:px-8 " + (p.small ? "-mt-7 sm:-mt-9" : "-mt-12 sm:-mt-14")}>
+          <div className={"relative z-10 flex flex-col px-4 sm:px-8 " + (p.small ? "-mt-7 sm:-mt-9 lg:-mt-12" : "-mt-12 sm:-mt-14")}>
             <div className="relative w-max">
               {p.bubble}
               <div key={`avatar-${p.effectRun}`} className="fx-anim" style={avatarFxStyle(p.entryEffect, p.playFx)}>
                 <NeonFrame plain={!logoNeon} colors={neonPalette(p.primary)} mode={p.entryEffect === "neon" && p.playFx ? "intro" : "static"}>
-                  <div data-pos-kind="avatar" className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + (p.small ? "h-16 w-16 sm:h-20 sm:w-20" : "h-28 w-28 sm:h-32 sm:w-32")}>
+                  <div data-pos-kind="avatar" className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + (p.small ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-28 lg:w-28" : "h-28 w-28 sm:h-32 sm:w-32")}>
                     {p.avatarUrl ? (
                       <img
                         loading="lazy"
