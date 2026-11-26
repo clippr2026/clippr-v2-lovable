@@ -385,25 +385,6 @@ function AgendaPage() {
 
   const data = useAgendaData(range.start, range.end);
 
-  React.useEffect(() => {
-    if (!data.businessId) return setSeFueronDia([]);
-    let vigente = true;
-    const desde = startOfDay(cursor);
-    const hasta = new Date(desde.getTime() + DAY_MS);
-    let q = (supabase.from("clientes_no_atendidos" as any) as any)
-      .select("id,occurred_at,requested_employee_id,preferencia,servicio")
-      .eq("business_id", data.businessId)
-      .gte("occurred_at", desde.toISOString())
-      .lt("occurred_at", hasta.toISOString());
-    if (data.activeBranchId) q = q.eq("branch_id", data.activeBranchId);
-    void q.then(({ data: filas, error }: any) => {
-      if (vigente && !error) setSeFueronDia((filas ?? []) as SeFueRegistro[]);
-    });
-    return () => {
-      vigente = false;
-    };
-  }, [data.businessId, data.activeBranchId, cursor, seFueronTick]);
-
   // Días cerrados (Fase 5) — de la sucursal activa. `closedToday` es el
   // cierre (si existe) que cubre el día que se está viendo ahora mismo
   // (`cursor`); maneja tanto el bloqueo visual de la grilla como el de
@@ -428,6 +409,25 @@ function AgendaPage() {
   const [seFueronTick, setSeFueronTick] = React.useState(0);
   // «Se fue un cliente» desde el menú de un horario: hora tocada.
   const [seFueHorario, setSeFueHorario] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    if (!data.businessId) return setSeFueronDia([]);
+    let vigente = true;
+    const desde = startOfDay(cursor);
+    const hasta = new Date(desde.getTime() + DAY_MS);
+    let q = (supabase.from("clientes_no_atendidos" as any) as any)
+      .select("id,occurred_at,requested_employee_id,preferencia,servicio")
+      .eq("business_id", data.businessId)
+      .gte("occurred_at", desde.toISOString())
+      .lt("occurred_at", hasta.toISOString());
+    if (data.activeBranchId) q = q.eq("branch_id", data.activeBranchId);
+    void q.then(({ data: filas, error }: any) => {
+      if (vigente && !error) setSeFueronDia((filas ?? []) as SeFueRegistro[]);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [data.businessId, data.activeBranchId, cursor, seFueronTick]);
   // Vista del celular: calendario (grilla) o lista de turnos. Se recuerda por usuario en este dispositivo.
   const claveVista = session?.user?.id ? `clippr_agenda_vista_${session.user.id}` : null;
   const [vistaAgenda, setVistaAgenda] = React.useState<"calendario" | "lista">("calendario");
