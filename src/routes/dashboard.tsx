@@ -299,15 +299,15 @@ function CajaHoyCard({
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
           <p className="min-w-0 flex-1 text-sm font-semibold text-white">
             {caja.pendingCierres.length === 1
-              ? `Tenés una caja pendiente de revisión del ${fechaCortaLabel(caja.pendingCierres[0].date)}`
-              : `Tenés ${caja.pendingCierres.length} cajas pendientes de revisión`}
+              ? `Caja del ${fechaCortaLabel(caja.pendingCierres[0].date)} pendiente de revisión`
+              : `${caja.pendingCierres.length} cajas pendientes de revisión`}
           </p>
           <Link
             to="/cash-register"
             search={{ ...emptyCashRegisterSearch, tab: "cierres" }}
             className="aviso-boton inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
           >
-            Cerrar
+            {caja.pendingCierres.length === 1 ? "Revisar caja" : "Revisar cajas"}
           </Link>
         </div>
       ) : null}

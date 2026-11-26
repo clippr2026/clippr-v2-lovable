@@ -1498,14 +1498,16 @@ html.modo-claro .inicio-portada .public-hero[data-theme="dark"] {
     radial-gradient(circle at 82% 2%, rgb(79 125 255 / 0.30), transparent 44%),
     oklch(0.135 0.028 282) !important;
 }
-html.modo-claro .inicio-portada .hero-extension { isolation: isolate; }
+/* flow-root: el margen de abajo del carrusel queda adentro (antes se escapaba y dejaba una franja oscura). */
+html.modo-claro .inicio-portada .hero-extension { isolation: isolate; display: flow-root; }
+/* El fondo oscuro llega hasta la mitad de las tarjetas del carrusel y ahí se funde con el blanco perla. */
 html.modo-claro .inicio-portada .hero-extension::before {
   content: "";
   position: absolute;
-  inset: -36px 0 0;
+  inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgb(246 247 251 / 0) 0, #f6f7fb 36px);
+  background: linear-gradient(to bottom, rgb(246 247 251 / 0) 0, rgb(246 247 251 / 0) 30%, #f6f7fb 58%);
 }
 html.modo-claro .inicio-portada .hero-extension {
   --color-white: #17172b;
@@ -1553,19 +1555,13 @@ html.modo-claro .turno-hora-oscuro { display: none; }
 html.modo-claro .turno-hora-claro { display: inline; color: #491a89; font-variant-numeric: tabular-nums; }
 html.modo-claro .turno-fila .font-medium { color: #5a5870; font-weight: 500; }
 
-/* Clippi con lugar propio en el celular: se acomoda a la derecha del menú inferior, que se corre para
-   dejarle el espacio. Así nunca tapa nombres, horarios ni botones. Si el usuario lo movió, queda donde lo dejó. */
+/* Clippi en el celular: en la cabecera, junto al selector de tema, en lugar de la burbuja flotante.
+   Así queda a mano durante el scroll y no tapa ninguna tarjeta. */
+.clippi-cabecera { display: none; }
 @media (max-width: 1023px) {
-  html.modo-claro .clippi-burbuja:not([style]) {
-    width: 3rem;
-    height: 3rem;
-    right: 0.75rem;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 13px);
-    z-index: 41;
-  }
-  html.modo-claro body:has(> .clippi-burbuja:not([style])) .app-barra {
-    right: 4.25rem !important;
-  }
+  html.modo-claro .clippi-cabecera { display: block; margin-left: 4px; }
+  html.modo-claro .app-encabezado:has(.clippi-cabecera) .tema-toggle { transform: translateX(calc(-100% - 2px)); }
+  html.modo-claro .clippi-burbuja { display: none; }
 }
 
 /* Cabecera: sol con buen contraste y "WWW" en blanco sobre el verde. */
