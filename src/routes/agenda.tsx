@@ -1637,7 +1637,7 @@ function AgendaPage() {
               type="button"
               onClick={(e) => openCalendar(e.currentTarget)}
               aria-label="Elegir fecha"
-              className="titulo-mes block max-w-full whitespace-nowrap text-left text-[21px] font-extrabold leading-tight tracking-tight"
+              className="titulo-mes block max-w-full whitespace-nowrap text-left text-[min(21px,4.7vw)] font-extrabold leading-tight tracking-tight"
             >
               {cap(cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" }))}
             </button>
@@ -2237,6 +2237,7 @@ function AgendaPage() {
           </div>
         ) : esCelular && vistaAgenda === "lista" ? (
           <AgendaLista
+            conSemana={false}
             fecha={cursor}
             onFecha={(d) => setCursor(startOfDay(d))}
             turnos={[

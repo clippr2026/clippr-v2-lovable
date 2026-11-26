@@ -28,7 +28,9 @@ export function AgendaLista({
   empleados,
   metaDe,
   onTurno,
+  conSemana = true,
 }: {
+  conSemana?: boolean;
   fecha: Date;
   onFecha: (d: Date) => void;
   /** Turnos ya filtrados por profesional y estado (sin bloqueos). */
@@ -56,6 +58,7 @@ export function AgendaLista({
 
   return (
     <div className="agenda-lista space-y-3">
+      {conSemana && (
       <div
         className="agenda-semana rounded-2xl border border-white/10 bg-[#111019] px-2 pb-2 pt-2.5"
         onTouchStart={(e) => (toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
@@ -102,6 +105,7 @@ export function AgendaLista({
           })}
         </div>
       </div>
+      )}
 
       {delDia.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-[#111019] px-4 py-10 text-center text-sm text-white/55">
