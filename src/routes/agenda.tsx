@@ -1628,16 +1628,16 @@ function AgendaPage() {
           // se ordena por posición en el DOM contra la grilla de la agenda
           // (que viene después en el markup), terminando pintada por detrás.
           // Mismo bug y misma solución que el selector de fecha del Dashboard.
-          className="relative z-[100] glass rounded-xl mb-1.5 px-2.5 py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
+          className="relative z-[100] glass rounded-2xl mb-2 px-3 py-2 sm:rounded-xl sm:px-2.5 sm:py-1 animate-fade-up flex items-center gap-2.5 flex-nowrap sm:overflow-x-auto"
           style={{ scrollbarWidth: "none" }}
         >
           {/* Hoy */}
           <button
             onClick={() => setCursor(startOfDay(new Date()))}
             disabled={isCursorToday}
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition shrink-0 disabled:opacity-40 disabled:hover:text-primary sm:gap-1 sm:text-xs sm:font-medium"
           >
-            <CalendarIcon className="h-3.5 w-3.5" />
+            <CalendarIcon className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
             Hoy
           </button>
 
@@ -1659,24 +1659,24 @@ function AgendaPage() {
             <button
               onClick={() => move(-1)}
               aria-label="Día anterior"
-              className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+              className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition sm:h-6 sm:w-6 sm:rounded-md"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5 sm:h-4 sm:w-4" />
             </button>
             <button
               ref={dateBtnRef}
               onClick={openCalendar}
               aria-label="Elegir fecha"
-              className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] sm:text-sm font-semibold sm:min-w-[205px] sm:flex-none sm:overflow-visible text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
+              className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-base sm:text-sm font-semibold sm:min-w-[205px] sm:flex-none sm:overflow-visible text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
             >
               {fullDate}
             </button>
             <button
               onClick={() => move(1)}
               aria-label="Día siguiente"
-              className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+              className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition sm:h-6 sm:w-6 sm:rounded-md"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5 sm:h-4 sm:w-4" />
             </button>
           </div>
 
@@ -1733,7 +1733,7 @@ function AgendaPage() {
               Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
           <Button
             ref={newBtnRefMobile}
-            className="sm:hidden h-9 w-9 rounded-xl p-0 ml-auto shrink-0"
+            className="sm:hidden h-11 w-11 rounded-full p-0 ml-auto shrink-0"
             aria-label="Nuevo"
             onClick={() => toggleNewMenu(newBtnRefMobile, true)}
           >
