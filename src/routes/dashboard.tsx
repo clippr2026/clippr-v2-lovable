@@ -458,7 +458,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
                       <ServiceImage
                         src={t.service_image}
                         alt={t.service_name ?? "Servicio"}
-                        className="turno-miniatura h-6 w-6 rounded-md bg-violet-500/15 ring-1 ring-white/10"
+                        className="turno-miniatura h-6 w-6 rounded-[6px] bg-violet-500/15 ring-1 ring-white/10"
                         fallback={<Scissors className="h-3.5 w-3.5 text-violet-300" />}
                       />
                       <span className="min-w-0 truncate text-sm text-white/75">{t.service_name ?? "—"}</span>

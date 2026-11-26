@@ -1569,3 +1569,7 @@ html.modo-claro .notificaciones-centro { background-color: rgb(23 23 43 / 0.35);
 html.modo-claro .turno-fila .turno-miniatura { background: #ede9fe; box-shadow: 0 0 0 1px rgba(73, 26, 137, 0.1); }
 html.modo-claro .turno-fila .turno-miniatura svg { color: #491a89; }
 html.modo-claro .turno-fila .turno-foto { box-shadow: 0 0 0 1px rgba(23, 23, 43, 0.1); --tw-ring-color: transparent; }
+/* Forma fija en los dos modos: servicio cuadrado con esquinas redondeadas, profesional circular, mismo tamaño. */
+.turno-fila .turno-miniatura { width: 1.5rem; height: 1.5rem; border-radius: 6px !important; }
+.turno-fila .turno-miniatura img { border-radius: 0 !important; }
+.turno-fila .turno-foto { width: 1.5rem; height: 1.5rem; border-radius: 9999px !important; }
