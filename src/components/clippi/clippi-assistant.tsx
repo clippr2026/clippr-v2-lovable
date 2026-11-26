@@ -293,9 +293,9 @@ function Chat({ cuenta, puede, onClose }: { cuenta: string; puede: (p: PermKey) 
     // Si falla, se reintenta al preguntar.
     cargarMotor().then((m) => setTemas(m.CLIPPI_TEMAS)).catch(() => {});
   }, []);
-  // Si la última respuesta ofrece opciones, los atajos generales no se muestran.
+  // Los atajos generales solo se muestran con el chat vacío: con una conversación en curso no.
   const atajos =
-    consultando || conAsesor || mensajes.at(-1)?.sugerencias || mensajes.at(-1)?.derivar ? [] : temas.filter((t) => !t.permiso || puede(t.permiso)).slice(0, ATAJOS);
+    consultando || conAsesor || mensajes.length > 0 ? [] : temas.filter((t) => !t.permiso || puede(t.permiso)).slice(0, ATAJOS);
 
   React.useEffect(() => {
     if (mensajes.length) finRef.current?.scrollIntoView({ block: "end" });
