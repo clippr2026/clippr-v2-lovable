@@ -1,4 +1,6 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { fechasDelPatron, repartir, turnosReprogramables } from "@/lib/reprogramar-serie";
+import { cargarValoresDeServicios } from "@/components/agenda/use-agenda-data";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { EtiquetaBarbero, barberoPrincipal, useClientBarberos } from "@/components/clientes/barbero-cliente";
@@ -55,7 +57,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
-import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
+import { WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
 import { DeudaClienteTarjeta } from "@/components/clients/deuda-clientes-banner";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { emailValido, whatsappHref } from "@/lib/contacto-valido";
@@ -582,8 +584,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   // el patrón nuevo, validando que no choquen con otro turno.
   const [seriesEditForm, setSeriesEditForm] = useState({
     serviceName: "",
-    price: "0",
-    duration: "30",
     employeeId: "",
     weekdays: [] as number[],
     everyWeeks: "1",
@@ -598,8 +598,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     if (!editingSeries) return;
     setSeriesEditForm({
       serviceName: editingSeries.service_name,
-      price: String(editingSeries.service_price ?? 0),
-      duration: String(editingSeries.duration_min ?? 30),
       employeeId: editingSeries.employee_id ?? "",
       weekdays: editingSeries.weekdays ?? [],
       everyWeeks: String(editingSeries.every_weeks ?? 1),
@@ -617,10 +615,12 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       toast.error("Elegí al menos un día de la semana.");
       return;
     }
+    const nombreServicio = seriesEditForm.serviceName.trim() || editingSeries.service_name;
+    const actuales = (await cargarValoresDeServicios(businessId).catch(() => null))?.(nombreServicio, seriesEditForm.employeeId || null);
     const contentPatch = {
-      service_name: seriesEditForm.serviceName.trim() || editingSeries.service_name,
-      service_price: Number(seriesEditForm.price) || 0,
-      duration_min: Number(seriesEditForm.duration) || 30,
+      service_name: nombreServicio,
+      service_price: actuales?.price ?? (Number(editingSeries.service_price) || 0),
+      duration_min: actuales?.duration_min ?? (Number(editingSeries.duration_min) || 30),
       employee_id: seriesEditForm.employeeId || null,
     };
     const oldWeekdays = [...(editingSeries.weekdays ?? [])].sort();
@@ -634,36 +634,41 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
     setSavingSeriesEdit(true);
     try {
+      // Todos los turnos de la serie: los futuros reservados o confirmados son los que se reprograman.
+      const { data: filas, error: filasError } = await supabase
+        .from("appointments")
+        .select("id,starts_at,status,branch_id")
+        .eq("recurring_series_id", editingSeries.id);
+      if (filasError) throw new Error(filasError.message);
+      const deLaSerie = (filas ?? []) as { id: string; starts_at: string; status: string; branch_id: string | null }[];
+      const ahora = new Date();
+      const agendados = turnosReprogramables(deLaSerie, ahora);
+      const cambios = (fecha: Date) => ({
+        ...contentPatch,
+        starts_at: fecha.toISOString(),
+        ends_at: new Date(fecha.getTime() + contentPatch.duration_min * 60_000).toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
       if (!patternChanged) {
-        // Camino liviano: solo contenido, no toca fechas ni recalcula nada.
+        // Mismas fechas: solo cambian los datos del turno.
+        let fallaron = 0;
+        for (const turno of agendados) {
+          const { error } = await supabase.from("appointments").update(cambios(new Date(turno.starts_at))).eq("id", turno.id);
+          if (error) fallaron++;
+        }
         const { error: seriesError } = await supabase
           .from("recurring_series" as any)
           .update({ ...contentPatch, updated_at: new Date().toISOString() })
           .eq("id", editingSeries.id);
         if (seriesError) throw new Error(seriesError.message);
 
-        const { error: apptError } = await supabase
-          .from("appointments")
-          .update(contentPatch)
-          .eq("recurring_series_id", editingSeries.id)
-          .gt("starts_at", new Date().toISOString())
-          .not("status", "in", "(charged,cancelled,completed)");
-        if (apptError) throw new Error(apptError.message);
-
         setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...contentPatch } : s)));
-        toast.success("Recurrencia actualizada");
+        if (fallaron > 0) toast.error(`${fallaron} turno(s) no se pudieron actualizar porque se superponen con otro.`, { duration: 10000 });
+        else toast.success("Recurrencia actualizada");
         setEditingSeries(null);
         return;
       }
-
-      // Patrón cambiado: recalcula SOLO las ocurrencias futuras. Arranca
-      // desde ahora (o mañana, si la hora nueva ya pasó hoy) — nunca desde
-      // la fecha original de la serie, que puede estar en el pasado.
-      const now = new Date();
-      const [h, m] = seriesEditForm.startTime.split(":").map((x) => Number(x) || 0);
-      const anchor = new Date(now);
-      anchor.setHours(h, m, 0, 0);
-      if (anchor.getTime() <= now.getTime()) anchor.setDate(anchor.getDate() + 1);
 
       const everyWeeks = Math.max(1, Number(seriesEditForm.everyWeeks) || 1);
       // Solo se agenda dentro del límite de anticipación (Configuración → Horarios); el resto se
@@ -672,59 +677,106 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       const windowEnd = new Date();
       windowEnd.setDate(windowEnd.getDate() + advanceDays);
       windowEnd.setHours(23, 59, 59, 0);
-      const candidateDates = computeRepeatDates(anchor, {
-        weekdays: newWeekdays as RepeatWeekday[],
-        everyWeeks,
-        endMode: seriesEditForm.endMode,
-        count: Number(seriesEditForm.count) || 1,
-        until: seriesEditForm.until,
-      }, windowEnd);
+      const fechas = fechasDelPatron({
+        repeat: {
+          weekdays: newWeekdays as RepeatWeekday[],
+          everyWeeks,
+          endMode: seriesEditForm.endMode,
+          count: Number(seriesEditForm.count) || 1,
+          until: seriesEditForm.until,
+        },
+        hora: seriesEditForm.startTime,
+        ahora,
+        proximoActual: agendados[0] ? new Date(agendados[0].starts_at) : null,
+        limite: windowEnd,
+        yaUsados: deLaSerie.length - agendados.length,
+      });
 
-      // Valida que no choque con otro turno del mismo profesional — no
-      // repite acá la validación de horario laboral/descansos de Agenda
-      // (evitaría duplicar esa lógica fuera de la Agenda); si programás una
-      // recurrencia fuera del horario configurado, Agenda lo va a avisar
-      // recién si después tocás ese turno puntual ahí.
-      const okDates: Date[] = [];
+      // Choques con otros turnos del profesional (los de esta serie que se mueven no cuentan).
+      const seMueven = new Set(agendados.map((t) => t.id));
+      // Días en que el negocio está cerrado (Cierres): no se agenda nada ahí.
+      const sucursal = deLaSerie[0]?.branch_id ?? null;
+      const { data: cierres, error: cierresError } = await supabase
+        .from("closures" as any)
+        .select("branch_id,start_date,end_date")
+        .eq("business_id", businessId)
+        .gte("end_date", ahora.toLocaleDateString("sv-SE"));
+      if (cierresError) throw new Error(cierresError.message);
+      const cerrado = (fecha: Date) => {
+        const dia = fecha.toLocaleDateString("sv-SE");
+        return ((cierres ?? []) as unknown as { branch_id: string | null; start_date: string; end_date: string }[]).some(
+          (c) => (c.branch_id ?? null) === sucursal && c.start_date <= dia && c.end_date >= dia,
+        );
+      };
+      const libres: Date[] = [];
       let skipped = 0;
-      for (const date of candidateDates) {
+      for (const date of fechas) {
+        if (cerrado(date)) {
+          skipped++;
+          continue;
+        }
         if (contentPatch.employee_id) {
-          const conflict = await checkOverlap(contentPatch.employee_id, date.toISOString(), contentPatch.duration_min, null);
+          const conflict = await checkOverlap(contentPatch.employee_id, date.toISOString(), contentPatch.duration_min, null, seMueven);
           if (conflict) {
             skipped++;
             continue;
           }
         }
-        okDates.push(date);
+        libres.push(date);
       }
-
-      const confirmMsg =
-        `Esto va a reemplazar las reservas futuras de esta serie por el nuevo patrón — ` +
-        `se van a crear ${okDates.length} turno${okDates.length === 1 ? "" : "s"} nuevo${okDates.length === 1 ? "" : "s"}` +
-        `${skipped > 0 ? ` (${skipped} fecha${skipped === 1 ? "" : "s"} no se pudo${skipped === 1 ? "" : "ieron"} generar por choque de horario)` : ""}. ` +
-        `Las reservas pasadas, cobradas o completadas no se tocan. ¿Confirmás?`;
-      if (!(await confirmarClippr({ titulo: "¿Reemplazar las reservas futuras?", texto: confirmMsg.replace(/\s*¿Confirmás\?$/, ""), confirmar: "Confirmar" }))) {
-        setSavingSeriesEdit(false);
+      if (libres.length === 0) {
+        toast.error(
+          skipped > 0
+            ? "Ese horario está ocupado o cerrado en todas las fechas. No se cambió nada."
+            : "Con ese patrón no quedan fechas para agendar. No se cambió nada.",
+        );
         return;
       }
 
-      // Borra (no cancela) las ocurrencias futuras viejas: son placeholders
-      // generados por la serie, no cancelaciones reales que deban quedar en
-      // el historial — mismo criterio que clearOverlappingBlocks con los
-      // bloqueos horarios. Pasadas/cobradas/completadas nunca se tocan.
-      const nowIso = now.toISOString();
-      const { error: deleteError } = await supabase
-        .from("appointments")
-        .delete()
-        .eq("recurring_series_id", editingSeries.id)
-        .gt("starts_at", nowIso)
-        .not("status", "in", "(charged,cancelled,completed)");
-      if (deleteError) throw new Error(deleteError.message);
+      const plan = repartir(agendados, libres);
+      // Los que sobran se quitan, salvo los que tienen seña (borrar el turno borraría la seña).
+      let conSena = new Set<string>();
+      if (plan.sobran.length > 0) {
+        const { data: senas, error } = await (supabase.from("appointment_deposits" as any) as any)
+          .select("appointment_id")
+          .in("appointment_id", plan.sobran.map((t) => t.id));
+        if (error) throw new Error(error.message);
+        conSena = new Set(((senas ?? []) as { appointment_id: string }[]).map((d) => d.appointment_id));
+      }
+      const quitar = plan.sobran.filter((t) => !conSena.has(t.id));
+      const plural = (n: number) => `${n} turno${n === 1 ? "" : "s"}`;
+      const resumen = [
+        plan.mover.length ? `Se reprograman ${plural(plan.mover.length)}` : "",
+        plan.crear.length ? `se crean ${plural(plan.crear.length)}` : "",
+        quitar.length ? `se quitan ${plural(quitar.length)}` : "",
+      ].filter(Boolean).join(", ");
+      const primera = libres[0].toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit" });
+      const texto =
+        `${resumen.charAt(0).toUpperCase()}${resumen.slice(1)}. Rige desde el ${primera} a las ${seriesEditForm.startTime}.` +
+        (skipped > 0 ? ` ${skipped} fecha(s) quedan afuera porque el horario está ocupado o el negocio está cerrado.` : "") +
+        (conSena.size > 0 ? ` ${conSena.size} turno(s) con seña quedan donde están: revisalos en la Agenda.` : "");
+      if (!(await confirmarClippr({ titulo: "¿Reprogramar los turnos?", texto, confirmar: "Confirmar" }))) return;
 
-      for (const date of okDates) {
+      if (quitar.length > 0) {
+        const { error: deleteError } = await supabase.from("appointments").delete().in("id", quitar.map((t) => t.id));
+        if (deleteError) throw new Error(deleteError.message);
+      }
+      // Un turno puede ocupar por un instante el lugar de otro que todavía no se movió: se reintenta.
+      let pendientes = plan.mover;
+      for (let vuelta = 0; vuelta < 3 && pendientes.length > 0; vuelta++) {
+        const quedan: typeof pendientes = [];
+        for (const m of [...pendientes].reverse()) {
+          const { error } = await supabase.from("appointments").update(cambios(m.fecha)).eq("id", m.turno.id);
+          if (error) quedan.unshift(m);
+        }
+        pendientes = quedan;
+      }
+      let sinCrear = 0;
+      for (const date of plan.crear) {
         try {
           await saveAppointment({
             business_id: businessId,
+            branch_id: sucursal,
             client_id: client.id,
             client_name: client.name,
             employee_id: contentPatch.employee_id,
@@ -736,8 +788,8 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
             recurring_series_id: editingSeries.id,
           });
         } catch {
-          // Best-effort — una fecha con conflicto de último momento (carrera)
-          // no debe frenar el resto de la regeneración.
+          // Una fecha que falla (ej. día cerrado) no debe frenar el resto.
+          sinCrear++;
         }
       }
 
@@ -749,9 +801,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         end_mode: seriesEditForm.endMode,
         end_count: seriesEditForm.endMode === "count" ? Number(seriesEditForm.count) || null : null,
         end_until: seriesEditForm.endMode === "until" && seriesEditForm.until ? seriesEditForm.until : null,
-        last_generated_until: okDates.length
-          ? okDates[okDates.length - 1].toISOString().slice(0, 10)
-          : null,
+        last_generated_until: libres[libres.length - 1].toISOString().slice(0, 10),
       };
       const { error: seriesError } = await supabase
         .from("recurring_series" as any)
@@ -760,7 +810,14 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       if (seriesError) throw new Error(seriesError.message);
 
       setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...seriesPatch } : s)));
-      toast.success(`Recurrencia actualizada — ${okDates.length} turno${okDates.length === 1 ? "" : "s"} nuevo${okDates.length === 1 ? "" : "s"}`);
+      if (pendientes.length + sinCrear > 0) {
+        toast.error(
+          `Recurrencia actualizada, pero ${pendientes.length} turno(s) no se pudieron mover y ${sinCrear} no se pudieron crear. Revisá la Agenda.`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success("Turnos reprogramados");
+      }
       setEditingSeries(null);
     } catch (e) {
       toast.error((e as Error).message);
@@ -1277,7 +1334,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
           <div className="shrink-0 border-b border-white/10 px-5 pb-3 pt-5">
             <div className="text-lg font-semibold">Editar recurrencia</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Se aplica solo a los turnos futuros de esta serie — nunca a pasados, cobrados o completados.
               Si cambiás días, horario o cada cuánto se repite, esos turnos futuros se regeneran con el patrón nuevo.
             </p>
           </div>
@@ -1311,7 +1367,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   type="time"
                   value={seriesEditForm.startTime}
                   onChange={(e) => setSeriesEditForm((f) => ({ ...f, startTime: e.target.value }))}
-                  className="block h-11 w-full min-w-0 max-w-full appearance-none rounded-lg bg-white/5 px-3 text-left text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40 [&::-webkit-date-and-time-value]:text-left"
+                  className="block h-11 w-full min-w-0 max-w-full appearance-none rounded-lg bg-white/5 px-3 py-[10px] text-left leading-6 [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:h-6 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40 [&::-webkit-date-and-time-value]:text-left"
                 />
               </div>
               <div className="min-w-0 space-y-1">
@@ -1361,28 +1417,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Precio</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={seriesEditForm.price}
-                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, price: e.target.value }))}
-                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Duración (min)</label>
-                <input
-                  type="number"
-                  min={5}
-                  value={seriesEditForm.duration}
-                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, duration: e.target.value }))}
-                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
-                />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">El precio y la duración son los vigentes del servicio.</p>
             {seriesEmployees.length > 0 && (
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Profesional</label>

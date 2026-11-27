@@ -1,4 +1,5 @@
 import * as React from "react";
+import { valoresVigentes, type ServicioDeCatalogo } from "@/lib/valores-servicio";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -1193,6 +1194,18 @@ export async function getMaxAdvanceDays(businessId: string): Promise<number> {
 // Usar `last_generated_until` como ancla local para contar "cada N semanas" es equivalente a
 // contar desde la fecha original de la serie: siempre es una fecha que SÍ se generó (fase 0 del
 // ciclo de every_weeks), así que reiniciar el conteo ahí preserva el patrón.
+/** Catálogo y ajustes por profesional, para calcular los valores vigentes de una recurrencia. */
+export async function cargarValoresDeServicios(businessId: string) {
+  const [catalogo, ajustes] = await Promise.all([
+    supabase.from("price_catalog").select("id,name,price,duration_min,active").eq("business_id", businessId).not("duration_min", "is", null),
+    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
+  ]);
+  const servicios = (catalogo.error ? [] : (catalogo.data ?? [])) as unknown as ServicioDeCatalogo[];
+  const schedule = (ajustes.data?.schedule ?? {}) as Record<string, unknown>;
+  const overrides = (schedule._employeeServiceOverrides ?? {}) as EmployeeServiceOverrideMap;
+  return (nombre: string, employeeId: string | null | undefined) => valoresVigentes(servicios, nombre, employeeId, overrides);
+}
+
 export async function topUpRecurringSeries(
   businessId: string,
   schedule: ScheduleMap | null,
@@ -1212,6 +1225,8 @@ export async function topUpRecurringSeries(
     .eq("status", "active");
   if (error || !seriesRows?.length) return;
 
+  const vigentes = await cargarValoresDeServicios(businessId);
+
   for (const s of seriesRows as any[]) {
     try {
       if (s.last_generated_until && String(s.last_generated_until) >= windowEndIso) continue;
@@ -1219,7 +1234,9 @@ export async function topUpRecurringSeries(
       if (!weekdays.length) continue;
       const everyWeeks = Math.max(1, Number(s.every_weeks) || 1);
       const [h, m] = String(s.start_time || "09:00").split(":").map((x: string) => Number(x) || 0);
-      const durationMin = Number(s.duration_min) || 30;
+      // Precio y duración del momento; si el servicio ya no está con ese nombre, quedan los de la serie.
+      const actuales = vigentes(String(s.service_name ?? ""), s.employee_id);
+      const durationMin = actuales?.duration_min ?? (Number(s.duration_min) || 30);
 
       // Series con cantidad fija: no se generan más turnos que los pedidos.
       let remaining = Infinity;
@@ -1263,7 +1280,7 @@ export async function topUpRecurringSeries(
             client_name: s.client_name,
             employee_id: s.employee_id ?? null,
             service_name: s.service_name,
-            service_price: Number(s.service_price) || 0,
+            service_price: actuales?.price ?? (Number(s.service_price) || 0),
             duration_min: durationMin,
             starts_at: date.toISOString(),
             status: "pending",
@@ -1306,6 +1323,8 @@ export async function checkOverlap(
   startsAt: string,
   durationMin: number,
   excludeId?: string | null,
+  // Turnos que se están moviendo en la misma operación (su lugar actual no cuenta como ocupado).
+  ignorar?: ReadonlySet<string>,
 ): Promise<{ id: string; client_name: string | null; starts_at: string; status?: ApptStatus | null; service_name?: string | null } | null> {
   const newStart = new Date(startsAt);
   const newEnd   = new Date(newStart.getTime() + durationMin * 60_000);
@@ -1328,6 +1347,7 @@ export async function checkOverlap(
 
   for (const appt of data) {
     if (excludeId && appt.id === excludeId) continue;
+    if (ignorar?.has(appt.id)) continue;
     const existStart = new Date(appt.starts_at);
     const existEnd   = appt.ends_at
       ? new Date(appt.ends_at)
