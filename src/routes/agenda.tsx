@@ -1,4 +1,5 @@
 import { ocupacionLocal, OCUPACION_AGENDADA_TEXTO, OCUPACION_ATENDIDA_TEXTO, OCUPACION_EJEMPLO, type OcupacionLocal } from "@/lib/ocupacion";
+import { textoReservaCreada } from "@/lib/origen-reserva";
 import { useServedMinutesByEmployee } from "@/components/agenda/use-served-minutes";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
@@ -4916,7 +4917,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                 <div className={cn("flex items-center gap-3", isBlocked ? "sm:px-4" : "order-2 sm:order-3 sm:pl-4")}>
                   <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                   <div className="min-w-0 leading-tight">
-                    <div className="text-xs text-white/55">{isBlocked ? "Bloqueo creado" : "Reserva creada"}</div>
+                    <div className="text-xs text-white/55">{isBlocked ? "Bloqueo creado" : textoReservaCreada(appointment.created_by_role, appointment.created_by_name)}</div>
                     <div className="text-[15px] font-semibold text-white">
                       {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}{" "}
                       {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
@@ -5327,7 +5328,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                           }}
                         >
                           <CalendarSync className="h-[18px] w-[18px]" />
-                          Reprogramar turno
+                          Reprogramar
                         </button>
                       )}
                       <button
@@ -5343,7 +5344,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                         }}
                       >
                         <Trash2 className="h-[18px] w-[18px]" />
-                        Cancelar turno
+                        Cancelar
                       </button>
                     </div>
                   ) : null;
