@@ -1038,6 +1038,7 @@ const AGENDA_META = {
   cancelled: { label: "Cancelado", bg: "oklch(0.3 0.02 270 / 0.38)", border: "oklch(0.62 0.03 270)", dot: "oklch(0.76 0.02 270)" },
   no_show: { label: "No asistió", bg: "oklch(0.34 0.2 25 / 0.58)", border: "oklch(0.68 0.22 25)", dot: "oklch(0.68 0.22 25)" },
   deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
+  blocked: { label: "Bloqueado", bg: "oklch(0.46 0.02 270 / 0.55)", border: "oklch(0.72 0.02 270)", dot: "oklch(0.82 0.02 270)" },
 };
 const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 200)", dot: "oklch(0.88 0.1 200)" };
 // Ocupación: rojo de 0 a 49, amarillo de 50 a 69 y verde de 70 a 100 (igual que la Agenda).
@@ -1237,6 +1238,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const counts = React.useMemo(() => {
     let pendientes = 0, confirmados = 0, finalizados = 0, cancelados = 0, sena = 0, noShow = 0;
     for (const t of turnos) {
+      // Un horario bloqueado no es un turno: no suma en ningún contador.
+      if (t.status === "blocked") continue;
       const { isCancelled, isCharged, isConfirmed } = getTurnoMeta(t);
       if (isCancelled) cancelados++;
       else if (t.status === "no_show") noShow++;
@@ -1254,7 +1257,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     [turnos]
   );
   const cancelledTurnos = React.useMemo(() =>
-    turnos.filter(t => t.status === "cancelled" || t.status === "blocked"),
+    turnos.filter(t => t.status === "cancelled"),
     [turnos]
   );
   const confirmedTurnos = React.useMemo(() =>
@@ -1361,9 +1364,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   const HOUR_HEIGHT = 92;
   const TIMELINE_TOP_OFFSET = 36;
+  // La agenda muestra los turnos vigentes y también los horarios bloqueados.
   const agendaTurnos = React.useMemo(
-    () => [...activeTurnos].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()),
-    [activeTurnos]
+    () => turnos.filter((t) => t.status !== "cancelled").sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()),
+    [turnos]
   );
 
   const timelineBaseDate = React.useMemo(() => {
@@ -1765,6 +1769,33 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               const endLabel = minToHHMM(getTurnoEndMin(t));
               const depositPaid = t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed");
               const depositPending = t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed");
+
+              // Horario bloqueado: solo se muestra (rayado, con el motivo); no abre el detalle de un turno.
+              if (t.status === "blocked") {
+                const motivo = /^\s*Horario bloqueado:\s*(.+)/i.exec(t.notes ?? "")?.[1]?.trim();
+                const estilo = estiloEstado(AGENDA_META.blocked.dot, AGENDA_META.blocked.border);
+                return (
+                  <div
+                    key={t.id}
+                    className="absolute left-[60px] sm:left-[104px] right-3 z-[2] overflow-hidden rounded-[6px] px-2 py-0.5"
+                    style={{
+                      top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6,
+                      height,
+                      ...estilo,
+                      background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 8px, transparent 8px, transparent 16px), ${estilo.background}`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="text-[11px] font-semibold tabular-nums leading-none">{startLabel} • {endLabel}</div>
+                    <div className="mt-px truncate text-[15px] font-bold leading-tight" style={{ color: TURNO_NAME_COLOR }}>
+                      Horario bloqueado
+                    </div>
+                    {motivo && threeLines && (
+                      <div className="truncate text-[12px] leading-none" style={{ color: TURNO_SERVICE_COLOR }}>{motivo}</div>
+                    )}
+                  </div>
+                );
+              }
 
               return (
                 <div
