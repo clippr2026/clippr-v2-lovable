@@ -1618,7 +1618,7 @@ function AgendaPage() {
   const opcionElegida = opciones.find(([k]) => k === elegido);
   const etiqueta = opcionElegida?.[1] ?? "Todos";
   const nVisibles = opcionElegida?.[3] ?? total;
-  const colorElegido = opcionElegida?.[2] ?? "#a78bfa";
+  const colorElegido = opcionElegida?.[2] ?? "#94a3b8";
   const profElegido = profFilterId ? data.employees.find((e) => e.id === profFilterId) : null;
   const abrirEstados = (boton: HTMLElement) => {
     const r = boton.getBoundingClientRect();
@@ -1832,9 +1832,9 @@ function AgendaPage() {
               aria-expanded={estadosMenuAbierto}
               data-activo={true}
               className="filtro-estado inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full pl-3 pr-2 text-xs font-semibold"
-              style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
+              style={{ ["--c" as string]: "#94a3b8" } as React.CSSProperties}
             >
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: "#94a3b8" }} />
               <span>Todos</span>
               <span className="filtro-numero tabular-nums">{total}</span>
               <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-70 transition-transform", estadosMenuAbierto && "rotate-180")} />
@@ -1930,7 +1930,7 @@ function AgendaPage() {
                   aria-expanded={profFilterOpen}
                   data-activo={profElegido ? true : undefined}
                   className="filtro-estado inline-flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full pl-2.5 pr-2 text-xs font-semibold"
-                  style={{ ["--c" as string]: "#a78bfa" } as React.CSSProperties}
+                  style={{ ["--c" as string]: "#94a3b8" } as React.CSSProperties}
                 >
                   {profElegido?.avatar_url ? (
                     <img src={profElegido.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" />
@@ -2243,7 +2243,7 @@ function AgendaPage() {
                   <div style={{ top: estadosPos.top, right: estadosPos.right }} className="menu-estados fixed z-50 w-64 rounded-2xl border border-white/10 bg-[#15131f] p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] animate-fade-up">
                     <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/50">Ver en la agenda</p>
                     {(
-                      [["todos", "Todos", "#a78bfa", total] as [string, string, string, number], ...opciones]
+                      [["todos", "Todos", "#94a3b8", total] as [string, string, string, number], ...opciones]
                     ).map(([k, label, color, n], i) => {
                       const marcado = k === "todos" ? !filtrando : elegido === k;
                       return (

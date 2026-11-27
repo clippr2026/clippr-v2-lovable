@@ -138,7 +138,7 @@ export function TarjetaTurno({ a, meta, profesional, onClick }: { a: Appointment
       type="button"
       onClick={onClick}
       className="turno-lista min-w-0 flex-1 rounded-2xl border px-3.5 py-2.5 text-left transition active:scale-[0.99]"
-      style={{ ["--c" as string]: meta.dot } as React.CSSProperties}
+      style={{ ["--c" as string]: meta.dot, ["--b" as string]: meta.border } as React.CSSProperties}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0 truncate text-[15px] font-semibold text-white">{a.client_name || "Cliente"}</span>
