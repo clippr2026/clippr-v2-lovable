@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { estiloEstado } from "@/lib/estado-visual";
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
@@ -581,8 +582,9 @@ function ProfessionalsPage() {
             <button
               key={key}
               onClick={() => setTab(key)}
+              data-activo={isActive || undefined}
               className={cn(
-                "glass rounded-2xl py-4 flex flex-col items-center gap-1.5 transition-all",
+                "panel-tab glass rounded-2xl py-4 flex flex-col items-center gap-1.5 transition-all",
                 isActive
                   ? "ring-1 ring-primary/40 shadow-[0_0_30px_-10px_var(--neon-blue)] bg-white/[0.04]"
                   : "hover:bg-white/[0.04]"
@@ -1047,17 +1049,7 @@ const occupancyColor = (pct: number) =>
       : { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" };
 const TURNO_NAME_COLOR = "#fbffff";
 const TURNO_SERVICE_COLOR = "#b1c7da";
-const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
-function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
-  const glow = `color-mix(in srgb, ${border} 24%, transparent)`;
-  return {
-    color: dot,
-    background: `${STATUS_DARKEN}, linear-gradient(115deg, ${bg} 0%, color-mix(in srgb, ${bg} 30%, transparent) 100%), #111323`,
-    boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${glow}`,
-    // Modo claro: el color del estado pasa a un punto o una línea sobre fondo neutro (ver styles.css).
-    ["--estado" as string]: border,
-  } as React.CSSProperties;
-}
+const statusNeonStyle = (dot: string, border: string, _bg: string) => estiloEstado(dot, border);
 
 function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl, showWhatsapp = false }: {
   businessId: string | null; empId: string | null;
@@ -1693,7 +1685,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] [background-image:radial-gradient(120%_55%_at_100%_0%,rgba(79,125,255,0.17),transparent_62%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.15),transparent_65%)]">
+        <div className="agenda-grilla relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] [background-image:radial-gradient(120%_55%_at_100%_0%,rgba(79,125,255,0.17),transparent_62%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.15),transparent_65%)]">
           {/* Columna de horarios: más angosta y discreta en mobile (64px,
               texto fino y gris apagado — referencia de fondo, no elemento
               principal) para devolverle ese ancho a la tarjeta del turno.
@@ -1742,7 +1734,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   top: TIMELINE_TOP_OFFSET + ((breakRange.startMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT + 6,
                   height: Math.max(44, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
                   ...statusNeonStyle(BREAK_META.dot, BREAK_META.border, BREAK_META.bg),
-                  background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${STATUS_DARKEN}, linear-gradient(115deg, ${BREAK_META.bg} 0%, color-mix(in srgb, ${BREAK_META.bg} 30%, transparent) 100%)`,
+                  background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${estiloEstado(BREAK_META.dot, BREAK_META.border).background}`,
                 }}
               >
                 <Coffee className="h-4 w-4" style={{ color: BREAK_META.dot }} />
@@ -1784,7 +1776,6 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                     top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6,
                     height,
                     ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-                    background: `${STATUS_DARKEN}, linear-gradient(115deg, ${meta.bg} 0%, color-mix(in srgb, ${meta.bg} 30%, transparent) 100%)`,
                   }}
                   // Corta la propagación: sin esto, tocar un turno existente
                   // también disparaba handleTimelineClick del contenedor de

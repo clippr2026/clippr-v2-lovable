@@ -61,6 +61,7 @@ import { Button } from "@/components/ui/button";
 import { DevolucionSenaForm, devolverSena, type DevolucionSena } from "@/components/senas/devolucion-sena";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { estiloEstado } from "@/lib/estado-visual";
 
 /**
  * Stable callback identity that always invokes the latest closure.
@@ -233,26 +234,11 @@ const occupancyColor = (pct: number) =>
 // Bloque de descanso en la grilla: celeste agua, para no confundirse con un estado de turno.
 const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 200)", dot: "oklch(0.88 0.1 200)" };
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
-// Oscurece apenas el relleno; se aplica igual a tarjetas y turnos para que sigan coincidiendo.
 // Letras del turno en el calendario: la hora y PROMO van en el color del estado; el cliente en
 // blanco y el servicio en un gris azulado apagado, para que el nombre sea lo más destacado.
 const TURNO_NAME_COLOR = "#fbffff";
-const TURNO_SERVICE_COLOR = "#b1c7da";
-const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
-// Relleno desvanecido: el color del estado es más intenso en una esquina y se va apagando hacia la otra.
-const statusFade = (bg: string) =>
-  `linear-gradient(115deg, ${bg} 0%, color-mix(in srgb, ${bg} 30%, transparent) 100%)`;
-function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
-  return {
-    color: dot,
-    // El relleno es semitransparente: se apoya en el mismo gris del calendario (#111323) para
-    // que el tono final sea idéntico al del turno.
-    background: `${STATUS_DARKEN}, ${statusFade(bg)}, #111323`,
-    boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${mixAlpha(border, 24)}`,
-    // Modo claro: el color del estado pasa a un punto o una línea sobre fondo neutro (ver styles.css).
-    ["--estado" as string]: border,
-  } as React.CSSProperties;
-}
+const TURNO_SERVICE_COLOR = "#c3c8dc";
+const statusNeonStyle = (dot: string, border: string, _bg: string) => estiloEstado(dot, border);
 
 // ---------------------------------------------------------------------------
 // Helpers de fechas
@@ -3494,7 +3480,7 @@ const DayView = React.memo(function DayView({
   return (
     <>
       {closureBanner}
-      <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "radial-gradient(120% 55% at 100% 0%, rgba(79,125,255,0.17), transparent 62%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,0.15), transparent 65%), #111323" }}>
+      <section className="agenda-grilla rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "radial-gradient(120% 55% at 100% 0%, rgba(79,125,255,0.17), transparent 62%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,0.15), transparent 65%), #111323" }}>
       {closure && (
         <div
           className="pointer-events-none absolute inset-0 z-20 rounded-2xl"
@@ -3812,7 +3798,7 @@ const DayView = React.memo(function DayView({
                       top: b.top,
                       height: b.height,
                       ...statusNeonStyle(BREAK_META.dot, BREAK_META.border, BREAK_META.bg),
-                      background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${STATUS_DARKEN}, ${statusFade(BREAK_META.bg)}`,
+                      background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${estiloEstado(BREAK_META.dot, BREAK_META.border).background}`,
                     }}
                     title="Arrastrar descanso"
                   >
@@ -4066,7 +4052,6 @@ const ApptCard = React.memo(function ApptCard({
         width,
         // Mismo color de letras, borde y luz que las tarjetas de estado de arriba.
         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-        background: `${STATUS_DARKEN}, ${statusFade(meta.bg)}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -4751,7 +4736,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
             ) : (
               <>
             <div
-              className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+              className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-10 blur-3xl"
               style={{ background: meta.dot }}
             />
             <div className="relative flex items-center gap-4 pr-12">
@@ -4760,11 +4745,11 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                 style={{
                   // Avatar genérico igual para todos los clientes: azul oscuro con un toque violeta, borde celeste fino y brillo suave.
                   background: "linear-gradient(145deg, #0a1a3d 0%, #14204f 55%, #231650 100%)",
-                  boxShadow: "0 0 0 1px rgba(34,211,238,0.75), 0 0 20px rgba(34,211,238,0.32), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  boxShadow: "0 0 0 1px rgba(167,139,250,0.4), inset 0 1px 0 rgba(255,255,255,0.08)",
                 }}
                 aria-hidden
               >
-                <UserRound className="h-9 w-9 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.55)] sm:h-10 sm:w-10" strokeWidth={1.75} />
+                <UserRound className="h-9 w-9 text-violet-200 sm:h-10 sm:w-10" strokeWidth={1.75} />
               </div>
               <div className="min-w-0 flex-1 space-y-2">
                 <DialogPrimitive.Title className="truncate font-display text-[26px] font-semibold leading-tight tracking-tight sm:text-[30px]">
@@ -4778,7 +4763,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                 >
                   <span
                     className="size-2.5 rounded-full"
-                    style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
+                    style={{ background: meta.dot, boxShadow: `0 0 6px ${withAlpha(meta.dot, 0.6)}` }}
                   />
                   {statusLabel}
                 </div>
@@ -4797,7 +4782,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                   const cls = "flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1 text-[13px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98] sm:h-12 sm:gap-2 sm:text-sm";
                   const st: React.CSSProperties = {
                     background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
-                    boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.35), 0 12px 24px -20px rgba(139,92,246,0.9)",
+                    boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.28)",
                   };
                   const inner = (
                     <>
@@ -4821,18 +4806,14 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
             <div
               className="rounded-3xl border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-4"
               style={{
-                background: statusFade(meta.bg),
-                borderColor: meta.border,
-                boxShadow:
-                  appointment.status === "confirmed"
-                    ? "0 0 0 1px rgba(167,139,250,.78), 0 18px 38px -26px rgba(139,92,246,.95), inset 0 1px 0 rgba(255,255,255,0.07)"
-                    : `0 0 0 1.5px ${meta.border}, 0 0 28px ${withAlpha(meta.dot, 0.32)}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+                background: `linear-gradient(115deg, ${withAlpha(meta.dot, 0.12)}, transparent 70%), #12101d`,
+                borderColor: withAlpha(meta.dot, 0.38),
               }}
             >
               <div className={cn("flex items-center gap-3.5 sm:gap-4", isBlocked && "flex-wrap sm:flex-nowrap")}>
                 <div
                   className="grid h-[76px] w-[76px] shrink-0 place-items-center overflow-hidden rounded-2xl sm:h-[88px] sm:w-[88px]"
-                  style={{ boxShadow: `0 0 0 1.5px ${meta.dot}, 0 0 18px ${withAlpha(meta.dot, 0.45)}` }}
+                  style={{ boxShadow: `0 0 0 1px ${withAlpha(meta.dot, 0.4)}` }}
                 >
                   <ServiceImage
                     src={serviceImageUrl}
@@ -4893,7 +4874,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                       className="shrink-0 rounded-full px-3.5 py-1 text-lg font-display font-semibold tracking-tight text-white tabular-nums"
                       style={{
                         background: withAlpha(meta.dot, 0.12),
-                        boxShadow: `inset 0 0 0 1.5px ${withAlpha(meta.dot, 0.8)}, 0 0 16px ${withAlpha(meta.dot, 0.35)}`,
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(meta.dot, 0.5)}`,
                       }}
                     >
                       ${listPrice.toLocaleString("es-AR")}
@@ -4907,7 +4888,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
 
             {/* Horario y duración · profesional · fecha de creación (en un bloqueo: profesional · bloqueo creado · creado por) */}
             <div className="grid grid-cols-1 gap-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-2.5 sm:grid-cols-3 sm:gap-0 sm:py-3 sm:divide-x sm:divide-white/10"
-              style={{ backgroundImage: `linear-gradient(115deg, color-mix(in srgb, ${meta.dot} 16%, transparent) 0%, transparent 75%)` }}>
+              style={{ backgroundImage: `linear-gradient(115deg, color-mix(in srgb, ${meta.dot} 8%, transparent) 0%, transparent 75%)` }}>
               {!isBlocked && (
                 <div className="order-1 flex items-center gap-3 sm:pr-4">
                   <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
@@ -4965,9 +4946,9 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
               className="rounded-2xl border p-3.5"
               style={{
                 background: "rgba(251, 191, 36, 0.095)",
-                borderColor: "rgba(251, 191, 36, 0.58)",
+                borderColor: "rgba(251, 191, 36, 0.34)",
                 boxShadow:
-                  "0 0 0 1px rgba(251,191,36,0.34), 0 18px 34px -28px rgba(251,191,36,0.95), inset 0 1px 0 rgba(255,255,255,0.07)",
+                  "inset 0 1px 0 rgba(255,255,255,0.05)",
               }}
             >
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -4976,7 +4957,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                 </div>
                 <span
                   className="h-1.5 w-1.5 rounded-full bg-amber-300"
-                  style={{ boxShadow: "0 0 14px rgba(251,191,36,0.95)" }}
+                  style={{ boxShadow: "none" }}
                   aria-hidden
                 />
               </div>
@@ -5059,7 +5040,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                             style={{
                               background: "rgba(139,92,246,0.10)",
                               color: "#ede9fe",
-                              boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.65), 0 0 20px rgba(139,92,246,0.25)",
+                              boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.6)",
                             }}
                           >
                             <CheckCircle2 className="h-5 w-5" />
@@ -5079,8 +5060,8 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                                 : "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
                               color: showConfirm ? "#4ade80" : "white",
                               boxShadow: showConfirm
-                                ? "inset 0 0 0 1.5px rgba(74,222,128,.75), 0 0 22px rgba(34,197,94,.25)"
-                                : "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.16)",
+                                ? "inset 0 0 0 1.5px rgba(74,222,128,.6)"
+                                : "inset 0 0 0 1px rgba(255,255,255,.14)",
                             }}
                           >
                             <DollarSign className="h-5 w-5" />
@@ -5505,7 +5486,6 @@ function WeekView({
                         top,
                         height,
                         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-                        background: `${STATUS_DARKEN}, ${statusFade(meta.bg)}`,
                       }}
                       onClick={(e) => {
                         e.stopPropagation();

@@ -1608,3 +1608,191 @@ html.modo-claro .encabezado-agenda button[aria-label="Ver calendario"], html.mod
 .encabezado-agenda .subtitulo-dia { color: rgba(255, 255, 255, 0.72); }
 html.modo-claro .encabezado-agenda .titulo-mes { color: #17172b; }
 html.modo-claro .encabezado-agenda .subtitulo-dia { color: #4a4860; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Sistema visual oscuro de Clippr (clase "app-oscuro" en <html>, ver
+   lib/diseno-oscuro.ts). Toma los valores exactos de Inicio y los aplica al
+   resto de la app de gestión. No alcanza a Inicio, al modo claro ni a las
+   páginas públicas. Para pantallas nuevas: usar .glass (tarjeta),
+   .ds-panel (contenedor), .ds-casillero (interno) o las variables --ds-*.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --ds-fondo: #08070f;
+  --ds-superficie: #0b0a14;
+  --ds-superficie-2: #12101d;
+  --ds-borde: rgb(167 139 250 / 0.45);
+  --ds-borde-suave: rgb(167 139 250 / 0.24);
+  --ds-linea: rgb(255 255 255 / 0.1);
+  --ds-degradado:
+    radial-gradient(120% 45% at 85% 0%, rgb(79 125 255 / 0.2), transparent 60%),
+    radial-gradient(110% 50% at 0% 100%, rgb(139 92 246 / 0.22), transparent 62%);
+  --ds-degradado-casillero:
+    radial-gradient(110% 90% at 100% 0%, rgb(79 125 255 / 0.16), transparent 62%),
+    radial-gradient(90% 80% at 0% 100%, rgb(139 92 246 / 0.12), transparent 65%);
+  --ds-degradado-fondo:
+    radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.1), transparent 38%),
+    radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.08), transparent 36%),
+    radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.08), transparent 50%);
+  --ds-sombra-tarjeta:
+    0 0 0 1px rgb(139 92 246 / 0.35),
+    0 30px 90px -20px rgb(0 0 0 / 0.9),
+    0 0 60px -18px rgb(139 92 246 / 0.55);
+  --ds-sombra-panel: 0 0 0 1px rgb(139 92 246 / 0.12), 0 22px 60px -30px rgb(0 0 0 / 0.95);
+  --ds-sombra-suave: 0 10px 26px -18px rgb(0 0 0 / 0.9);
+  --ds-seleccion: linear-gradient(135deg, rgb(99 102 241 / 0.55), rgb(139 92 246 / 0.5));
+}
+
+/* Variables que leen las utilidades de Tailwind: superficies sólidas y gris claro legible. */
+html.app-oscuro:not(.modo-claro) body {
+  --card: #0b0a14;
+  --popover: #0b0a14;
+  --muted-foreground: oklch(0.75 0.022 275);
+  --border: rgb(255 255 255 / 0.09);
+}
+
+/* Contenedores: base reutilizable. */
+.ds-panel { background: var(--ds-degradado), var(--ds-fondo); border: 1px solid var(--ds-borde-suave); border-radius: 24px; box-shadow: var(--ds-sombra-panel); }
+.ds-casillero { background: var(--ds-degradado-casillero), rgb(255 255 255 / 0.03); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--ds-linea); }
+
+/* Tarjetas (.glass): la misma tarjeta de Inicio, sólida. */
+html.app-oscuro.neon-skin:not(.modo-claro) :is(.glass, .glass-strong):not(.app-encabezado *):not(.app-barra):not(.app-barra *) {
+  background-color: var(--ds-fondo);
+  background-image: var(--ds-degradado);
+  border-color: var(--ds-borde);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--ds-sombra-tarjeta);
+}
+html.app-oscuro:not(.modo-claro) :is(.glass, .glass-strong):is(.rounded-2xl, .rounded-3xl):not(.app-encabezado *) { border-radius: 28px; }
+html.app-oscuro:not(.modo-claro) :is(.glass, .glass-strong)::before { display: none; }
+/* Casilleros internos, rótulos e íconos como en Inicio. */
+html.app-oscuro:not(.modo-claro) .glass [class*="ring-white/8"] {
+  border-radius: 16px;
+  background-color: rgb(255 255 255 / 0.03);
+  background-image: var(--ds-degradado-casillero);
+  box-shadow: inset 0 0 0 1px var(--ds-linea);
+}
+
+/* Contenedores grandes con degradés propios (azul casi negro) → panel de Inicio. */
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="bg-[linear-gradient(180deg,rgba(12,16,30"],
+  [class*="bg-[linear-gradient(180deg,rgba(10,14,26"],
+  [class*="bg-[linear-gradient(135deg,rgba(5,8,15"],
+  [class*="bg-[linear-gradient(135deg,rgba(10,8,14"],
+  [class*="bg-[linear-gradient(135deg,rgba(4,7,17"],
+  [class*="bg-[linear-gradient(135deg,rgba(2,4,10"]
+) {
+  background-color: var(--ds-fondo);
+  background-image: var(--ds-degradado);
+  border-color: var(--ds-borde-suave);
+  box-shadow: var(--ds-sombra-panel);
+}
+/* Tarjetas internas, filas y pestañas sin elegir con esos degradés → casillero. */
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="bg-[linear-gradient(135deg,rgba(8,11,20"],
+  [class*="bg-[linear-gradient(145deg,rgba(8,11,20"],
+  [class*="bg-[linear-gradient(135deg,rgba(8,10,20"],
+  [class*="bg-[linear-gradient(135deg,rgba(255,255,255,0.0"],
+  [class*="bg-[radial-gradient(120%_100%_at_0%_0%,rgba(59,130,246"]
+) {
+  background-color: var(--ds-superficie-2);
+  background-image: var(--ds-degradado-casillero);
+  box-shadow: var(--ds-sombra-suave);
+}
+
+/* Fondos fijos azulados o grises → superficies de Inicio. */
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="bg-[#050507"], [class*="bg-[#050612"], [class*="bg-[#060812"], [class*="bg-[#070512"],
+  [class*="bg-[#070814"], [class*="bg-[#08070b"], [class*="bg-[#08070c"], [class*="bg-[#08070d"]
+) { background-color: var(--ds-fondo); }
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="bg-[#0a0a0f"], [class*="bg-[#0a0d1f"], [class*="bg-[#0A0D18"], [class*="bg-[#0B0E17"],
+  [class*="bg-[#0b1530"], [class*="bg-[#0d0c15"], [class*="bg-[#0d1020"], [class*="bg-[#09090f"]
+) { background-color: var(--ds-superficie); }
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="bg-[#070A13"], [class*="bg-[#111019"], [class*="bg-[#111323"], [class*="bg-[#15131f"], [class*="bg-[#15161c"]
+) { background-color: var(--ds-superficie-2); }
+/* Ventanas que usaban gris liso: mismo degradé y borde que las de Inicio. */
+html.app-oscuro:not(.modo-claro) [class*="bg-[#15161c"] {
+  background-color: var(--ds-fondo);
+  background-image: var(--ds-degradado);
+  box-shadow: var(--ds-sombra-tarjeta);
+}
+html.app-oscuro:not(.modo-claro) .bg-card { background-image: var(--ds-degradado-casillero); border-color: var(--ds-borde-suave); }
+
+/* Resplandores de fondo de cada pantalla: la misma atmósfera suave de Inicio. */
+html.app-oscuro:not(.modo-claro) .cash-register-page::before,
+html.app-oscuro:not(.modo-claro) .dashboard-premium-shell::before { background: var(--ds-degradado-fondo); }
+html.app-oscuro:not(.modo-claro) .cash-register-page::after { display: none; }
+html.app-oscuro:not(.modo-claro) [class*="pointer-events-none"][class*="w-screen"][class*="bg-[radial-gradient(circle_at_17%_4%"] {
+  background-image: var(--ds-degradado-fondo);
+}
+
+/* Menos neón: bordes neutros, botones y selecciones sin halo, sombras de color apagadas. */
+html.app-oscuro.neon-skin:not(.modo-claro) :is(
+  [class*="border-white/5"], [class*="border-white/10"], [class*="border-white/15"],
+  [class*="border-white/[0.0"], [class*="border-white/[0.1"]
+):not(:hover):not(.app-barra):not(.app-barra *):not(.app-encabezado *) { border-color: var(--ds-linea); }
+html.app-oscuro.neon-skin:not(.modo-claro) h1 { text-shadow: none; }
+html.app-oscuro.neon-skin:not(.modo-claro) :is(button, a)[class*="from-sky-400"][class*="to-violet-500"],
+html.app-oscuro.neon-skin:not(.modo-claro) :is(button, a)[class*="from-sky-400"][class*="to-fuchsia"] {
+  box-shadow: 0 0 0 1px rgb(196 181 253 / 0.28), 0 8px 22px -14px rgb(139 92 246 / 0.7);
+}
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="shadow-[0_0_1"], [class*="shadow-[0_0_2"], [class*="shadow-[0_0_3"], [class*="shadow-[0_0_4"]
+):not(.caja-mini):not(.app-barra *):not(.app-encabezado *) { box-shadow: var(--ds-sombra-suave); }
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="shadow-[0_24px_85px_-50px_rgba("], [class*="shadow-[0_30px_100px_-45px_rgba("],
+  [class*="shadow-[0_24px_90px_-45px_rgba("]
+) { box-shadow: var(--ds-sombra-panel); }
+html.app-oscuro:not(.modo-claro) [class*="drop-shadow-[0_0"] { filter: none; }
+
+/* Selecciones y pestañas activas: fondo violeta bien identificable. */
+html.app-oscuro.neon-skin:not(.modo-claro) [class*="ring-violet-200/28"] {
+  background-color: var(--ds-superficie-2);
+  background-image: var(--ds-seleccion);
+  box-shadow: inset 0 0 0 1px rgb(196 181 253 / 0.55), 0 8px 20px -14px rgb(139 92 246 / 0.8);
+  color: #fff;
+}
+
+/* Agenda: grilla sobre el fondo de Inicio, con líneas apenas marcadas. */
+html.app-oscuro:not(.modo-claro) .agenda-grilla {
+  background: var(--ds-degradado), var(--ds-fondo) !important;
+  border-color: var(--ds-borde-suave) !important;
+  box-shadow: var(--ds-sombra-panel);
+}
+html.app-oscuro.neon-skin:not(.modo-claro) .agenda-grilla [class*="border-white/"]:not(button):not(:hover) { border-color: rgb(255 255 255 / 0.065); }
+html.app-oscuro:not(.modo-claro) .agenda-grilla [class*="bg-[#111323"] { background-color: #0d0c17; }
+/* Contadores de estado en cero: se leen, con menos protagonismo. */
+html.app-oscuro:not(.modo-claro) .estado-chip[data-cero="true"] { opacity: 0.68; }
+/* Tarjetas translúcidas sueltas → sólidas, para que no se mezclen con el fondo. */
+html.app-oscuro:not(.modo-claro) :is(div, section, article)[class*="rounded-3xl"][class*="border-white/"][class*="bg-white/[0.0"] {
+  background-color: var(--ds-fondo);
+  background-image: var(--ds-degradado);
+  box-shadow: var(--ds-sombra-panel);
+}
+html.app-oscuro.neon-skin:not(.modo-claro) :is(div, section, article)[class*="rounded-3xl"][class*="border-white/"][class*="bg-white/[0.0"] { border-color: var(--ds-borde-suave); }
+html.app-oscuro:not(.modo-claro) :is(div, section, article)[class*="rounded-2xl"][class*="border-white/"][class*="bg-white/[0.0"] {
+  background-color: var(--ds-superficie-2);
+  background-image: var(--ds-degradado-casillero);
+}
+/* Configuración: la sección elegida se distingue con el violeta de selección. */
+@media (min-width: 1024px) {
+  html.app-oscuro:not(.modo-claro) .ajuste-item[class*="ring-white/15"] { background-color: var(--ds-superficie-2); background-image: var(--ds-seleccion); }
+}
+/* Caja, modo claro: los accesos de «Caja de hoy» como en Inicio claro. */
+html.modo-claro .caja-mini { background: #f7f7fb; background-image: none; box-shadow: none; --tw-ring-color: #e4e2ee; }
+/* Mi Panel: la pestaña elegida con fondo violeta bien identificable. */
+html.app-oscuro.neon-skin:not(.modo-claro) .panel-tab.panel-tab.panel-tab.glass[data-activo] {
+  background-color: var(--ds-superficie-2);
+  background-image: var(--ds-seleccion);
+  border-color: rgb(196 181 253 / 0.65);
+}
+/* Ventanas con fondo azul casi negro propio → fondo, degradé y borde de las ventanas de Inicio. */
+html.app-oscuro:not(.modo-claro) :is([class*="bg-[oklch(0.1_"], [class*="bg-[oklch(0.10_"], [class*="bg-[oklch(0.11_"], [class*="bg-[oklch(0.12_"]) {
+  background-color: var(--ds-fondo);
+}
+html.app-oscuro:not(.modo-claro) :is([class*="bg-[oklch(0.1"]):is([class*="rounded-2xl"], [class*="rounded-3xl"]) {
+  background-image: var(--ds-degradado);
+  box-shadow: var(--ds-sombra-tarjeta);
+}

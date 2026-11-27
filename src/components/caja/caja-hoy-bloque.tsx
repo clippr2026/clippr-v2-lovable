@@ -27,9 +27,9 @@ function MiniStat({
 }) {
   const content = (
     <>
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate text-[11px] leading-tight">{label}</span>
+      <div className="flex items-center gap-1.5 text-white">
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate text-sm leading-tight">{label}</span>
       </div>
       <div
         className="mt-1 truncate font-display text-lg font-semibold tracking-tight"
@@ -51,7 +51,7 @@ function MiniStat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.1] bg-white/[0.07] ring-white/20 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.16),transparent_60%)] shadow-[0_0_22px_-10px_rgba(255,255,255,.45)]"
+        className="caja-mini w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.18] bg-white/[0.14] ring-white/35 [background-image:linear-gradient(160deg,rgba(255,255,255,.32),rgba(255,255,255,.04)_70%)] shadow-[0_0_24px_-10px_rgba(255,255,255,.6)]"
       >
         {content}
       </button>
@@ -83,7 +83,10 @@ export function CajaHoyBloque({
   return (
     <div className={`glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 ${loading ? "animate-pulse" : ""}`}>
       <div className="flex items-center justify-between">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Caja de hoy</div>
+        <div className="flex items-center gap-2.5 text-base font-semibold text-white">
+          <Wallet className="h-5 w-5 text-violet-300" />
+          Caja de hoy
+        </div>
         <button
           type="button"
           onClick={alternar}
@@ -96,15 +99,15 @@ export function CajaHoyBloque({
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
-            <span className="text-xs">Ingresos</span>
+            <TrendingUp className="h-4 w-4 text-blue-400" />
+            <span className="text-sm">Ingresos</span>
           </div>
           <div onClick={alternar} className="mt-0.5 cursor-pointer text-xl sm:text-2xl font-display font-semibold tracking-tight">{ver(pesos(ingresos))}</div>
         </div>
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-            <span className="text-xs">Egresos</span>
+            <TrendingDown className="h-4 w-4 text-rose-400" />
+            <span className="text-sm">Egresos</span>
           </div>
           <div onClick={alternar} className="mt-0.5 cursor-pointer text-xl sm:text-2xl font-display font-semibold tracking-tight">{ver(egreso(egresos))}</div>
         </div>

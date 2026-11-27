@@ -308,8 +308,8 @@ function StatCard({
       style={
         rgb
           ? {
-              background: `radial-gradient(110% 90% at 100% 0%, rgba(${rgb},.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(${rgb},.10), transparent 65%)`,
-              borderColor: `rgba(${rgb},.38)`,
+              background: `radial-gradient(110% 90% at 100% 0%, rgba(${rgb},.11), transparent 60%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%), #0b0a14`,
+              borderColor: `rgba(${rgb},.32)`,
             }
           : { background: CARD_LUZ }
       }
@@ -335,7 +335,7 @@ function StatCard({
       )}
       <div className={cn("relative flex flex-col gap-1 sm:gap-1.5", centerLink && link && "hidden")}>
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] sm:text-sm font-semibold leading-tight whitespace-nowrap" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
+          <div className="min-w-0 text-[11px] sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
             {label === "2 meses o más" ? (
               <>
                 <span className="sm:hidden">+ 2 meses</span>

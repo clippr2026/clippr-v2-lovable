@@ -8,7 +8,7 @@ const THEME_LIGHT = "#ffffff";
 
 // Páginas para clientes: tienen su propio diseño (o tema claro/oscuro propio) y no se invierten.
 // También la portada, el ingreso y la creación de cuenta, que tienen su propio diseño.
-const PUBLIC_PATHS = /^\/($|(negocio|reservar|auro-stylo|gestion|bolsa-de-trabajo|landing-demo|login|crear-cuenta|reset-password|set-password|empezar|bienvenida)(\/|$))/i;
+export const PUBLIC_PATHS = /^\/($|(negocio|reservar|auro-stylo|gestion|bolsa-de-trabajo|landing-demo|login|crear-cuenta|reset-password|set-password|empezar|bienvenida)(\/|$))/i;
 
 // Respaldo en memoria por si localStorage no está disponible.
 let memory: boolean | null = null;
