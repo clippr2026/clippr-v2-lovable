@@ -3500,6 +3500,9 @@ const DayView = React.memo(function DayView({
           // maneja la página. En desktop/tablet se mantiene la ventana fija
           // de AGENDA_VISIBLE_ROWS con su propio scroll interno.
           maxHeight: isMobileViewport ? undefined : AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * AGENDA_WINDOW_ROW_PX,
+          // En el celular la grilla solo se desliza de costado: si también fuera desplazable en vertical, iPhone puede
+          // quedarse con el gesto y la página no se mueve.
+          overflowY: isMobileViewport ? "hidden" : undefined,
         }}
       >
         <div
