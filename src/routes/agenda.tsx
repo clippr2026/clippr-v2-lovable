@@ -4781,8 +4781,12 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                 { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-5 w-5" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) && !ocultarRecurrencia },
               ]
                 .filter((b) => b.show)
-                .map((b) => {
-                  const cls = "flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1 text-[13px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98] sm:h-12 sm:gap-2 sm:text-sm";
+                .map((b, _i, todos) => {
+                  const apilado = todos.length > 3;
+                  const cls = cn(
+                    "flex min-w-0 flex-1 items-center justify-center font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98] sm:h-12 sm:flex-row sm:gap-2 sm:rounded-full sm:text-sm",
+                    apilado ? "h-14 flex-col gap-1 rounded-2xl px-0.5 text-[11.5px]" : "h-11 gap-1.5 rounded-full px-1 text-[13px]",
+                  );
                   const st: React.CSSProperties = {
                     background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
                     boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.28)",
@@ -4790,7 +4794,7 @@ export const AppointmentDetailDialog = React.memo(function AppointmentDetailDial
                   const inner = (
                     <>
                       <span style={{ color: b.color }}>{b.icon}</span>
-                      <span className="truncate">{b.label}</span>
+                      <span className="max-w-full truncate leading-tight">{b.label}</span>
                     </>
                   );
                   return b.href ? (

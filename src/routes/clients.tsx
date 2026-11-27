@@ -442,6 +442,9 @@ type ClientDetailPanelProps = {
   businessId: string | null;
   profile: ReturnType<typeof useAuth>["profile"];
   initialTab?: "resumen" | "reservas" | "grupos";
+  /** Serie a abrir apenas se cargan las recurrencias («Recurrencia» desde un turno). */
+  abrirSerie?: string;
+  onSerieAbierta?: () => void;
 };
 
 // Memoizado: el padre re-renderiza en cada tecla de búsqueda, cambio de orden,
@@ -457,6 +460,8 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   businessId,
   profile,
   initialTab,
+  abrirSerie,
+  onSerieAbierta,
 }: ClientDetailPanelProps) {
   const { data: gruposFicha } = useClientGroups(businessId);
   const { data: barberosFicha } = useClientBarberos(businessId);
@@ -497,7 +502,15 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       .eq("client_id", client.id)
       .eq("status", "active")
       .then(({ data, error }: any) => {
-        if (!cancelled) setRecurringSeries(!error && data ? (data as RecurringSeriesRow[]) : []);
+        if (cancelled) return;
+        const series = !error && data ? (data as RecurringSeriesRow[]) : [];
+        setRecurringSeries(series);
+        if (abrirSerie && !error) {
+          const serie = series.find((s) => s.id === abrirSerie);
+          if (serie) setEditingSeries(serie);
+          else toast.info("Esa recurrencia ya está finalizada.");
+          onSerieAbierta?.();
+        }
       });
     return () => {
       cancelled = true;
@@ -1423,6 +1436,8 @@ type ClientDetailModalProps = {
   // "Ver recurrencia" desde el detalle del turno — fuerza la pestaña
   // "reservas" al abrir esta ficha puntual.
   initialTab?: "resumen" | "reservas" | "grupos";
+  abrirSerie?: string;
+  onSerieAbierta?: () => void;
 };
 
 function ClientDetailModal({
@@ -1436,6 +1451,8 @@ function ClientDetailModal({
   businessId,
   profile,
   initialTab,
+  abrirSerie,
+  onSerieAbierta,
 }: ClientDetailModalProps) {
   useBodyScrollLock(open);
 
@@ -1483,6 +1500,8 @@ function ClientDetailModal({
               businessId={businessId}
               profile={profile}
               initialTab={initialTab}
+              abrirSerie={abrirSerie}
+              onSerieAbierta={onSerieAbierta}
             />
           ) : (
             <div className="grid min-h-[280px] place-items-center p-6">
@@ -1533,6 +1552,8 @@ function ClientsPage() {
     openRecurring: search.openRecurring,
   }));
 
+  // La recurrencia pedida desde un turno se abre una sola vez.
+  const serieAbierta = useRef(false);
   const [query, setQuery] = useState(() => search.q ?? "");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
   const [selected, setSelected] = useState<string | null>(() => deepLink.clientId ?? null);
@@ -1917,6 +1938,10 @@ function ClientsPage() {
             businessId={businessId}
             profile={profile}
             initialTab={deepLink.openRecurring && current?.id === deepLink.clientId ? "reservas" : undefined}
+            abrirSerie={!serieAbierta.current && current?.id === deepLink.clientId ? deepLink.openRecurring : undefined}
+            onSerieAbierta={() => {
+              serieAbierta.current = true;
+            }}
           />,
           document.body,
         )}
