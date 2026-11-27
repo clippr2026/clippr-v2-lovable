@@ -1,4 +1,5 @@
 import * as React from "react";
+import { prepareProof } from "@/lib/comprobante";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { AgendaDrawer, AgendaCenteredModal, AgendaPremiumModal } from "@/components/agenda/agenda-drawer";
@@ -434,10 +435,28 @@ export function AppointmentDialog({
   const [dejaSena, setDejaSena] = React.useState(false);
   const [senaMonto, setSenaMonto] = React.useState("");
   const [senaMedio, setSenaMedio] = React.useState<"cash" | "transfer">("cash");
+  // Foto o PDF de la transferencia (opcional), ya achicada y lista para subir.
+  const [senaFoto, setSenaFoto] = React.useState<{ nombre: string; mime: string; data: string } | null>(null);
+  const [preparandoFoto, setPreparandoFoto] = React.useState(false);
+  const elegirFoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPreparandoFoto(true);
+    try {
+      const lista = await prepareProof(file);
+      if (lista.data.length > 1_500_000) throw new Error("El archivo es muy pesado. Probá con una captura más chica.");
+      setSenaFoto({ nombre: file.name, ...lista });
+    } catch (e) {
+      setSenaFoto(null);
+      toast.error((e as Error).message);
+    } finally {
+      setPreparandoFoto(false);
+    }
+  };
   const limpiarSena = () => {
     setDejaSena(false);
     setSenaMonto("");
     setSenaMedio("cash");
+    setSenaFoto(null);
   };
   React.useEffect(() => {
     if (open) limpiarSena();
@@ -813,6 +832,8 @@ export function AppointmentDialog({
 
     const registraSena = !isEdit && dejaSena && Number(senaMonto) > 0;
     let errorSena: string | null = null;
+    let errorFoto: string | null = null;
+    const foto = registraSena && senaMedio === "transfer" ? senaFoto : null;
 
     for (const [dateIndex, date] of dates.entries()) {
       // En una serie, la seña recibida corresponde solo al primer turno.
@@ -865,6 +886,15 @@ export function AppointmentDialog({
           });
           if (error) throw error;
           if (!data?.ok) throw new Error(data?.error ?? "No se pudo registrar la seña.");
+          if (foto) {
+            // La seña ya quedó registrada: si falla la foto, solo se avisa.
+            const subida = await (supabase.rpc as any)("attach_deposit_proof_v1", {
+              p_deposit_id: data.deposit_id,
+              p_mime: foto.mime,
+              p_data: foto.data,
+            });
+            if (subida.error || !subida.data?.ok) errorFoto = subida.error?.message ?? subida.data?.error ?? "Error al subir";
+          }
         } catch (e) {
           errorSena = (e as Error).message;
         }
@@ -895,6 +925,7 @@ export function AppointmentDialog({
       toast.error(`El turno se guardó, pero la seña no: ${errorSena}`, { duration: 10000 });
     } else if (registraSena) {
       toast.success(`Seña de $${Math.round(Number(senaMonto)).toLocaleString("es-AR")} registrada`);
+      if (errorFoto) toast.error(`No se pudo guardar el comprobante: ${errorFoto}`, { duration: 10000 });
     }
 
     if (requiresDeposit && !isEdit && !registraSena) {
@@ -936,6 +967,7 @@ export function AppointmentDialog({
       return toast.error("Este profesional no tiene habilitado ese servicio. Habilitalo en Configuración → Equipo o elegí otro profesional.");
     }
 
+    if (preparandoFoto) return toast.error("Esperá un momento: se está preparando el comprobante.");
     if (!isEdit && dejaSena && !(Number(senaMonto) > 0)) {
       return toast.error("Ingresá el monto de la seña o tocá «Quitar seña».");
     }
@@ -1400,6 +1432,29 @@ export function AppointmentDialog({
                     </button>
                   ))}
                 </div>
+                {senaMedio === "transfer" && (
+                  <div className="space-y-1.5">
+                    <label className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-dashed border-white/25 bg-white/[0.04] px-3 text-sm font-semibold text-white/85">
+                      <span className="truncate">
+                        {preparandoFoto ? "Preparando…" : senaFoto ? `✓ ${senaFoto.nombre}` : "Adjuntar comprobante (opcional)"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="sr-only"
+                        onChange={(e) => {
+                          void elegirFoto(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {senaFoto && (
+                      <button type="button" onClick={() => setSenaFoto(null)} className="w-full text-center text-xs font-semibold text-white/60 underline-offset-2 hover:underline">
+                        Quitar comprobante
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="text-xs text-white/55">Entra en Caja y se descuenta sola al cobrar el turno.</div>
               </div>
             )}
