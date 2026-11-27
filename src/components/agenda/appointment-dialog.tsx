@@ -430,6 +430,18 @@ export function AppointmentDialog({
   const [notes, setNotes] = React.useState("");
   const [internalNotes, setInternalNotes] = React.useState("");
   const [senasConfig, setSenasConfig] = React.useState<SenasConfig | null>(null);
+  // Seña que el local ya recibió al agendar (opcional). Se registra apenas se guarda el turno.
+  const [dejaSena, setDejaSena] = React.useState(false);
+  const [senaMonto, setSenaMonto] = React.useState("");
+  const [senaMedio, setSenaMedio] = React.useState<"cash" | "transfer">("cash");
+  const limpiarSena = () => {
+    setDejaSena(false);
+    setSenaMonto("");
+    setSenaMedio("cash");
+  };
+  React.useEffect(() => {
+    if (open) limpiarSena();
+  }, [open]);
   // Al editar un turno que pertenece a una recurrencia: "Solo este turno"
   // (default, mismo comportamiento de siempre) o "Este y los siguientes"
   // (propaga servicio/precio/duración/profesional/notas a los turnos de la
@@ -727,6 +739,7 @@ export function AppointmentDialog({
     setNotes("");
     setInternalNotes("");
     setStatus("pending");
+    limpiarSena();
   };
 
   // Teléfono = identificador principal. Si ya hay un cliente vinculado
@@ -798,8 +811,13 @@ export function AppointmentDialog({
       }
     }
 
+    const registraSena = !isEdit && dejaSena && Number(senaMonto) > 0;
+    let errorSena: string | null = null;
+
     for (const [dateIndex, date] of dates.entries()) {
-      await saveAppointment({
+      // En una serie, la seña recibida corresponde solo al primer turno.
+      const conSena = registraSena && dateIndex === 0;
+      const guardado = await saveAppointment({
         // Un solo correo por tanda; los clientes recurrentes no reciben confirmación (solo el
         // recordatorio de 2 horas antes, ver due_booking_reminders).
         notifyClient: !isEdit && dateIndex === 0 && !seriesId,
@@ -816,9 +834,9 @@ export function AppointmentDialog({
         starts_at: date.toISOString(),
         status,
         notes: mergedNotes || null,
-        deposit_amount: requiresDeposit ? depositAmount : null,
-        deposit_paid: requiresDeposit ? 0 : null,
-        deposit_status: requiresDeposit ? "pending" : null,
+        deposit_amount: requiresDeposit && !conSena ? depositAmount : null,
+        deposit_paid: requiresDeposit && !conSena ? 0 : null,
+        deposit_status: requiresDeposit && !conSena ? "pending" : null,
         created_by_name: createdByName,
         created_by_role: createdByRole,
         // Si la promo es la misma que ya tenía el turno y ni servicio ni
@@ -835,6 +853,22 @@ export function AppointmentDialog({
             : null,
         recurring_series_id: seriesId ?? (isEdit ? appointment?.recurring_series_id ?? null : null),
       });
+      if (conSena) {
+        const turnoId = (guardado as { id?: string } | undefined)?.id;
+        try {
+          if (!turnoId) throw new Error("No se pudo identificar el turno.");
+          const { data, error } = await (supabase.rpc as any)("record_deposit_received_v1", {
+            p_appointment_id: turnoId,
+            p_amount: Number(senaMonto),
+            p_method: senaMedio,
+            p_note: null,
+          });
+          if (error) throw error;
+          if (!data?.ok) throw new Error(data?.error ?? "No se pudo registrar la seña.");
+        } catch (e) {
+          errorSena = (e as Error).message;
+        }
+      }
     }
 
     // "Este y los siguientes": propaga los mismos campos de contenido a los
@@ -857,8 +891,13 @@ export function AppointmentDialog({
 
     const suffix = dates.length > 1 ? ` (${dates.length} reservas)` : "";
     toast.success(isEdit ? "Reserva actualizada" : `Reserva guardada${suffix}`);
+    if (errorSena) {
+      toast.error(`El turno se guardó, pero la seña no: ${errorSena}`, { duration: 10000 });
+    } else if (registraSena) {
+      toast.success(`Seña de $${Math.round(Number(senaMonto)).toLocaleString("es-AR")} registrada`);
+    }
 
-    if (requiresDeposit && !isEdit) {
+    if (requiresDeposit && !isEdit && !registraSena) {
       toast.info(senasConfig?.message || "Este servicio requiere seña. La reserva queda con seña pendiente.");
     }
 
@@ -895,6 +934,10 @@ export function AppointmentDialog({
     // El profesional solo puede atender los servicios que tiene habilitados (Configuración → Equipo).
     if (serviceId && employeeId && !isServiceOfferedByEmployee(serviceId, employeeId, employeeServiceOverrides)) {
       return toast.error("Este profesional no tiene habilitado ese servicio. Habilitalo en Configuración → Equipo o elegí otro profesional.");
+    }
+
+    if (!isEdit && dejaSena && !(Number(senaMonto) > 0)) {
+      return toast.error("Ingresá el monto de la seña o tocá «Quitar seña».");
     }
 
     if (!isEdit && bookingWindowEnd && start.getTime() > bookingWindowEnd.getTime()) {
@@ -1307,9 +1350,57 @@ export function AppointmentDialog({
                 </div>
               )}
             </div>
-            {requiresDeposit && (
+            {requiresDeposit && !dejaSena && (
               <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs">
                 🟡 Requiere seña: ${Math.round(depositAmount).toLocaleString("es-AR")}
+              </div>
+            )}
+            {!isEdit && senasConfig?.enabled && !dejaSena && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSenaMonto(requiresDeposit && depositAmount > 0 ? String(Math.round(depositAmount)) : "");
+                  setDejaSena(true);
+                }}
+                className="flex h-11 w-full items-center justify-center rounded-full border border-amber-300/55 bg-amber-400/10 text-sm font-semibold text-amber-200 transition hover:bg-amber-400/20"
+              >
+                + Dejar seña
+              </button>
+            )}
+            {!isEdit && dejaSena && (
+              <div className="space-y-2.5 rounded-2xl border border-amber-300/35 bg-amber-400/[0.07] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-white">Seña recibida</span>
+                  <button type="button" onClick={limpiarSena} className="text-xs font-semibold text-white/60 underline-offset-2 hover:underline">
+                    Quitar seña
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  value={senaMonto}
+                  onChange={(e) => setSenaMonto(e.target.value)}
+                  placeholder="Monto ($)"
+                  aria-label="Monto de la seña"
+                  className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-base font-semibold tabular-nums text-white outline-none placeholder:text-white/40 focus:border-violet-400/50"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  {([["cash", "Efectivo"], ["transfer", "Transferencia"]] as const).map(([valor, texto]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={senaMedio === valor}
+                      onClick={() => setSenaMedio(valor)}
+                      className={`h-11 rounded-full border text-sm font-semibold transition ${
+                        senaMedio === valor ? "border-amber-300/60 bg-amber-400/20 text-amber-200" : "border-white/10 bg-white/[0.04] text-white/65"
+                      }`}
+                    >
+                      {texto}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-xs text-white/55">Entra en Caja y se descuenta sola al cobrar el turno.</div>
               </div>
             )}
             {isEdit && (

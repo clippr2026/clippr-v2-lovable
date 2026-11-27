@@ -261,45 +261,12 @@ export function DepositPanel({
 
   if (!loaded) {
     // Mientras carga se reserva el lugar si se espera mostrar el panel (así lo de abajo no salta).
-    const expected =
-      (!!depositStatusHint && depositStatusHint !== "none") ||
-      (senasEnabled && !isPast && ["pending", "confirmed"].includes(status));
+    const expected = !!depositStatusHint && depositStatusHint !== "none";
     return expected ? <div className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]" aria-hidden /> : null;
   }
 
-  // Sin seña: solo se ofrece registrar una recibida (turno vigente y señas activadas).
-  if (!dep) {
-    if (!senasEnabled || isPast || !["pending", "confirmed"].includes(status)) return null;
-    return (
-      <div
-        className="rounded-2xl border border-white/10 p-4 text-sm"
-        style={{ background: LUZ_TARJETA }}
-      >
-        {!recording ? (
-          <button
-            type="button"
-            onClick={() => setRecording(true)}
-            className="flex h-11 w-full items-center justify-center rounded-full border border-amber-300/55 bg-amber-400/10 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/20"
-          >
-            Registrar seña recibida
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <div className="text-sm font-semibold text-white">Registrar seña recibida</div>
-            <FormSenaRecibida
-              amount={amount}
-              setAmount={setAmount}
-              method={method}
-              setMethod={setMethod}
-              busy={busy}
-              onVolver={() => setRecording(false)}
-              onGuardar={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
+  // Sin seña no se muestra nada: la seña se deja al crear el turno (ver AppointmentDialog).
+  if (!dep) return null;
 
   const info = STATUS_LABEL[dep.status];
   const prof = dist === "professional" ? 100 : dist === "split" ? 50 : dist === "custom" ? customProf : 0;
