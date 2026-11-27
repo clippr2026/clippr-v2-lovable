@@ -1047,8 +1047,8 @@ const occupancyColor = (pct: number) =>
     : pct >= 50
       ? { fill: "#facc15", glow: "rgba(250,204,21,0.9)" }
       : { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" };
-const TURNO_NAME_COLOR = "#fbffff";
-const TURNO_SERVICE_COLOR = "#b1c7da";
+const TURNO_NAME_COLOR = "var(--turno-nombre, #fbffff)";
+const TURNO_SERVICE_COLOR = "var(--turno-servicio, #b1c7da)";
 const statusNeonStyle = (dot: string, border: string, _bg: string) => estiloEstado(dot, border);
 
 function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl, showWhatsapp = false }: {

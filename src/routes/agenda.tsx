@@ -236,8 +236,8 @@ const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 // Letras del turno en el calendario: la hora y PROMO van en el color del estado; el cliente en
 // blanco y el servicio en un gris azulado apagado, para que el nombre sea lo más destacado.
-const TURNO_NAME_COLOR = "#fbffff";
-const TURNO_SERVICE_COLOR = "#c3c8dc";
+const TURNO_NAME_COLOR = "var(--turno-nombre, #fbffff)";
+const TURNO_SERVICE_COLOR = "var(--turno-servicio, #c3c8dc)";
 const statusNeonStyle = (dot: string, border: string, _bg: string) => estiloEstado(dot, border);
 
 // ---------------------------------------------------------------------------

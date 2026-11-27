@@ -1796,3 +1796,67 @@ html.app-oscuro:not(.modo-claro) :is([class*="bg-[oklch(0.1"]):is([class*="round
   background-image: var(--ds-degradado);
   box-shadow: var(--ds-sombra-tarjeta);
 }
+
+/* Modo claro: ventanas con color oscuro puesto en el propio elemento (calendario de la Agenda, «Movimientos de caja»,
+   ventanas de Caja) → tarjeta blanca de Inicio claro. */
+html.modo-claro :is([style*="rgb(8, 7, 15)"], [style*="rgb(11, 10, 20)"], [style*="rgb(17, 19, 35)"]):not([style*="--estado:"]):not(.public-hero *) {
+  background: #ffffff !important;
+  border-color: #e4e2ee !important;
+  box-shadow: 0 1px 2px rgb(23 23 43 / 0.04), 0 8px 24px -18px rgb(23 23 43 / 0.22) !important;
+}
+/* Velo oscuro decorativo detrás de Caja: en claro no va. */
+html.modo-claro [class*="pointer-events-none"][class*="bg-[linear-gradient(180deg,transparent"] { display: none; }
+/* Turnos: nombre y servicio oscuros sobre la tarjeta clara. */
+html.modo-claro { --turno-nombre: #17172b; --turno-servicio: #5a5870; }
+html.modo-claro [style*="--estado:"] span[style*="color"]:not([style*="--turno-"]) { color: var(--estado-fuerte) !important; }
+/* Superficies con degradés casi negros propios (Caja, liquidaciones, ventanas) → tarjetas blancas con borde fino. */
+html.modo-claro :is(
+  [class*="bg-["][class*="gradient("][class*="rgba(2,6,23,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(3,7,18,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(8,11,20,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(5,7,16,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(5,8,15,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(2,4,12,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(2,4,10,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(1,3,9,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(12,16,30,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(10,14,26,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(4,6,14,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(10,12,24,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(4,7,17,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(9,12,26,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(10,8,14,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(8,10,20,"],
+  [class*="bg-["][class*="gradient("][class*="rgba(5,8,18,"]
+):not([class*="fixed"][class*="inset-0"]):not(.public-hero *) {
+  background-color: #ffffff;
+  background-image: none;
+  border-color: #e4e2ee;
+}
+/* Las que llevan color propio lo conservan como un tinte suave. */
+html.modo-claro [class*="gradient("][class*="rgba(16,185,129"]:not(button[class*="from-"]):is([class*="rgba(2,6,23"], [class*="rgba(3,7,18"]) { background-color: #ecfdf3; border-color: #bfe8cf; }
+html.modo-claro [class*="gradient("]:is([class*="rgba(245,158,11"], [class*="rgba(120,53,15"]):is([class*="rgba(2,6,23"], [class*="rgba(3,7,18"]) { background-color: #fff8e8; border-color: #f2dca6; }
+html.modo-claro [class*="gradient("]:is([class*="rgba(37,99,235"], [class*="rgba(59,130,246,0.2"]):is([class*="rgba(2,6,23"], [class*="rgba(8,11,20"]) { background-color: #e6e3f1; border-color: #cfc8e6; }
+/* Detalle del turno en claro. */
+html.modo-claro [style*="rgb(18, 16, 29)"]:not([style*="--estado:"]) { background: #f7f7fb !important; border-color: #e4e2ee !important; }
+html.modo-claro [style*="rgb(10, 26, 61)"] { background: #e6e3f1 !important; box-shadow: none !important; }
+html.modo-claro [style*="rgb(10, 26, 61)"] svg { color: #491a89; }
+html.modo-claro :is([style*="rgb(32, 42, 61)"], [style*="rgb(38, 38, 46)"]) { background: #eeedf4 !important; color: #3a3850 !important; box-shadow: inset 0 0 0 1px #d9d6e6 !important; }
+html.modo-claro [style*="color: rgb(237, 233, 254)"] { color: #491a89 !important; }
+html.modo-claro [style*="color: rgb(74, 222, 128)"] { color: #15803d !important; }
+html.modo-claro [style*="color: rgb(229, 231, 235)"] { color: #3a3850 !important; }
+/* Ventanas con fondo casi negro en oklch → blancas. */
+html.modo-claro :is([class*="bg-[oklch(0.0"], [class*="bg-[oklch(0.1"]):not([class*="fixed"][class*="inset-0"]):not(.public-hero *) {
+  background-color: #ffffff;
+  border-color: #e4e2ee;
+}
+/* Claro: acciones con color propio en el elemento (llegan como #hex o rgb según dónde se dibujen). */
+html.modo-claro :is([style*="color: rgb(74, 222, 128)"], [style*="color:#4ade80"]) { color: #15803d !important; box-shadow: inset 0 0 0 1.5px #8fd3a8 !important; }
+html.modo-claro :is([style*="color: rgb(251, 113, 133)"], [style*="color:#fb7185"]) { color: #be123c !important; box-shadow: inset 0 0 0 1.5px #f0a8b8 !important; }
+/* «Horario», flecha de la Agenda y horas de Mi Panel. */
+html.modo-claro :is([style*="rgb(58, 71, 96)"], [style*="#3A4760"]) { background: #e6e3f1 !important; color: #491a89 !important; box-shadow: none !important; }
+html.modo-claro :is([style*="oklch(0.18 0.03 285"]) { background: #ffffff !important; box-shadow: inset 0 0 0 1px #e4e2ee, 0 6px 16px -10px rgb(23 23 43 / 0.35) !important; }
+html.modo-claro .agenda-grilla [class*="text-white/2"] { color: #6b6880; font-weight: 500; }
+/* Botón principal celeste → violeta («Cerrar caja»). */
+html.modo-claro button[class*="from-blue-400"][class*="to-violet-500"] { background: #491a89; background-image: none; color: #ffffff; --color-white: #ffffff; box-shadow: none; }
+html.modo-claro button[class*="from-blue-400"][class*="to-violet-500"] svg { color: #ffffff; }
