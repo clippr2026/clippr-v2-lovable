@@ -1274,7 +1274,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
           className="flex max-h-[85dvh] w-full max-w-sm flex-col rounded-2xl bg-[#15161c] ring-1 ring-white/10 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="shrink-0 px-5 pt-5">
+          <div className="shrink-0 border-b border-white/10 px-5 pb-3 pt-5">
             <div className="text-lg font-semibold">Editar recurrencia</div>
             <p className="mt-1 text-xs text-muted-foreground">
               Se aplica solo a los turnos futuros de esta serie — nunca a pasados, cobrados o completados.
@@ -1305,23 +1305,23 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Horario</label>
                 <input
                   type="time"
                   value={seriesEditForm.startTime}
                   onChange={(e) => setSeriesEditForm((f) => ({ ...f, startTime: e.target.value }))}
-                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                  className="block h-11 w-full min-w-0 max-w-full appearance-none rounded-lg bg-white/5 px-3 text-left text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40 [&::-webkit-date-and-time-value]:text-left"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Cada cuántas semanas</label>
+              <div className="min-w-0 space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Cada (semanas)</label>
                 <input
                   type="number"
                   min={1}
                   value={seriesEditForm.everyWeeks}
                   onChange={(e) => setSeriesEditForm((f) => ({ ...f, everyWeeks: e.target.value }))}
-                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                  className="block h-11 w-full min-w-0 max-w-full appearance-none rounded-lg bg-white/5 px-3 text-left text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40 [&::-webkit-date-and-time-value]:text-left"
                 />
               </div>
             </div>
