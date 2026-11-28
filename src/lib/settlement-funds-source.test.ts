@@ -57,9 +57,22 @@ describe("Pagar una liquidación — origen y bloqueos en pantalla", () => {
     expect(src).toMatch(/p_funds_source: liquidarFunds \|\| "externo"/);
   });
 
-  it("con la caja cerrada, 'Caja del día' está bloqueado y Pagar no deja avanzar", () => {
-    expect(src).toMatch(/disabled=\{opt\.value === "caja" && cajaCerrada\}/);
+  it("usa la casilla «No descontar de la caja del día»; con la caja cerrada queda marcada y no deja descontar", () => {
+    const ventana = src.slice(src.indexOf("title={`Liquidar a "), src.indexOf("{pendingCierresBlock &&"));
+    expect(ventana).toContain("<NoDescontarCaja");
+    expect(ventana).toContain('externo={liquidarFunds !== "caja"}');
+    expect(ventana).toContain("cajaCerrada={cajaCerrada}");
+    expect(ventana).toContain("Confirmar liquidación");
     expect(src).toMatch(/liquidarFunds === "caja" && cajaCerrada/);
+  });
+
+  it("el adelanto se carga desde Resumen, también con la caja cerrada; Liquidaciones no lo duplica", () => {
+    const panel = src.slice(src.indexOf("function ProfesionalesTab("), src.indexOf("function NuevoGastoTab("));
+    expect(panel).not.toContain("<AdelantoModal");
+    expect(panel).not.toContain("+ Registrar");
+    const cerrada = src.slice(src.indexOf("{/* Con la caja cerrada queda solo «Adelanto»"), src.indexOf("{/* Dos acciones principales como fichas"));
+    expect(cerrada).toContain("{cajaCerrada && (");
+    expect(cerrada).toContain("setEligiendoAdelanto(true)");
   });
 
   it("si el monto supera lo que hay en la caja, muestra que no hay ese dinero", () => {

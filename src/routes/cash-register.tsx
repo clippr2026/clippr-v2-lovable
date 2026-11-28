@@ -4017,7 +4017,6 @@ function ProfesionalesTab({
     setPaymentSplits([{ method: "cash", amount: "" }]);
   }
 
-  const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
 
   async function handleDeleteAdvance(advanceId: string, amount: number) {
@@ -5546,7 +5545,6 @@ function ProfesionalesTab({
   function selectEmployee(nextId: string) {
     setSelectedEmployeeId(nextId);
     resetLiquidarForm();
-    setAdelantoModalOpen(false);
     setLiquidarCutoffDate("");
     setPeriodInfoOpen(false);
     setHistorialDetailRun(null);
@@ -5759,15 +5757,6 @@ function ProfesionalesTab({
     });
   }, [rows, allCommissions, allTips, allCommissionEventsAttributed, allTipEventsAttributed, allAdvances, allVentasAnuladas, allPresentismo, nowClock, data.employees]);
 
-  // Cantidad de tarjetas de cifras visibles (en el celular van de a dos: si queda una sola
-  // en la última fila, ocupa todo el ancho).
-  const cantTarjetasCifras =
-    2 +
-    (hasPendingPreviousBalance ? 1 : 0) +
-    (liquidarNewTips > 0 ? 1 : 0) +
-    (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
-    (liquidarPendingPresentismo !== 0 ? 1 : 0);
-
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: un solo shadow liviano (mismo costo de paint que
@@ -5779,7 +5768,7 @@ function ProfesionalesTab({
           "prende la luz" al cargar. Desktop no cambia (shadow doble original
           vía `sm:`). */}
       <section className="flex flex-col overflow-visible sm:h-full sm:overflow-hidden">
-        <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", (liqDetalle || !selectedRow) && "hidden", liqDetalle && selectedRow && "sm:flex")}>
+        <div className={cn("flex flex-col gap-3 py-2 lg:flex-row lg:items-center lg:justify-between", (liqDetalle || !selectedRow) && "hidden", liqDetalle && selectedRow && "sm:flex")}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {/* Celular: en vez del desplegable, volver atrás a la lista del equipo. */}
             {selectedRow && (
@@ -5788,11 +5777,17 @@ function ProfesionalesTab({
                   type="button"
                   onClick={() => selectEmployee("")}
                   aria-label="Volver al equipo"
-                  className="grid size-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white transition active:scale-95"
+                  className="cj-menu grid size-10 shrink-0 place-items-center rounded-full text-white transition active:scale-95"
                 >
-                  <ChevronLeft className="size-5" />
+                  <ArrowLeft className="size-5" />
                 </button>
-                <div className="min-w-0 truncate text-base font-semibold text-white">{selectedRow.name}</div>
+                <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
+                  {(() => {
+                    const foto = ((data.employees ?? []) as any[]).find((e) => String(e.id) === selectedRow.id)?.avatar_url;
+                    return foto ? <img src={foto} alt="" className="h-full w-full object-cover" /> : selectedRow.name.slice(0, 1).toUpperCase();
+                  })()}
+                </span>
+                <div className="cj-texto min-w-0 truncate text-lg font-bold">{selectedRow.name}</div>
               </div>
             )}
             <select
@@ -5814,175 +5809,86 @@ function ProfesionalesTab({
                 arrancar con "Primera liquidación"/fechas sueltas antes
                 de elegir a alguien confunde más que ayuda. */}
             {selectedRow && (
-              <div className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3.5 py-1.5 sm:w-auto" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-white/70">
-                  <CalendarDays className="size-3.5" />
-                  Período
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
+                  setPeriodInfoOpen(true);
+                }}
+                className="cj-tarjeta flex w-full items-center gap-3 px-3.5 py-2.5 text-left sm:w-auto"
+              >
+                <CalendarDays className="cj-suave size-5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="cj-suave block text-xs font-semibold">Período de liquidación</span>
+                  <span className="cj-texto block text-sm font-bold tabular-nums">
+                    {periodoActualLabel.desde.startsWith("Desde ") && periodoActualLabel.hasta.startsWith("Hasta ")
+                      ? `${periodoActualLabel.desde.slice(6)} al ${periodoActualLabel.hasta.slice(6)}`
+                      : `${periodoActualLabel.desde} → ${periodoActualLabel.hasta}`}
+                  </span>
                 </span>
-                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5">
-                <span className="break-words text-xs font-semibold text-white">
-                  {periodoActualLabel.desde}
-                </span>
-                <span aria-hidden className="text-xs text-white/30">→</span>
-                {/* Solo "Hasta" es editable — "Desde" queda fijo (es la
-                    última liquidación pagada). Tocarlo abre el calendario
-                    de abajo para elegir hasta qué día liquidar. */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
-                    setPeriodInfoOpen(true);
-                  }}
-                  className="break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
-                >
-                  {periodoActualLabel.hasta}
-                </button>
-                </div>
-              </div>
+                <ChevronRight className="cj-suave size-4 shrink-0" />
+              </button>
             )}
           </div>
         </div>
 
         {selectedRow && (
-          <div className={cn("flex flex-col gap-2.5 border-b border-white/[0.055] px-5 py-3 lg:flex-row lg:items-stretch", liqDetalle && "hidden sm:flex")}>
-            <div
-              className={cn(
-                "grid flex-1 grid-cols-2 gap-2.5",
-                // Comisiones generadas + Adelantos son siempre fijas;
-                // Comisiones pendientes, Propinas y Deducciones pendientes
-                // son condicionales — la cantidad de columnas en desktop
-                // sigue la cantidad real de tarjetas visibles para que no
-                // queden huecos. previousBalance redondeado: un resto de
-                // centavos (ej. $0,17 por un adelanto con decimales) no
-                // debe mostrar una tarjeta de "$0" — ver money(), que ya
-                // redondea para mostrar.
-                2 +
-                  (hasPendingPreviousBalance ? 1 : 0) +
-                  (liquidarNewTips > 0 ? 1 : 0) +
-                  (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
-                  (liquidarPendingPresentismo !== 0 ? 1 : 0) >=
-                  5
-                  ? "sm:grid-cols-5"
-                  : 2 +
-                        (hasPendingPreviousBalance ? 1 : 0) +
-                        (liquidarNewTips > 0 ? 1 : 0) +
-                        (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
-                        (liquidarPendingPresentismo !== 0 ? 1 : 0) >=
-                      4
-                    ? "sm:grid-cols-4"
-                    : hasPendingPreviousBalance ||
-                        liquidarNewTips > 0 ||
-                        liquidarPendingDeductionNet !== 0 ||
-                        liquidarPendingPresentismo !== 0
-                      ? "sm:grid-cols-3"
-                      : "sm:grid-cols-2",
-              )}
-            >
-              <StatCard
-                label="Comisiones generadas"
-                sublabel={hasPendingPreviousBalance ? "Período actual" : undefined}
-                value={money(liquidarNewCommissions)}
-                tone="violet"
-                info={COMISIONES_NUEVAS_INFO_TEXT}
-              />
-              {hasPendingPreviousBalance && (
-                <StatCard
-                  label="Comisiones pendientes"
-                  sublabel={selectedRow.previousPeriodLabel ?? "Período anterior"}
-                  value={money(totals.previousBalance)}
-                  tone="neutral"
-                  info={LIQUIDACION_ANTERIOR_INFO_TEXT}
-                />
-              )}
-              {liquidarNewTips > 0 && (
-                <StatCard
-                  label="Propinas"
-                  value={money(liquidarNewTips)}
-                  tone="violet"
-                  info="Propinas cobradas junto con ventas de este profesional, pendientes de liquidar. Nunca forman parte de las comisiones ni de la facturación del negocio."
-                />
-              )}
-              {/* "Venta anulada" pendiente de compensar (commission_adjustment_queue)
-                  — concepto propio, separado de Adelantos a propósito (son
-                  tablas y motivos distintos: un adelanto es plata que se le
-                  dio al profesional, esto es comisión que ya cobró de una
-                  venta que se anuló después). Positivo = crédito a favor
-                  (venta restablecida cuya deducción ya estaba compensada). */}
-              {liquidarPendingDeductionNet !== 0 && (
-                <StatCard
-                  label="Deducciones pendientes"
-                  value={
-                    liquidarPendingDeductionNet > 0
-                      ? `−${money(liquidarPendingDeductionNet)}`
-                      : `+${money(-liquidarPendingDeductionNet)}`
-                  }
-                  tone="rose"
-                  info="Comisión ya pagada de una venta que se anuló después (o un crédito a favor si esa venta se restableció). Se descuenta (o suma) automáticamente de la próxima liquidación."
-                />
-              )}
-              {/* Presentismo: tarjeta propia, separada de "Comisiones
-                  generadas" a propósito (decisión explícita: fusionarla ahí
-                  haría que ese número ya no coincida con lo que queda
-                  congelado en settlement_runs.new_commissions, visible
-                  después en Historial). Positivo = descuento neto
-                  (tardanzas); negativo = ajuste a favor neto. */}
-              {liquidarPendingPresentismo !== 0 && (
-                <StatCard
-                  label="Puntualidad"
-                  value={
-                    liquidarPendingPresentismo > 0
-                      ? `−${money(liquidarPendingPresentismo)}`
-                      : `+${money(-liquidarPendingPresentismo)}`
-                  }
-                  tone={liquidarPendingPresentismo > 0 ? "rose" : "green"}
-                  info="Descuentos por tardanza confirmados (o ajustes a favor autorizados) de este profesional, todavía sin liquidar. Se descuenta (o suma) automáticamente al preparar la liquidación — ver el detalle día por día en Movimientos."
-                />
-              )}
-              {/* Adelantos: misma tarjeta de siempre (tono rose, igual
-                  estilo que StatCard), ahora con el botón "Adelantar"
-                  integrado adentro, alineado a la derecha — antes vivía
-                  junto a "Pagar" en la barra de Total a pagar. No se tocó
-                  StatCard (compartido con Panel del profesional, que no
-                  tiene botones) para no arriesgar su layout ahí. */}
-              <div className={cn("rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]", cantTarjetasCifras % 2 === 1 && "max-sm:col-span-2")} style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
-                <div className="flex flex-col gap-2">
-                  {selectedRow.previousAdvanceDebt > 0.5 ? (
-                    // Saldo de adelantos que arrastra la liquidación anterior (y, si hay, los nuevos del período).
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
-                        <InfoPopover text={ADELANTOS_INFO_TEXT} />
-                      </div>
-                      {(
-                        [
-                          ["Adelantos pendientes", selectedRow.previousAdvanceDebt],
-                          ...(liquidarPendingAdvances > 0 ? [["Adelantos actuales", liquidarPendingAdvances]] : []),
-                        ] as Array<[string, number]>
-                      ).map(([nombre, monto]) => (
-                        <div key={nombre}>
-                          <div className="text-xs font-semibold text-white/75">{nombre}</div>
-                          <div className="text-lg font-bold tabular-nums">{`−${money(monto)}`}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
-                        <span>Adelantos</span>
-                        <InfoPopover text={ADELANTOS_INFO_TEXT} />
-                      </div>
-                      <div className="mt-0.5 text-lg font-bold tabular-nums">
-                        {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setAdelantoModalOpen(true)}
-                    className="h-11 w-full rounded-full bg-rose-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.35)] transition hover:brightness-110"
-                  >
-                    + Registrar
-                  </button>
-                </div>
+          <div className={cn("flex flex-col gap-2.5 py-1 lg:flex-row lg:items-start", liqDetalle && "hidden sm:flex")}>
+            <div className="cj-tarjeta flex-1 px-4 py-3">
+              <h4 className="cj-texto text-base font-bold">Resumen de liquidación</h4>
+              <div className="cj-linea mt-2 border-t pt-1.5">
+                {(
+                  [
+                    { nombre: "Comisiones generadas", monto: money(liquidarNewCommissions), color: "cj-texto", info: COMISIONES_NUEVAS_INFO_TEXT },
+                    // Redondeado: un resto de centavos no debe mostrar una línea de "$0".
+                    hasPendingPreviousBalance && {
+                      nombre: `Comisiones pendientes${selectedRow.previousPeriodLabel ? ` (${selectedRow.previousPeriodLabel})` : ""}`,
+                      monto: money(totals.previousBalance),
+                      color: "cj-texto",
+                      info: LIQUIDACION_ANTERIOR_INFO_TEXT,
+                    },
+                    liquidarNewTips > 0 && {
+                      nombre: "Propinas",
+                      monto: money(liquidarNewTips),
+                      color: "cj-texto",
+                      info: "Propinas cobradas junto con ventas de este profesional, pendientes de liquidar. Nunca forman parte de las comisiones ni de la facturación del negocio.",
+                    },
+                    // "Venta anulada" pendiente de compensar: concepto propio, distinto de un adelanto.
+                    liquidarPendingDeductionNet !== 0 && {
+                      nombre: "Deducciones pendientes",
+                      monto: liquidarPendingDeductionNet > 0 ? `−${money(liquidarPendingDeductionNet)}` : `+${money(-liquidarPendingDeductionNet)}`,
+                      color: liquidarPendingDeductionNet > 0 ? "cj-rojo" : "cj-verde",
+                      info: "Comisión ya pagada de una venta que se anuló después (o un crédito a favor si esa venta se restableció). Se descuenta (o suma) automáticamente de la próxima liquidación.",
+                    },
+                    liquidarPendingPresentismo !== 0 && {
+                      nombre: "Puntualidad",
+                      monto: liquidarPendingPresentismo > 0 ? `−${money(liquidarPendingPresentismo)}` : `+${money(-liquidarPendingPresentismo)}`,
+                      color: liquidarPendingPresentismo > 0 ? "cj-rojo" : "cj-verde",
+                      info: "Descuentos por tardanza confirmados (o ajustes a favor autorizados) de este profesional, todavía sin liquidar. Se descuenta (o suma) automáticamente al preparar la liquidación — ver el detalle día por día en Movimientos.",
+                    },
+                    // Saldo de adelantos que arrastra la liquidación anterior.
+                    selectedRow.previousAdvanceDebt > 0.5 && {
+                      nombre: "Adelantos pendientes",
+                      monto: `−${money(selectedRow.previousAdvanceDebt)}`,
+                      color: "cj-rojo",
+                      info: ADELANTOS_INFO_TEXT,
+                    },
+                    (selectedRow.previousAdvanceDebt <= 0.5 || liquidarPendingAdvances > 0) && {
+                      nombre: selectedRow.previousAdvanceDebt > 0.5 ? "Adelantos actuales" : "Adelantos",
+                      monto: liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0),
+                      color: liquidarPendingAdvances > 0 ? "cj-rojo" : "cj-texto",
+                      info: ADELANTOS_INFO_TEXT,
+                    },
+                  ].filter(Boolean) as Array<{ nombre: string; monto: string; color: string; info: string }>
+                ).map((l) => (
+                  <div key={l.nombre} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                    <span className="cj-suave flex min-w-0 items-center gap-1">
+                      {l.nombre}
+                      <InfoPopover text={l.info} />
+                    </span>
+                    <span className={cn("shrink-0 font-bold tabular-nums", l.color)}>{l.monto}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -5994,8 +5900,7 @@ function ProfesionalesTab({
                 en la lista de abajo. */}
             <div className="flex flex-col gap-2 lg:min-w-[300px]">
               <div
-                className="sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-3 shadow-[0_0_30px_-12px_rgba(16,185,129,0.55)] backdrop-blur-xl"
-                style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)" }}
+                className="sticky top-0 z-20 flex items-center gap-3 rounded-[20px] border border-emerald-400/20 bg-emerald-400/[0.09] px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-white/75">Total a pagar</div>
@@ -6021,7 +5926,7 @@ function ProfesionalesTab({
                     onClick={() => openLiquidarModal(selectedRow)}
                     className="h-11 shrink-0 rounded-full bg-emerald-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
                   >
-                    Pagar
+                    Liquidar
                   </button>
                 )}
               </div>
@@ -6030,14 +5935,15 @@ function ProfesionalesTab({
         )}
 
         {selectedRow && !liqDetalle && (
-          <div className="px-5 pb-4 pt-1 sm:hidden">
+          <div className="pb-4 pt-1.5 sm:hidden">
             <button
               type="button"
               onClick={() => setLiqDetalle(true)}
-              className="flex h-12 w-full items-center justify-between rounded-full border border-violet-400/35 bg-violet-500/10 px-5 text-sm font-semibold text-white transition active:scale-[0.99]"
+              className="cj-tarjeta flex h-12 w-full items-center gap-3 px-4 text-sm font-bold transition active:scale-[0.99]"
             >
-              <span>Ver historial y movimientos</span>
-              <ChevronRight className="size-4 text-white/60" />
+              <Clock className="size-4 shrink-0 text-violet-300" />
+              <span className="cj-texto flex-1 text-left">Ver historial y movimientos</span>
+              <ChevronRight className="cj-suave size-4" />
             </button>
           </div>
         )}
@@ -6550,23 +6456,6 @@ function ProfesionalesTab({
         )}
       </section>
 
-      {selectedRow && adelantoModalOpen && (
-        <AdelantoModal
-          profesional={selectedRow}
-          businessId={businessId}
-          chargedByName={chargedByName}
-          cajaCerrada={cajaCerrada}
-          cajaDisponible={cajaDisponible}
-          onClose={() => setAdelantoModalOpen(false)}
-          onRegistrado={() => {
-            setCommissionsVersion((v) => v + 1);
-            // El adelanto de "Caja del día" descuenta del efectivo/dinero en
-            // cuenta y aparece en Movimientos: sin este refresh() había que
-            // recargar la página para verlo en Resumen.
-            void data.refresh("adelanto registrado");
-          }}
-        />
-      )}
 
       {selectedRow && (
         <AgendaCenteredModal
@@ -6719,7 +6608,7 @@ function ProfesionalesTab({
             onOpenChange={(v) => {
               if (!v) resetLiquidarForm();
             }}
-            title={selectedRow.name}
+            title={`Liquidar a ${selectedRow.name}`}
             footer={
               <button
                 type="button"
@@ -6727,17 +6616,14 @@ function ProfesionalesTab({
                 disabled={payDisabled}
                 className="h-12 w-full rounded-full bg-[linear-gradient(135deg,#34D399,#10B981)] px-4 text-base font-bold text-white shadow-[0_0_30px_rgba(16,185,129,0.25)] transition hover:brightness-110 disabled:opacity-50"
               >
-                {preparingRunFor === selectedRow.id ? "Pagando…" : "Pagar"}
+                {preparingRunFor === selectedRow.id ? "Registrando…" : "Confirmar liquidación"}
               </button>
             }
           >
             <div className="space-y-4">
               {/* Un solo número grande: lo que se va a pagar. Comisiones, adelantos y demás ya están
                   en la pantalla de atrás, no se repiten acá. */}
-              <div
-                className="rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-4 text-center"
-                style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)" }}
-              >
+              <div className="rounded-[20px] border border-emerald-400/20 bg-emerald-400/[0.09] px-4 py-3.5 text-center">
                 <div className="text-sm font-semibold text-white/75">Total a pagar</div>
                 <div className="mt-1 text-4xl font-bold tabular-nums text-emerald-300">{money(liquidarFinalTotal)}</div>
               </div>
@@ -6780,7 +6666,7 @@ function ProfesionalesTab({
                   onClick={() => setDeductionItems((cur) => [...cur, { id: crypto.randomUUID(), amount: "", reason: "" }])}
                   className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full border border-rose-400/25 bg-rose-400/10 px-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
                 >
-                  <Plus className="size-4" /> Deducción
+                  <Minus className="size-4" /> Deducción
                 </button>
               </div>
 
@@ -6801,45 +6687,8 @@ function ProfesionalesTab({
                 </div>
               )}
 
-              <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                <div className="text-base font-semibold text-white">¿De dónde sale el dinero?</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      { value: "caja", label: "Caja del día" },
-                      { value: "externo", label: "Fondos externos" },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setLiquidarFunds(opt.value)}
-                      disabled={opt.value === "caja" && cajaCerrada}
-                      aria-pressed={liquidarFunds === opt.value}
-                      className={cn(
-                        "h-12 whitespace-nowrap rounded-full border px-2 text-[15px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40",
-                        liquidarFunds === opt.value
-                          ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
-                          : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm leading-snug text-white/65">
-                  {liquidarFunds === "caja"
-                    ? "Sale del efectivo o del banco de la caja."
-                    : "No toca la caja."}
-                </p>
-                {cajaCerrada && (
-                  <p className="text-sm leading-snug text-rose-200/90">
-                    La caja del día está cerrada: solo se puede usar Fondos externos.
-                  </p>
-                )}
-              </div>
-
-              <div>
+              <div className="cj-linea border-t pt-4">
+                <div className="cj-texto mb-2 text-base font-bold">Medio de pago</div>
                 {/* Mismo segmented control que Nueva venta (paso Pago) —
                     "simple" es un método + un monto editable (permite pago
                     parcial); "multiple" reusa MultiMethodPaymentSplit, acá
@@ -6851,7 +6700,7 @@ function ProfesionalesTab({
                       const simpleDiff = liquidarFinalTotal - simpleAmount;
                       const isCashOverpay = simpleDiff < 0 && paymentForm.method === "cash";
                       return (
-                        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
+                        <div className="space-y-2">
                           <div className="grid grid-cols-2 gap-2">
                             <SelectClippr
                               opciones={paymentOptions.map((o) => ({ id: o.id, label: o.label }))}
@@ -6873,24 +6722,6 @@ function ProfesionalesTab({
                               />
                             </div>
                           </div>
-                          {/* Un solo renglón dinámico en vez del recuadro de
-                              3 filas (Total final/Monto del pago/Saldo
-                              pendiente) — esos dos primeros ya se muestran
-                              en el resumen de arriba, repetirlos acá era
-                              información duplicada. */}
-                          <div className="px-1 text-base font-semibold">
-                            {isCashOverpay ? (
-                              <span className="text-emerald-300">Vuelto: {money(Math.abs(simpleDiff))}</span>
-                            ) : simpleDiff < 0 ? (
-                              <span className="text-rose-300">
-                                Sobra {money(Math.abs(simpleDiff))} — no puede superar el total
-                              </span>
-                            ) : simpleDiff === 0 ? (
-                              <span className="font-bold text-emerald-300">Liquidación completa</span>
-                            ) : (
-                              <span className="text-rose-300">Saldo pendiente: {money(simpleDiff)}</span>
-                            )}
-                          </div>
                           {/* Pasa a varios métodos: la fila actual queda y se suma otra vacía. */}
                           <button
                             type="button"
@@ -6903,9 +6734,9 @@ function ProfesionalesTab({
                               ]);
                               setPaymentMode("multiple");
                             }}
-                            className="inline-flex h-11 items-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
+                            className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-violet-300"
                           >
-                            <Plus className="size-4" /> Agregar otro método de pago
+                            <Plus className="size-4" /> Agregar otro medio de pago
                           </button>
                         </div>
                       );
@@ -6920,7 +6751,34 @@ function ProfesionalesTab({
                     />
                   )}
 
-                <label className="mt-3 block space-y-1.5 text-base font-semibold text-white">
+                <div className="cj-linea mt-3 space-y-3 border-t pt-4">
+                  <NoDescontarCaja
+                    externo={liquidarFunds !== "caja"}
+                    cajaCerrada={cajaCerrada}
+                    onChange={(externo) => setLiquidarFunds(externo ? "externo" : "caja")}
+                  />
+                  {paymentMode === "simple" &&
+                    (() => {
+                      const diferencia = liquidarFinalTotal - Number(paymentForm.amount || 0);
+                      return (
+                        <div className="px-1 text-base font-semibold">
+                          {diferencia < 0 && paymentForm.method === "cash" ? (
+                            <span className="text-emerald-300">Vuelto: {money(Math.abs(diferencia))}</span>
+                          ) : diferencia < 0 ? (
+                            <span className="text-rose-300">Sobra {money(Math.abs(diferencia))} — no puede superar el total</span>
+                          ) : diferencia === 0 ? (
+                            <span className="inline-flex items-center gap-2 font-bold text-emerald-300">
+                              <CheckCircle2 className="size-4" /> Liquidación completa
+                            </span>
+                          ) : (
+                            <span className="text-rose-300">Saldo pendiente: {money(diferencia)}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                </div>
+
+                <label className="mt-3 block space-y-1.5 text-sm font-semibold text-white/70">
                   Nota
                   <textarea
                     value={paymentForm.note}
@@ -13483,6 +13341,15 @@ function FacturacionPanel({
       {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
+      {/* Con la caja cerrada queda solo «Adelanto» (se registra sin descontar de la caja). */}
+      {cajaCerrada && (
+        <div className="mt-4 grid grid-cols-3 gap-3 sm:mx-auto sm:max-w-md">
+          <button type="button" onClick={() => setEligiendoAdelanto(true)} className="caja-secundaria caja-secundaria-adelanto col-start-2">
+            <HandCoins className="size-5" />
+            Adelanto
+          </button>
+        </div>
+      )}
       <div className={`mt-4 space-y-3.5 ${cajaCerrada ? "hidden" : ""}`}>
         {/* Dos acciones principales como fichas: lo que entra (verde) y lo que sale (rojo). */}
         <div className="grid grid-cols-2 gap-3 sm:mx-auto sm:max-w-md">
