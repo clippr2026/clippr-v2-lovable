@@ -250,7 +250,7 @@ function CajaHoyCard({
   data: DashboardData;
   userEmail: string | null;
 }) {
-  // Composición de "Efectivo en caja"/"Dinero en banco" — mismo
+  // Composición de "Efectivo en caja"/"Dinero digital" — mismo
   // modal que Caja > Facturación, misma fuente (caja.todayExpectedFull):
   // un saldo negativo nunca queda sin explicación acá tampoco.
   const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
@@ -353,7 +353,7 @@ function CajaHoyCard({
         />
         <MiniStat
           icon={CreditCard}
-          label="Dinero en banco"
+          label="Dinero digital"
           value={montosOcultos ? MONTO_OCULTO : fmtAR(caja.todayDigitalExpected)}
           onClick={() => setSaldoDetalle("digital")}
         />
@@ -361,7 +361,7 @@ function CajaHoyCard({
 
       {saldoDetalle && (
         <SaldoComposicionModal
-          title={saldoDetalle === "cash" ? "Efectivo en caja" : "Dinero en banco"}
+          title={saldoDetalle === "cash" ? "Efectivo en caja" : "Dinero digital"}
           expected={caja.todayExpectedFull}
           side={saldoDetalle}
           onClose={() => setSaldoDetalle(null)}

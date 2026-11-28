@@ -1860,3 +1860,15 @@ html.modo-claro .agenda-grilla [class*="text-white/2"] { color: #6b6880; font-we
 /* Botón principal celeste → violeta («Cerrar caja»). */
 html.modo-claro button[class*="from-blue-400"][class*="to-violet-500"] { background: #491a89; background-image: none; color: #ffffff; --color-white: #ffffff; box-shadow: none; }
 html.modo-claro button[class*="from-blue-400"][class*="to-violet-500"] svg { color: #ffffff; }
+
+/* Caja — fichas «Venta» y «Gasto»: círculo con el signo y el nombre debajo. */
+.caja-accion { --c: #4ade80; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1rem 0.75rem; border-radius: 28px; background: #12101d; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff; font-size: 1.05rem; font-weight: 700; transition: transform 0.15s, filter 0.15s; }
+.caja-accion:hover { filter: brightness(1.15); }
+.caja-accion:active { transform: scale(0.98); }
+.caja-accion-gasto { --c: #fb7185; }
+.caja-accion-circulo { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 9999px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+html.modo-claro .caja-accion { --c: #0d9488; background: #ffffff; border-color: #e6e3f1; color: #17172b; box-shadow: 0 10px 24px -18px rgba(23, 23, 43, 0.35); }
+html.modo-claro .caja-accion:hover { filter: brightness(0.98); }
+html.modo-claro .caja-accion-gasto { --c: #be185d; }
+html.modo-claro .caja-accion-circulo { background: color-mix(in srgb, var(--c) 13%, #ffffff); }
+

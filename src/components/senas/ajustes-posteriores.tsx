@@ -76,7 +76,7 @@ function Lista({ rows }: { rows: AjustePosterior[] }) {
               {r.tipo === "reversion" ? "Reversión" : "Seña"} · {r.cliente ?? "Cliente"}
             </div>
             <div className="truncate text-[11px] text-white/55">
-              {r.servicio ?? "Turno"} · {r.metodo === "efectivo" ? "Efectivo" : "Dinero en banco"}
+              {r.servicio ?? "Turno"} · {r.metodo === "efectivo" ? "Efectivo" : "Dinero digital"}
             </div>
             <div className="text-[11px] text-white/45">
               {r.tipo === "reversion"
@@ -108,7 +108,7 @@ export function CierreAjustesNota({
   businessId: string | null | undefined;
   branchId: string | null | undefined;
   fecha: string | null | undefined;
-  /** Dinero en banco esperado del cierre original. */
+  /** Dinero digital esperado del cierre original. */
   cuentaEsperada: number;
   className?: string;
 }) {
@@ -126,7 +126,7 @@ export function CierreAjustesNota({
       </div>
       <dl className="mt-2 space-y-1.5 border-t border-white/[0.07] pt-3 text-sm">
         <div className="flex items-center justify-between gap-3">
-          <dt className="text-white/60">Dinero en banco del cierre original</dt>
+          <dt className="text-white/60">Dinero digital del cierre original</dt>
           <dd className="font-semibold tabular-nums text-white">{money(cuentaEsperada)}</dd>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -163,7 +163,7 @@ export function FueraDeJornadaDetalle({ rows }: { rows: AjustePosterior[] }) {
         <Lista rows={rows} />
         <dl className="mt-1 space-y-1.5 border-t border-white/[0.07] pt-3 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-white/60">Dinero en banco</dt>
+            <dt className="text-white/60">Dinero digital</dt>
             <dd className="font-semibold tabular-nums text-sky-300">{money(cuenta)}</dd>
           </div>
           {efectivo !== 0 && (

@@ -152,7 +152,7 @@ export function SenasExtensionBanner({
                     <span className="min-w-0 truncate text-white/85">{(it.nota ?? "Seña").replace(/^Seña – /, "")}</span>
                     <span className="shrink-0 text-right">
                       <span className="block font-semibold tabular-nums text-white">{money(it.monto)}</span>
-                      <span className="block text-[11px] text-white/50">{it.metodo === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}</span>
+                      <span className="block text-[11px] text-white/50">{it.metodo === "efectivo" ? "Efectivo en caja" : "Dinero digital"}</span>
                     </span>
                   </div>
                 ))}
@@ -223,7 +223,7 @@ export function CierreExtensionesNota({
             ))}
             <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-2 text-sm">
               <span className="text-white/80">
-                {Number(r.total_banco) > 0 && `Dinero en banco +${money(Number(r.total_banco))}`}
+                {Number(r.total_banco) > 0 && `Dinero digital +${money(Number(r.total_banco))}`}
                 {Number(r.total_banco) > 0 && Number(r.total_efectivo) > 0 && " · "}
                 {Number(r.total_efectivo) > 0 && `Efectivo en caja +${money(Number(r.total_efectivo))}`}
               </span>

@@ -87,7 +87,7 @@ function ReembolsosModal({ open, onClose, items }: { open: boolean; onClose: () 
 
 /**
  * Tarjeta "Señas" de Caja e Inicio: las señas que esperan revisión, de cualquier fecha de turno.
- * Lo ya aprobado se ve en Ingresos / Dinero en banco y los reembolsos en Gastos.
+ * Lo ya aprobado se ve en Ingresos / Dinero digital y los reembolsos en Gastos.
  */
 export function SenasCajaCard({
   businessId,

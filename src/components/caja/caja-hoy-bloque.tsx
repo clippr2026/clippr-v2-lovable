@@ -114,7 +114,7 @@ export function CajaHoyBloque({
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <MiniStat icon={Wallet} label="Efectivo en caja" value={ver(pesos(efectivo))} onToggle={alternar} onClick={onEfectivo} />
-        <MiniStat icon={CreditCard} label="Dinero en banco" value={ver(pesos(banco))} onToggle={alternar} onClick={onBanco} />
+        <MiniStat icon={CreditCard} label="Dinero digital" value={ver(pesos(banco))} onToggle={alternar} onClick={onBanco} />
       </div>
     </div>
   );

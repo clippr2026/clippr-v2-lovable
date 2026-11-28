@@ -16,7 +16,7 @@ export const CLIPPI_TEMAS_EXTRA: ClippiTema[] = [
   n("ocupacion-colores", "Qué significan las ocupaciones", "que son los porcentajes de la agenda|que significa la ocupacion|colores de la agenda|para que sirve el porcentaje de arriba",
     "En la Agenda, la ayuda «Qué significan las ocupaciones» explica cómo leer cuánto de la jornada está reservado.", agenda),
   n("turno-pasado", "No me deja cargar un horario pasado", "no puedo crear un turno en un horario que ya paso|quiero anotar un turno de hace un rato|no me deja editar una hora vieja",
-    "No se pueden crear turnos, bloqueos ni cambios en horarios que ya pasaron. Si ya atendiste a esa persona, registralo desde Caja con «Nueva venta».", caja("resumen")),
+    "No se pueden crear turnos, bloqueos ni cambios en horarios que ya pasaron. Si ya atendiste a esa persona, registralo desde Caja con «+ Venta».", caja("resumen")),
   n("turno-pisado", "Dice que el horario se pisa", "ese horario se pisa con otro turno|no me deja poner dos turnos a la misma hora|horario ocupado|se superponen los turnos",
     "El profesional ya tiene un turno o bloqueo que se cruza con ese horario. Elegí otra hora, otro profesional o mové el turno existente.", agenda),
   n("turno-servicio-barbero", "El barbero no tiene ese servicio", "este profesional no tiene habilitado ese servicio|no me deja asignar el servicio a un barbero|no aparece el servicio para ese profesional",

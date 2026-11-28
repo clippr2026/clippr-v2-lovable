@@ -6611,7 +6611,7 @@ function ProfesionalesTab({
               </div>
               <p className="text-[11px] font-medium leading-snug text-white/40">
                 {adelantoForm.source === "caja"
-                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco, según el medio de pago, y se registra en el cierre."
+                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero digital, según el medio de pago, y se registra en el cierre."
                   : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
               </p>
               {cajaCerrada && (
@@ -7297,7 +7297,7 @@ function NuevoGastoTab({
                 </div>
                 {form.source === "caja" && form.method !== "" && (
                   <p className={hintCls}>
-                    Se descuenta de {form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.
+                    Se descuenta de {form.method === "efectivo" ? "Efectivo en caja" : "Dinero digital"}.
                   </p>
                 )}
               </div>
@@ -8662,7 +8662,7 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SaldoComposicionLado label="Efectivo" lado={conciliacion.efectivo} />
-        <SaldoComposicionLado label="Dinero en banco" lado={conciliacion.digital} />
+        <SaldoComposicionLado label="Dinero digital" lado={conciliacion.digital} />
       </div>
 
       {conciliacion.alertas.length > 0 && (
@@ -8811,7 +8811,7 @@ function CierreRevisionDetalle({
   onObservacionChange: (v: string) => void;
 }) {
   const { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion } = preview;
-  // Señas aprobadas este día con transferencia de otro día: se avisan en "Dinero en banco".
+  // Señas aprobadas este día con transferencia de otro día: se avisan en "Dinero digital".
   const senasOtroDia = senasOtroDiaAviso(movimientosManuales);
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
   const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
@@ -8884,7 +8884,7 @@ function CierreRevisionDetalle({
             mezcla con la diferencia de efectivo. */}
         <section className="space-y-2 rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><CreditCard className="size-4 text-sky-300" /> Dinero en banco</div>
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><CreditCard className="size-4 text-sky-300" /> Dinero digital</div>
             <span className={cn("text-xs font-semibold", ajusteCuenta === 0 ? "text-emerald-300" : "text-amber-300")}>{ajusteCuenta === 0 ? "Sin diferencia" : ajusteCuenta > 0 ? "Sobra" : "Falta"}</span>
           </div>
           <div className="flex items-center justify-between gap-3">
@@ -9837,7 +9837,7 @@ function CierreDetalleView({
             <CierreAjustesNota businessId={businessId} branchId={branchId} fecha={fecha} cuentaEsperada={cuentaEsperada} className="md:order-last md:col-span-2" />
 
             <section className="rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
-              <div className="mb-3 text-sm font-semibold text-white">Dinero en banco</div>
+              <div className="mb-3 text-sm font-semibold text-white">Dinero digital</div>
               <dl className="space-y-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-sm text-muted-foreground">Saldo esperado</dt>
@@ -13031,7 +13031,7 @@ function MovimientosUnificados({
       const method = String(payment.method ?? payment.payment_method ?? "cash");
       if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
       // Con la propina: es plata real que entra por el mismo medio (así el
-      // chip coincide con "Dinero en banco" y con el banco).
+      // chip coincide con "Dinero digital" y con el banco).
       groups[method].total +=
         Number(payment.total ?? payment.amount ?? 0) + Number((payment as any).tip_amount ?? (payment as any).tip ?? 0);
       groups[method].count += 1;
@@ -13528,7 +13528,7 @@ function FacturacionPanel({
     pendingDebtSummary.refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.paymentsToday, data.collectionsToday]);
-  // Composición de "Efectivo en caja"/"Dinero en banco" — un
+  // Composición de "Efectivo en caja"/"Dinero digital" — un
   // saldo negativo nunca queda sin explicación, un clic alcanza (ver
   // src/components/caja/saldo-composicion.tsx).
   const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
@@ -13551,13 +13551,15 @@ function FacturacionPanel({
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
       <div className={`mt-4 space-y-3.5 ${cajaCerrada ? "hidden" : ""}`}>
-        {/* Dos acciones principales: lo que entra (verde) y lo que sale (rojo). */}
-        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center">
-          <button type="button" onClick={onNuevaVenta} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
-            <Plus className="size-4" /> Nueva venta
+        {/* Dos acciones principales como fichas: lo que entra (verde) y lo que sale (rojo). */}
+        <div className="grid grid-cols-2 gap-3 sm:mx-auto sm:max-w-md">
+          <button type="button" onClick={onNuevaVenta} className="caja-accion caja-accion-venta">
+            <span className="caja-accion-circulo"><Plus className="size-7" strokeWidth={2} /></span>
+            Venta
           </button>
-          <button type="button" onClick={onNuevoGasto} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
-            <Wallet className="size-4" /> Nuevo gasto
+          <button type="button" onClick={onNuevoGasto} className="caja-accion caja-accion-gasto">
+            <span className="caja-accion-circulo"><Minus className="size-7" strokeWidth={2} /></span>
+            Gasto
           </button>
         </div>
         {/* Ingresar / retirar dinero: acciones secundarias, más chicas. */}
@@ -13613,7 +13615,7 @@ function FacturacionPanel({
 
       {saldoDetalle && (
         <SaldoComposicionModal
-          title={saldoDetalle === "cash" ? "Efectivo en caja" : "Dinero en banco"}
+          title={saldoDetalle === "cash" ? "Efectivo en caja" : "Dinero digital"}
           expected={summary.todayExpectedFull}
           side={saldoDetalle}
           onClose={() => setSaldoDetalle(null)}
