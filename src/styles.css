@@ -1345,8 +1345,8 @@ html.modo-claro .app-barra [class*="from-sky-400/"] {
 html.modo-claro [style*="--estado:"] {
   --estado-fuerte: color-mix(in oklab, var(--estado) 62%, #17172b);
   color: #17172b !important;
-  background: color-mix(in srgb, var(--estado) 9%, #ffffff) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--estado) 32%, #e4e2ee), inset 3px 0 0 var(--estado-fuerte) !important;
+  background: color-mix(in srgb, var(--estado) 18%, #ffffff) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--estado) 55%, #e4e2ee), inset 3px 0 0 var(--estado-fuerte) !important;
 }
 html.modo-claro .estado-chip[style*="--estado:"] {
   position: relative;
@@ -1365,7 +1365,7 @@ html.modo-claro .estado-chip[style*="--estado:"]::after {
 }
 /* Descanso: rayado suave para distinguirlo de un turno. */
 html.modo-claro [style*="--estado:"][style*="repeating-linear-gradient"] {
-  background: repeating-linear-gradient(135deg, rgb(23 23 43 / 0.05) 0 8px, transparent 8px 16px), color-mix(in srgb, var(--estado) 9%, #ffffff) !important;
+  background: repeating-linear-gradient(135deg, rgb(23 23 43 / 0.05) 0 8px, transparent 8px 16px), color-mix(in srgb, var(--estado) 18%, #ffffff) !important;
 }
 /* En cero: se lee, pero pesa menos. */
 html.modo-claro .estado-chip[data-cero="true"][style*="--estado:"] { color: #8a879c !important; }
@@ -1594,7 +1594,7 @@ html.modo-claro .agenda-semana { background: #ffffff; border-color: #e6e3f1; }
 html.modo-claro .agenda-semana .dia-semana[data-elegido] { background: #491a89; color: #ffffff; }
 html.modo-claro .agenda-semana .dia-semana[data-elegido] span { color: #ffffff; }
 html.modo-claro .agenda-lista > div[class*="bg-[#111019]"] { background: #ffffff; border-color: #e6e3f1; }
-html.modo-claro .turno-lista { background: color-mix(in srgb, var(--b) 9%, #ffffff); border-color: color-mix(in srgb, var(--b) 32%, #e4e2ee); box-shadow: 0 1px 2px rgba(23, 23, 43, 0.05); }
+html.modo-claro .turno-lista { background: color-mix(in srgb, var(--b) 18%, #ffffff); border-color: color-mix(in srgb, var(--b) 55%, #e4e2ee); box-shadow: 0 1px 2px rgba(23, 23, 43, 0.05); }
 html.modo-claro .turno-lista .estado-turno { background: #ffffff; color: color-mix(in srgb, var(--c) 55%, #17172b); }
 /* «Se fueron» compacto en la fila de controles. */
 .se-fueron-compacto { font-size: 12px; gap: 0.3rem; }
