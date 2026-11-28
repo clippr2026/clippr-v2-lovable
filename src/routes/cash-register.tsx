@@ -1158,7 +1158,6 @@ function CashRegisterPage() {
           <Tabs
             tab={tab}
             onChange={(t) => {
-              setAdelantoPara(null);
               if (t !== "nueva") {
                 setPendingToCharge(null);
                 clearChargeSearchParams();
@@ -1201,12 +1200,7 @@ function CashRegisterPage() {
                 clearChargeSearchParams();
                 setTab("nuevo-gasto");
               }}
-              onAdelanto={(employeeId) => {
-                setPendingToCharge(null);
-                clearChargeSearchParams();
-                setAdelantoPara(employeeId);
-                setTab("profesionales");
-              }}
+              onAdelanto={setAdelantoPara}
               userEmail={session.user.email ?? null}
               expected={expected}
               summary={summary}
@@ -1221,6 +1215,23 @@ function CashRegisterPage() {
                 setTab("resumen");
               }}
               onRevisarCierre={goToPendingReview}
+            />
+          )}
+          {tab === "resumen" && adelantoPara && (
+            <AdelantoModal
+              profesional={{
+                id: adelantoPara,
+                name: data.employees.find((e) => String(e.id) === adelantoPara)?.name ?? "Profesional",
+              }}
+              businessId={data.businessId}
+              chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
+              cajaCerrada={cajaCerrada}
+              cajaDisponible={expected}
+              onClose={() => setAdelantoPara(null)}
+              onRegistrado={() => {
+                void data.refresh("adelanto registrado");
+                void movementsData.refresh();
+              }}
             />
           )}
           {tab === "nuevo-gasto" && (
@@ -1298,11 +1309,6 @@ function CashRegisterPage() {
               cajaCerrada={cajaCerrada}
               cajaDisponible={expected}
               onGoToCierres={() => setTab("cierres")}
-              adelantoPara={adelantoPara}
-              onAdelantoCerrado={() => {
-                setAdelantoPara(null);
-                setTab("resumen");
-              }}
             />
           )}
           {tab === "cierres" && (
@@ -3797,6 +3803,211 @@ function friendlyRpcError(e: unknown, fallback: string) {
   return fallback;
 }
 
+// «Adelantar»: la misma ventana desde Resumen (botón «Adelanto») y desde Liquidaciones.
+function AdelantoModal({
+  profesional,
+  businessId,
+  chargedByName,
+  cajaCerrada,
+  cajaDisponible,
+  onClose,
+  onRegistrado,
+}: {
+  profesional: { id: string; name: string };
+  businessId: string | null;
+  chargedByName: string;
+  cajaCerrada: boolean;
+  // Efectivo / dinero en cuenta esperados del día: tope de un adelanto "de la caja".
+  cajaDisponible?: { cashExpected: number; digitalExpected: number };
+  onClose: () => void;
+  onRegistrado: () => void;
+}) {
+  const money = (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`;
+  // source: origen del adelanto — "caja" (Caja del día) o "externo"
+  // (Fondos externos). Arranca en "externo"; con la caja del día cerrada es
+  // el único origen posible.
+  // Ver src/lib/advance-origin.ts.
+  const [adelantoForm, setAdelantoForm] = React.useState<{
+    amount: string;
+    method: string;
+    note: string;
+    source: AdvanceFundsSource | "";
+  }>({
+    amount: "",
+    method: "",
+    note: "",
+    source: "externo",
+  });
+  const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
+
+  async function registerAdvance(row: { id: string; name: string }) {
+    if (registeringAdvance) return;
+    const amount = Number(adelantoForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    if (adelantoForm.source === "") {
+      toast.error("Elegí el origen del adelanto");
+      return;
+    }
+    if (adelantoForm.method !== "efectivo" && adelantoForm.method !== "transferencia") {
+      toast.error("Elegí el medio de pago: efectivo o transferencia");
+      return;
+    }
+    if (adelantoForm.source === "caja" && cajaCerrada) {
+      toast.error("La caja del día está cerrada: el adelanto solo puede salir de fondos externos");
+      return;
+    }
+    if (adelantoForm.source === "caja" && cajaDisponible) {
+      const esEfectivo = adelantoForm.method === "efectivo";
+      const disponible = esEfectivo ? cajaDisponible.cashExpected : cajaDisponible.digitalExpected;
+      if (amount > disponible + 0.01) {
+        toast.error(
+          `No hay ese dinero en la caja: ${esEfectivo ? "efectivo" : "dinero en cuenta"} disponible ${money(Math.max(0, disponible))}`,
+        );
+        return;
+      }
+    }
+    setRegisteringAdvance(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+
+      // Siempre "ahora" — no hay campo Fecha en este modal, el adelanto
+      // queda registrado con el momento exacto de la confirmación.
+      const { error } = await supabase.rpc("register_professional_advance" as any, {
+        p_business_id: businessId,
+        p_professional_id: row.id,
+        p_amount: amount,
+        p_payment_method: adelantoForm.method || null,
+        p_note: adelantoForm.note.trim() || null,
+        p_advanced_at: new Date().toISOString(),
+        p_registered_by: user.id,
+        p_registered_by_name: chargedByName,
+        p_funds_source: adelantoForm.source,
+      });
+      if (error) throw error;
+      toast.success(
+        `Adelanto registrado para ${row.name}: ${money(amount)} · ${advanceOriginLabel(adelantoForm.source)}`,
+      );
+      onRegistrado();
+      onClose();
+    } catch (e) {
+      toast.error(friendlyRpcError(e, "No pudimos registrar el adelanto. Intentá nuevamente."));
+    } finally {
+      setRegisteringAdvance(false);
+    }
+  }
+
+  return (
+        <AgendaCenteredModal
+          open
+          premium
+          onOpenChange={(v) => {
+            if (!v) onClose();
+          }}
+          lockOutside={false}
+          title="Adelantar"
+          subtitle={profesional.name}
+          footer={
+            <button
+              type="button"
+              onClick={() => registerAdvance(profesional)}
+              disabled={
+                registeringAdvance ||
+                !Number.isFinite(Number(adelantoForm.amount)) ||
+                Number(adelantoForm.amount) <= 0 ||
+                adelantoForm.source === "" ||
+                adelantoForm.method === "" ||
+                (adelantoForm.source === "caja" && cajaCerrada)
+              }
+              className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
+            >
+              {registeringAdvance ? "Adelantando…" : "Adelantar"}
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            <label className="space-y-1.5 text-xs font-semibold text-white/55">
+              Monto
+              <input
+                type="number"
+                min={0}
+                value={adelantoForm.amount}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, amount: event.target.value }))}
+                placeholder="Ej: 20.000"
+                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
+              />
+            </label>
+            <div className="space-y-1.5 text-xs font-semibold text-white/55">
+              Origen del adelanto
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "externo", label: "Fondos externos" },
+                    { value: "caja", label: "Caja del día" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAdelantoForm((form) => ({ ...form, source: opt.value }))}
+                    disabled={opt.value === "caja" && cajaCerrada}
+                    aria-pressed={adelantoForm.source === opt.value}
+                    className={cn(
+                      "h-11 rounded-2xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
+                      adelantoForm.source === opt.value
+                        ? "border-amber-300/45 bg-amber-400/12 text-amber-100"
+                        : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] font-medium leading-snug text-white/40">
+                {adelantoForm.source === "caja"
+                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero digital, según el medio de pago, y se registra en el cierre."
+                  : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
+              </p>
+              {cajaCerrada && (
+                <p className="text-[11px] font-medium leading-snug text-rose-200/70">
+                  La caja del día está cerrada: solo se puede usar Fondos externos.
+                </p>
+              )}
+            </div>
+            <label className="space-y-1.5 text-xs font-semibold text-white/55">
+              Medio de pago
+              <select
+                value={adelantoForm.method}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
+                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
+              >
+                <option value="" disabled>
+                  Elegí un medio…
+                </option>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </label>
+            <label className="block space-y-1.5 text-xs font-semibold text-white/55">
+              Nota
+              <textarea
+                value={adelantoForm.note}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, note: event.target.value }))}
+                placeholder="Opcional"
+                rows={2}
+                className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-amber-300/35"
+              />
+            </label>
+          </div>
+        </AgendaCenteredModal>
+  );
+}
+
 function ProfesionalesTab({
   businessId,
   chargedByName,
@@ -3804,8 +4015,6 @@ function ProfesionalesTab({
   cajaCerrada = false,
   cajaDisponible,
   onGoToCierres,
-  adelantoPara = null,
-  onAdelantoCerrado,
 }: {
   businessId: string | null;
   chargedByName: string;
@@ -3818,10 +4027,6 @@ function ProfesionalesTab({
   // pendientes — lleva directo a la pestaña Cierres (ya lista el backlog
   // pendiente por su cuenta, acá no hace falta pasarle las fechas).
   onGoToCierres: () => void;
-  // Ficha «Adelanto» de Resumen: profesional para el que se abre «Adelantar» al entrar.
-  adelantoPara?: string | null;
-  // Se llama al cerrar ese «Adelantar» (registrado o no), para volver a Resumen.
-  onAdelantoCerrado?: () => void;
 }) {
   // Antes esta pestaña llamaba a su propia useCajaData(), que vuelve a
   // pedir todo (servicios, empleados, pagos, gastos) cada vez que se monta
@@ -3927,39 +4132,6 @@ function ProfesionalesTab({
   }
 
   const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
-  // source: origen del adelanto — "caja" (Caja del día) o "externo"
-  // (Fondos externos). Arranca en "externo"; con la caja del día cerrada es
-  // el único origen posible.
-  // Ver src/lib/advance-origin.ts.
-  const [adelantoForm, setAdelantoForm] = React.useState<{
-    amount: string;
-    method: string;
-    note: string;
-    source: AdvanceFundsSource | "";
-  }>({
-    amount: "",
-    method: "",
-    note: "",
-    source: "externo",
-  });
-  const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
-
-  function resetAdelantoForm() {
-    setAdelantoModalOpen(false);
-    setAdelantoForm({ amount: "", method: "", note: "", source: "externo" });
-  }
-
-  React.useEffect(() => {
-    if (!adelantoPara) return;
-    setSelectedEmployeeId(adelantoPara);
-    setAdelantoModalOpen(true);
-  }, [adelantoPara]);
-  // Cerrar la ventana que se abrió desde Resumen devuelve a Resumen.
-  function cerrarAdelanto() {
-    resetAdelantoForm();
-    if (adelantoPara) onAdelantoCerrado?.();
-  }
-
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
 
   async function handleDeleteAdvance(advanceId: string, amount: number) {
@@ -5307,73 +5479,6 @@ function ProfesionalesTab({
     await prepareRun(row);
   }
 
-  async function registerAdvance(row: (typeof rows)[number] | null) {
-    if (!row || registeringAdvance) return;
-    const amount = Number(adelantoForm.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Ingresá un monto válido");
-      return;
-    }
-    if (adelantoForm.source === "") {
-      toast.error("Elegí el origen del adelanto");
-      return;
-    }
-    if (adelantoForm.method !== "efectivo" && adelantoForm.method !== "transferencia") {
-      toast.error("Elegí el medio de pago: efectivo o transferencia");
-      return;
-    }
-    if (adelantoForm.source === "caja" && cajaCerrada) {
-      toast.error("La caja del día está cerrada: el adelanto solo puede salir de fondos externos");
-      return;
-    }
-    if (adelantoForm.source === "caja" && cajaDisponible) {
-      const esEfectivo = adelantoForm.method === "efectivo";
-      const disponible = esEfectivo ? cajaDisponible.cashExpected : cajaDisponible.digitalExpected;
-      if (amount > disponible + 0.01) {
-        toast.error(
-          `No hay ese dinero en la caja: ${esEfectivo ? "efectivo" : "dinero en cuenta"} disponible ${money(Math.max(0, disponible))}`,
-        );
-        return;
-      }
-    }
-    setRegisteringAdvance(true);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
-
-      // Siempre "ahora" — no hay campo Fecha en este modal, el adelanto
-      // queda registrado con el momento exacto de la confirmación.
-      const { error } = await supabase.rpc("register_professional_advance" as any, {
-        p_business_id: businessId,
-        p_professional_id: row.id,
-        p_amount: amount,
-        p_payment_method: adelantoForm.method || null,
-        p_note: adelantoForm.note.trim() || null,
-        p_advanced_at: new Date().toISOString(),
-        p_registered_by: user.id,
-        p_registered_by_name: chargedByName,
-        p_funds_source: adelantoForm.source,
-      });
-      if (error) throw error;
-      toast.success(
-        `Adelanto registrado para ${row.name}: ${money(amount)} · ${advanceOriginLabel(adelantoForm.source)}`,
-      );
-      resetAdelantoForm();
-      setCommissionsVersion((v) => v + 1);
-      if (adelantoPara) onAdelantoCerrado?.();
-      // El adelanto de "Caja del día" descuenta del efectivo/dinero en
-      // cuenta y aparece en Movimientos: sin este refresh() había que
-      // recargar la página para verlo en Resumen.
-      void data.refresh("adelanto registrado");
-    } catch (e) {
-      toast.error(friendlyRpcError(e, "No pudimos registrar el adelanto. Intentá nuevamente."));
-    } finally {
-      setRegisteringAdvance(false);
-    }
-  }
-
   // Fecha y hora EXACTAS de la última liquidación del profesional
   // seleccionado — null si todavía no tiene ninguna ("Primera
   // liquidación"). No usar toLocaleDateString("es-AR") a secas para la
@@ -5553,7 +5658,7 @@ function ProfesionalesTab({
   function selectEmployee(nextId: string) {
     setSelectedEmployeeId(nextId);
     resetLiquidarForm();
-    resetAdelantoForm();
+    setAdelantoModalOpen(false);
     setLiquidarCutoffDate("");
     setPeriodInfoOpen(false);
     setHistorialDetailRun(null);
@@ -6579,109 +6684,22 @@ function ProfesionalesTab({
         )}
       </section>
 
-      {selectedRow && (
-        <AgendaCenteredModal
-          open={adelantoModalOpen}
-          premium
-          onOpenChange={(v) => {
-            if (!v) cerrarAdelanto();
+      {selectedRow && adelantoModalOpen && (
+        <AdelantoModal
+          profesional={selectedRow}
+          businessId={businessId}
+          chargedByName={chargedByName}
+          cajaCerrada={cajaCerrada}
+          cajaDisponible={cajaDisponible}
+          onClose={() => setAdelantoModalOpen(false)}
+          onRegistrado={() => {
+            setCommissionsVersion((v) => v + 1);
+            // El adelanto de "Caja del día" descuenta del efectivo/dinero en
+            // cuenta y aparece en Movimientos: sin este refresh() había que
+            // recargar la página para verlo en Resumen.
+            void data.refresh("adelanto registrado");
           }}
-          lockOutside={false}
-          title="Adelantar"
-          subtitle={selectedRow.name}
-          footer={
-            <button
-              type="button"
-              onClick={() => registerAdvance(selectedRow)}
-              disabled={
-                registeringAdvance ||
-                !Number.isFinite(Number(adelantoForm.amount)) ||
-                Number(adelantoForm.amount) <= 0 ||
-                adelantoForm.source === "" ||
-                adelantoForm.method === "" ||
-                (adelantoForm.source === "caja" && cajaCerrada)
-              }
-              className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
-            >
-              {registeringAdvance ? "Adelantando…" : "Adelantar"}
-            </button>
-          }
-        >
-          <div className="space-y-3">
-            <label className="space-y-1.5 text-xs font-semibold text-white/55">
-              Monto
-              <input
-                type="number"
-                min={0}
-                value={adelantoForm.amount}
-                onChange={(event) => setAdelantoForm((form) => ({ ...form, amount: event.target.value }))}
-                placeholder="Ej: 20.000"
-                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
-              />
-            </label>
-            <div className="space-y-1.5 text-xs font-semibold text-white/55">
-              Origen del adelanto
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { value: "externo", label: "Fondos externos" },
-                    { value: "caja", label: "Caja del día" },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setAdelantoForm((form) => ({ ...form, source: opt.value }))}
-                    disabled={opt.value === "caja" && cajaCerrada}
-                    aria-pressed={adelantoForm.source === opt.value}
-                    className={cn(
-                      "h-11 rounded-2xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
-                      adelantoForm.source === opt.value
-                        ? "border-amber-300/45 bg-amber-400/12 text-amber-100"
-                        : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] font-medium leading-snug text-white/40">
-                {adelantoForm.source === "caja"
-                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero digital, según el medio de pago, y se registra en el cierre."
-                  : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
-              </p>
-              {cajaCerrada && (
-                <p className="text-[11px] font-medium leading-snug text-rose-200/70">
-                  La caja del día está cerrada: solo se puede usar Fondos externos.
-                </p>
-              )}
-            </div>
-            <label className="space-y-1.5 text-xs font-semibold text-white/55">
-              Medio de pago
-              <select
-                value={adelantoForm.method}
-                onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
-              >
-                <option value="" disabled>
-                  Elegí un medio…
-                </option>
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-              </select>
-            </label>
-            <label className="block space-y-1.5 text-xs font-semibold text-white/55">
-              Nota
-              <textarea
-                value={adelantoForm.note}
-                onChange={(event) => setAdelantoForm((form) => ({ ...form, note: event.target.value }))}
-                placeholder="Opcional"
-                rows={2}
-                className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-amber-300/35"
-              />
-            </label>
-          </div>
-        </AgendaCenteredModal>
+        />
       )}
 
       {selectedRow && (
