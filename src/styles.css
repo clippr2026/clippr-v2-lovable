@@ -1925,3 +1925,40 @@ html.modo-claro .cj-amarillo, html.modo-claro .cj-amarillo svg, html.modo-claro 
 html.modo-claro .cj-rojo, html.modo-claro .cj-rojo svg { color: #be123c !important; }
 html.modo-claro .cj-gris { color: #9a98ad !important; }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Un solo sistema de diseño en toda la app de gestión (modo oscuro): superficies sólidas y bordes
+   discretos, como en Caja. Los degradados y el neón quedan solo para lo destacado (botones principales y
+   selecciones). No alcanza a Inicio, al modo claro ni a las páginas públicas.
+   ───────────────────────────────────────────────────────────────────────── */
+html.app-oscuro:not(.modo-claro) {
+  --ds-fondo: #121019;
+  --ds-superficie: #121019;
+  --ds-superficie-2: #1a1724;
+  --ds-borde: rgb(255 255 255 / 0.08);
+  --ds-borde-suave: rgb(255 255 255 / 0.07);
+  --ds-linea: rgb(255 255 255 / 0.08);
+  --ds-degradado: linear-gradient(transparent, transparent);
+  --ds-degradado-casillero: linear-gradient(transparent, transparent);
+  --ds-degradado-fondo: linear-gradient(transparent, transparent);
+  --ds-sombra-tarjeta: 0 18px 44px -28px rgb(0 0 0 / 0.9);
+  --ds-sombra-panel: 0 14px 34px -26px rgb(0 0 0 / 0.9);
+  --ds-sombra-suave: none;
+}
+/* Luces puestas a mano en tarjetas y ventanas. */
+html.app-oscuro:not(.modo-claro) [class*="rounded"][style*="radial-gradient"]:not(.public-hero *):not(.app-barra):not(.app-barra *) {
+  background-image: none !important;
+}
+/* Resplandores decorativos de fondo de cada pantalla. */
+html.app-oscuro:not(.modo-claro) [class*="pointer-events-none"][class*="bg-[radial-gradient("]:not(.public-hero *):not(.app-barra *) {
+  display: none;
+}
+/* Bordes violeta neón y halos de tarjetas → borde discreto. */
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="border-violet-400/45"], [class*="border-violet-400/40"], [class*="border-violet-400/35"],
+  [class*="border-violet-400/30"], [class*="border-violet-400/25"], [class*="border-violet-400/20"]
+):not([aria-pressed="true"]):not(.app-barra):not(.app-barra *):not(.app-encabezado *) { border-color: var(--ds-borde) !important; }
+html.app-oscuro:not(.modo-claro) :is(
+  [class*="shadow-[0_0_0_1px_rgba(139,92,246"], [style*="rgba(139,92,246,.35)"], [style*="rgba(139, 92, 246, 0.35)"]
+):not(.app-barra):not(.app-barra *):not(.app-encabezado *) { box-shadow: var(--ds-sombra-tarjeta) !important; }
+
+html.app-oscuro:not(.modo-claro) [class*="rounded"][class*="bg-[#08070f]"]:not(.app-barra):not(.app-barra *):not(.app-encabezado *) { background-color: var(--ds-fondo); }
