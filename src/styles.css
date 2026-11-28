@@ -1883,3 +1883,15 @@ html.modo-claro .caja-secundaria:hover { filter: brightness(0.98); }
 html.modo-claro .caja-secundaria-retiro { --c: #be185d; }
 html.modo-claro .caja-secundaria-adelanto { --c: #491a89; }
 
+/* Formularios a pantalla completa: encabezado fijo con flecha y una sola superficie con secciones. */
+.fg-encabezado { background: #07060f; }
+.fg-superficie { background: #0f0d18; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 0 1rem; }
+.fg-seccion { padding: 1rem 0; }
+.fg-seccion + .fg-seccion { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.fg-principal { background: #7c3aed; color: #ffffff; }
+html.modo-claro .fg-encabezado { background: #f4f5f9; }
+html.modo-claro .fg-superficie { background: #ffffff; border-color: #e6e3f1; }
+html.modo-claro .fg-seccion + .fg-seccion { border-top-color: #ecebf3; }
+html.modo-claro .fg-principal, html.modo-claro .fg-principal svg { background-color: #491a89; color: #ffffff !important; }
+html.modo-claro .fg-principal svg { background: transparent; }
+

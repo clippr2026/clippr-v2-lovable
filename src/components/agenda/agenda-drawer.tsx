@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -54,18 +54,20 @@ export function AgendaDrawer({
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0 shrink-0">
-          <SheetTitle className="text-[18px] leading-tight font-display tracking-tight pr-9">
-            {title}
-          </SheetTitle>
-          {subtitle && <div className="text-xs text-muted-foreground mt-0.5 pr-9">{subtitle}</div>}
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={() => onOpenChange(false)}
-            className="absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              aria-label="Volver"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/80 transition hover:bg-white/[0.1] hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <SheetTitle className="text-[18px] leading-tight font-display tracking-tight">{title}</SheetTitle>
+              {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+            </div>
+          </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
@@ -169,20 +171,20 @@ export function AgendaCenteredModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className={premium ? "relative shrink-0 px-5 pt-5 pb-3" : "relative shrink-0 border-b border-white/10 px-4 pt-4 pb-3"}>
-          <div className={premium ? "pr-12 font-display text-[22px] font-semibold leading-tight tracking-tight" : "text-[18px] leading-tight font-display tracking-tight pr-9"}>{title}</div>
-          {subtitle && <div className="text-xs text-muted-foreground mt-0.5 pr-9">{subtitle}</div>}
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={() => onOpenChange(false)}
-            className={
-              premium
-                ? "absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white/70 transition hover:bg-white/[0.1] hover:text-white"
-                : "absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
-            }
-          >
-            <X className={premium ? "h-5 w-5" : "h-4 w-4"} />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              aria-label="Volver"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white/80 transition hover:bg-white/[0.1] hover:text-white"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <div className={premium ? "font-display text-[22px] font-semibold leading-tight tracking-tight" : "text-[18px] leading-tight font-display tracking-tight"}>{title}</div>
+              {subtitle && <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>}
+            </div>
+          </div>
         </div>
 
         <div className={premium ? "flex-1 overflow-y-auto px-5 pb-4 pt-1" : "flex-1 overflow-y-auto p-4"}>{children}</div>

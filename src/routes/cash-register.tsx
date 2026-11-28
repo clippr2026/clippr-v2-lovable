@@ -175,6 +175,7 @@ import {
   Package,
   ArrowDownToLine,
   Upload,
+  CheckCircle2,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -7183,28 +7184,41 @@ function NuevoGastoTab({
     onSaved();
   }
 
-  // Opciones en píldora (estilo Clippr): una sola línea de texto grande, sin descripciones repetidas.
+  // Superficies sólidas y bordes sutiles (ver .fg-* en styles.css): secciones separadas por líneas, sin
+  // tarjetas dentro de tarjetas.
   const optionBtn = (active: boolean) =>
     cn(
-      "flex h-12 w-full items-center justify-center rounded-full border px-3 text-center text-base font-semibold transition",
+      "flex h-11 w-full items-center justify-center gap-2 rounded-full border px-3 text-center text-sm font-semibold transition",
       active
         ? "border-violet-400/60 bg-violet-500/20 text-white"
         : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
     );
-  const labelCls = "mb-2 block text-base font-semibold text-white";
+  const tituloCls = "text-base font-bold text-white";
+  const labelCls = "mb-1.5 block text-[13px] font-semibold text-white/60";
   const inputCls =
-    "h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 text-lg text-white placeholder:text-white/35 outline-none focus:border-violet-400/50";
-  const hintCls = "mt-2 text-sm leading-snug text-white/60";
+    "h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-base text-white placeholder:text-white/35 outline-none focus:border-violet-400/50";
   const kindHint = EXPENSE_KINDS.find((k) => k.value === form.kind)?.hint ?? null;
 
   return (
-    <div className="animate-fade-up">
-      <Card className="mx-auto w-full max-w-3xl p-3.5 md:p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
-        <h3 className="mb-4 text-xl font-semibold text-white">Nuevo gasto</h3>
+    <div className="mx-auto w-full max-w-2xl pb-2">
+      {/* Encabezado siempre visible: se puede volver en cualquier momento. */}
+      <div className="fg-encabezado sticky top-0 z-20 flex items-center gap-3 py-2 lg:top-12">
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Volver"
+          className="boton-cabecera grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/85 active:scale-95"
+        >
+          <ArrowLeft className="size-5" />
+        </button>
+        <h3 className="min-w-0 truncate text-xl font-bold tracking-tight text-white">Nuevo gasto</h3>
+      </div>
 
-        <div className="space-y-5">
+      <div className="fg-superficie mt-1">
+        <section className="fg-seccion space-y-3">
+          <h4 className={tituloCls}>Datos del gasto</h4>
           <div>
-            <span className={labelCls}>¿Qué tipo de gasto es?</span>
+            <span className={labelCls}>Tipo de gasto</span>
             <div className="grid grid-cols-3 gap-2">
               {EXPENSE_KINDS.map((k) => (
                 <button
@@ -7218,9 +7232,8 @@ function NuevoGastoTab({
                 </button>
               ))}
             </div>
-            {kindHint && <p className={hintCls}>{kindHint}</p>}
+            {kindHint && <p className="mt-1.5 text-[13px] text-white/55">{kindHint}</p>}
           </div>
-
           <label className="block">
             <span className={labelCls}>Nombre del gasto</span>
             <input
@@ -7231,7 +7244,6 @@ function NuevoGastoTab({
               className={inputCls}
             />
           </label>
-
           <label className="block">
             <span className={labelCls}>Monto</span>
             <input
@@ -7241,68 +7253,77 @@ function NuevoGastoTab({
               type="number"
               inputMode="decimal"
               min={0}
-              className={cn(inputCls, "text-xl font-bold tabular-nums")}
+              className={cn(inputCls, "text-lg font-bold tabular-nums")}
             />
           </label>
+        </section>
 
-          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
-            {!form.later && (
-              <>
-                <div>
-                  <span className={labelCls}>Medio de pago</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["efectivo", "transferencia"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, method: m }))}
-                        className={optionBtn(form.method === m)}
-                        aria-pressed={form.method === m}
-                      >
-                        {m === "efectivo" ? "Efectivo" : "Transferencia"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <NoDescontarCaja
-                  externo={form.source === "otros"}
-                  onChange={(externo) => setForm((f) => ({ ...f, source: externo ? "otros" : "caja" }))}
-                />
-              </>
-            )}
-
-            <div>
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, later: !f.later }))}
-                className={optionBtn(form.later)}
-                aria-pressed={form.later}
-              >
-                Pago después
-              </button>
-              {form.later && <p className={hintCls}>Queda en Gastos a pagar y no descuenta hasta que lo pagues.</p>}
-            </div>
-
-            {form.later && (
-              <div className="space-y-3">
-                <label className="block">
-                  <span className={labelCls}>Vence el</span>
-                  <DateClippr value={form.due} onChange={(iso) => setForm((f) => ({ ...f, due: iso }))} />
-                </label>
-                <label className="block">
-                  <span className={labelCls}>Proveedor (opcional)</span>
-                  <input
-                    value={form.supplier}
-                    onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
-                    placeholder="A quién se lo comprás"
-                    maxLength={120}
-                    className={inputCls}
-                  />
-                </label>
-              </div>
-            )}
+        <section className="fg-seccion space-y-3">
+          <h4 className={tituloCls}>Estado del pago</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, later: false }))}
+              className={optionBtn(!form.later)}
+              aria-pressed={!form.later}
+            >
+              <CheckCircle2 className="size-4" /> Pagado
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, later: true }))}
+              className={optionBtn(form.later)}
+              aria-pressed={form.later}
+            >
+              <Clock className="size-4" /> Pendiente
+            </button>
           </div>
 
+          {form.later ? (
+            <>
+              <p className="text-[13px] text-white/55">Queda en Gastos a pagar y no descuenta hasta que lo pagues.</p>
+              <label className="block">
+                <span className={labelCls}>Vence el</span>
+                <DateClippr value={form.due} onChange={(iso) => setForm((f) => ({ ...f, due: iso }))} />
+              </label>
+              <label className="block">
+                <span className={labelCls}>Proveedor (opcional)</span>
+                <input
+                  value={form.supplier}
+                  onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
+                  placeholder="A quién se lo comprás"
+                  maxLength={120}
+                  className={inputCls}
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className={labelCls}>Medio de pago</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["efectivo", "transferencia"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, method: m }))}
+                      className={optionBtn(form.method === m)}
+                      aria-pressed={form.method === m}
+                    >
+                      {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <NoDescontarCaja
+                externo={form.source === "otros"}
+                onChange={(externo) => setForm((f) => ({ ...f, source: externo ? "otros" : "caja" }))}
+              />
+            </>
+          )}
+        </section>
+
+        <section className="fg-seccion space-y-3">
           <label className="block">
             <span className={labelCls}>Nota (opcional)</span>
             <textarea
@@ -7310,34 +7331,20 @@ function NuevoGastoTab({
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               placeholder="Agregá algún detalle..."
               rows={2}
-              className={cn(inputCls, "h-auto resize-none py-3")}
+              className={cn(inputCls, "h-auto resize-none py-2.5")}
             />
           </label>
-
-          <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 text-base font-semibold text-white/85 transition hover:bg-white/[0.08]"
-            >
-              <ArrowLeft className="size-4" /> Atrás
-            </button>
-            <button
-              type="button"
-              onClick={saveGasto}
-              disabled={saving}
-              className="flex-[2] inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-2 text-center text-base font-semibold leading-tight text-background transition hover:brightness-110 disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Plus className="size-4" />
-              )}
-              {form.later ? "Anotar para pagar después" : "Pagar"}
-            </button>
-          </div>
-        </div>
-      </Card>
+          <button
+            type="button"
+            onClick={saveGasto}
+            disabled={saving}
+            className="fg-principal flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-base font-semibold transition hover:brightness-110 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-4 animate-spin" />}
+            {form.later ? "Registrar gasto pendiente" : "Registrar pago"}
+          </button>
+        </section>
+      </div>
     </div>
   );
 }
@@ -17068,6 +17075,20 @@ export function NuevaVentaTab({
     return true;
   }
 
+  // «Volver»: un paso atrás; en el primero sale (preguntando antes si ya hay algo cargado).
+  const volver = () => {
+    if (step > minStep) {
+      setStep((s) => (s - 1) as 1 | 2 | 3 | 4);
+      return;
+    }
+    const hayDatos = Boolean(employeeId || clientId || client.trim() || cartItems.length > 0);
+    if (hayDatos) {
+      setConfirmSalir(true);
+      return;
+    }
+    onCancel?.();
+  };
+
   return (
     <div
       className={cn(
@@ -17135,6 +17156,20 @@ export function NuevaVentaTab({
     >
       <div className="pointer-events-none absolute -inset-x-16 top-0 -z-10 h-[760px] rounded-[48px] bg-[radial-gradient(circle_at_50%_18%,rgba(0,0,0,0.62),rgba(0,0,0,0.34)_38%,rgba(0,0,0,0)_72%)] blur-2xl" />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(96,165,250,0.10),transparent_34%),radial-gradient(circle_at_86%_0%,rgba(139,92,246,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_34%)]" />
+      {variant === "page" && (
+        <div className="relative z-10 mb-2 flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={volver}
+            aria-label="Volver"
+            className="boton-cabecera grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/85 active:scale-95"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+          <h3 className="min-w-0 truncate text-lg font-bold tracking-tight text-white">Nueva venta</h3>
+        </div>
+      )}
+
       <Card className="relative z-10 shrink-0 overflow-hidden rounded-3xl border-white/[0.07] bg-[linear-gradient(135deg,rgba(4,7,17,0.94),rgba(9,12,26,0.92),rgba(2,4,12,0.98))] p-1.5 shadow-[0_34px_105px_-48px_rgba(0,0,0,1),0_0_60px_-38px_rgba(139,92,246,0.58)]">
         {/* Columnas = cantidad real de pasos visibles, no un fijo 3/4 según
             lockedEmployeeId — con Profesional Y Pago ocultos a la vez (ej.
@@ -18221,24 +18256,7 @@ export function NuevaVentaTab({
           ) : (
             <>
             <button
-              onClick={() => {
-                if (step > minStep) {
-                  setStep((s) => (s - 1) as 1 | 2 | 3 | 4);
-                  return;
-                }
-                // Primer paso: Volver sale del flujo y vuelve a la
-                // pantalla principal de Caja. Si ya hay algo cargado
-                // (profesional, cliente o carrito) se confirma antes de
-                // descartarlo — nunca se pierde en silencio.
-                const hasSaleData = Boolean(
-                  employeeId || clientId || client.trim() || cartItems.length > 0,
-                );
-                if (hasSaleData) {
-                  setConfirmSalir(true);
-                  return;
-                }
-                onCancel?.();
-              }}
+              onClick={volver}
               className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
             >
               <ArrowLeft className="size-4" /> Volver

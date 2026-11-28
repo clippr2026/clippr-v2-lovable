@@ -81,6 +81,7 @@ export function DialogosClippr() {
     <VentanaClippr
       titulo={o.titulo}
       ancho="max-w-sm"
+      conCruz
       onClose={() => cerrar(pedido.tipo === "texto" ? null : false)}
       footer={
         <>

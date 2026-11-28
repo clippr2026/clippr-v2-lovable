@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Ventana "estilo Clippr": centrada, fondo oscuro con luz violeta/celeste, siempre por encima de la barra de arriba (se dibuja
@@ -12,6 +12,7 @@ export function VentanaClippr({
   onVolver,
   footer,
   ancho = "max-w-lg",
+  conCruz = false,
   children,
 }: {
   titulo: React.ReactNode;
@@ -21,6 +22,8 @@ export function VentanaClippr({
   onVolver?: () => void;
   footer?: React.ReactNode;
   ancho?: string;
+  /** Avisos y preguntas: se cierran con una X. El resto lleva la flecha para volver. */
+  conCruz?: boolean;
   children: React.ReactNode;
 }) {
   // La ventana solo existe mientras está abierta: se congela el fondo para que no se mueva por detrás.
@@ -50,15 +53,15 @@ export function VentanaClippr({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 flex items-start justify-between gap-3 border-b border-white/5 px-5 py-4">
-          <div className="flex min-w-0 items-center gap-2">
-            {onVolver && (
+          <div className="flex min-w-0 items-center gap-3">
+            {!conCruz && (
               <button
                 type="button"
-                onClick={onVolver}
+                onClick={onVolver ?? onClose}
                 aria-label="Volver"
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
               </button>
             )}
             <div className="min-w-0">
@@ -66,14 +69,17 @@ export function VentanaClippr({
               {subtitulo ? <div className="mt-0.5 text-xs text-white/55">{subtitulo}</div> : null}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {/* La X queda en los avisos y cuando la flecha vuelve a un nivel anterior (para cerrar todo). */}
+          {(conCruz || onVolver) && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-4">{children}</div>
         {footer ? <div className="shrink-0 flex justify-end gap-2 border-t border-white/5 px-5 py-4">{footer}</div> : null}
