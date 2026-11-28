@@ -172,6 +172,8 @@ import {
   HandCoins,
   Pencil,
   Package,
+  ArrowDownToLine,
+  Upload,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -13599,16 +13601,19 @@ function FacturacionPanel({
             Gasto
           </button>
         </div>
-        {/* Ingresar / retirar dinero y adelanto: acciones secundarias, más chicas. */}
-        <div className="grid grid-cols-[1.15fr_1.15fr_0.9fr] gap-1.5 sm:flex sm:gap-2 sm:justify-center">
-          <button type="button" onClick={() => setMovType("ingreso")} className="inline-flex h-9 flex-none items-center justify-center gap-1 rounded-full sm:gap-1.5 border border-white/10 bg-white/[0.03] px-1 text-[11px] font-medium whitespace-nowrap sm:px-4 sm:text-xs text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
-            <Plus className="size-3.5 shrink-0 text-emerald-300" /> Ingresar dinero
+        {/* Ingresar / retirar dinero y adelanto: secundarios, mismo ancho, ícono arriba y nombre abajo. */}
+        <div className="grid grid-cols-3 gap-3 sm:mx-auto sm:max-w-md">
+          <button type="button" onClick={() => setMovType("ingreso")} className="caja-secundaria caja-secundaria-ingreso">
+            <ArrowDownToLine className="size-5" />
+            Ingresar dinero
           </button>
-          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-9 flex-none items-center justify-center gap-1 rounded-full sm:gap-1.5 border border-white/10 bg-white/[0.03] px-1 text-[11px] font-medium whitespace-nowrap sm:px-4 sm:text-xs text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
-            <Minus className="size-3.5 shrink-0 text-rose-300" /> Retirar dinero
+          <button type="button" onClick={() => setMovType("retiro")} className="caja-secundaria caja-secundaria-retiro">
+            <Upload className="size-5" />
+            Retirar dinero
           </button>
-          <button type="button" onClick={() => setEligiendoAdelanto(true)} className="inline-flex h-9 flex-none items-center justify-center gap-1 rounded-full sm:gap-1.5 border border-white/10 bg-white/[0.03] px-1 text-[11px] font-medium whitespace-nowrap sm:px-4 sm:text-xs text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
-            <HandCoins className="size-3.5 shrink-0 text-violet-300" /> Adelanto
+          <button type="button" onClick={() => setEligiendoAdelanto(true)} className="caja-secundaria caja-secundaria-adelanto">
+            <HandCoins className="size-5" />
+            Adelanto
           </button>
         </div>
       </div>

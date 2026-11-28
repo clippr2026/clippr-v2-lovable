@@ -1871,4 +1871,15 @@ html.modo-claro .caja-accion { --c: #0d9488; background: #ffffff; border-color: 
 html.modo-claro .caja-accion:hover { filter: brightness(0.98); }
 html.modo-claro .caja-accion-gasto { --c: #be185d; }
 html.modo-claro .caja-accion-circulo { background: color-mix(in srgb, var(--c) 13%, #ffffff); }
+/* Caja — «Ingresar dinero», «Retirar dinero» y «Adelanto»: ícono arriba y nombre abajo. */
+.caja-secundaria { --c: #4ade80; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.4rem; padding: 0.75rem 0.4rem; border-radius: 20px; background: #12101d; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff; font-size: 0.8rem; line-height: 1.25; font-weight: 600; text-align: center; transition: transform 0.15s, filter 0.15s; }
+.caja-secundaria > svg { color: var(--c); flex-shrink: 0; }
+.caja-secundaria:hover { filter: brightness(1.15); }
+.caja-secundaria:active { transform: scale(0.98); }
+.caja-secundaria-retiro { --c: #fb7185; }
+.caja-secundaria-adelanto { --c: #a78bfa; }
+html.modo-claro .caja-secundaria { --c: #0d9488; background: #ffffff; border-color: #e6e3f1; color: #17172b; }
+html.modo-claro .caja-secundaria:hover { filter: brightness(0.98); }
+html.modo-claro .caja-secundaria-retiro { --c: #be185d; }
+html.modo-claro .caja-secundaria-adelanto { --c: #491a89; }
 
