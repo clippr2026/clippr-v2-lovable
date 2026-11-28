@@ -1,4 +1,5 @@
 import * as React from "react";
+import { NoDescontarCaja } from "@/components/cash-register/origen-caja";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { toast } from "sonner";
 import { Loader2, X, Plus } from "lucide-react";
@@ -19,6 +20,7 @@ type Expense = {
   amount: number;
   type: string | null;
   payment_method: string | null;
+  funds_source?: string | null;
   date: string;
   note: string | null;
 };
@@ -42,6 +44,8 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
     method: "",
     note: "",
   });
+  // «No descontar de la caja del día»: el gasto se registra con fondos externos.
+  const [externo, setExterno] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [showForm, setShowForm] = React.useState(createOnly);
 
@@ -50,7 +54,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
     setLoading(true);
     let query = supabase
       .from("expenses")
-      .select("id,name,amount,type,payment_method,date,note")
+      .select("id,name,amount,type,payment_method,funds_source,date,note")
       .eq("business_id", businessId)
       .eq("date", today);
     if (activeBranchId) query = query.eq("branch_id", activeBranchId);
@@ -79,6 +83,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
       amount,
       type: form.type || null,
       payment_method: form.method || null,
+      funds_source: externo ? "otros" : "caja",
       date: today,
       note: form.note.trim() || null,
     });
@@ -86,6 +91,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
     if (error) return toast.error("Error guardando gasto: " + error.message);
     toast.success("✓ Gasto registrado");
     setForm({ name: "", amount: "", type: "", method: "", note: "" });
+    setExterno(false);
     setShowForm(createOnly);
     load();
     onSaved?.();
@@ -157,6 +163,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
                 ))}
               </select>
             </div>
+            <NoDescontarCaja tipo="gasto" externo={externo} medio={form.method} onChange={setExterno} />
             <input
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -251,6 +258,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               ))}
             </select>
           </div>
+          <NoDescontarCaja tipo="gasto" externo={externo} medio={form.method} onChange={setExterno} />
           <input
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -290,6 +298,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
                 <div className="text-[11px] text-muted-foreground">
                   {g.type ?? ""}
                   {g.payment_method ? ` · ${g.payment_method}` : ""}
+                  {g.funds_source === "otros" ? " · Fondos externos" : ""}
                 </div>
                 {g.note && <div className="text-[11px] text-muted-foreground/70">{g.note}</div>}
               </div>

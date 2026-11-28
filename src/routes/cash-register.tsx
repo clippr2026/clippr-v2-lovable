@@ -3,6 +3,7 @@ import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { CajaHoyBloque } from "@/components/caja/caja-hoy-bloque";
+import { NoDescontarCaja } from "@/components/cash-register/origen-caja";
 import { AvisoDeudaEnCobro } from "@/components/clients/deuda-clientes-banner";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
@@ -3823,10 +3824,8 @@ function AdelantoModal({
   onRegistrado: () => void;
 }) {
   const money = (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`;
-  // source: origen del adelanto — "caja" (Caja del día) o "externo"
-  // (Fondos externos). Arranca en "externo"; con la caja del día cerrada es
-  // el único origen posible.
-  // Ver src/lib/advance-origin.ts.
+  // source: "caja" (sale de la caja del día, por defecto) o "externo" (casilla «No descontar de la caja del
+  // día»; con la caja cerrada es el único posible). Ver src/lib/advance-origin.ts.
   const [adelantoForm, setAdelantoForm] = React.useState<{
     amount: string;
     method: string;
@@ -3836,8 +3835,10 @@ function AdelantoModal({
     amount: "",
     method: "",
     note: "",
-    source: "externo",
+    source: "caja",
   });
+  // Con la caja cerrada nada sale de ella.
+  const origen: AdvanceFundsSource = cajaCerrada || adelantoForm.source === "externo" ? "externo" : "caja";
   const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
 
   async function registerAdvance(row: { id: string; name: string }) {
@@ -3847,19 +3848,11 @@ function AdelantoModal({
       toast.error("Ingresá un monto válido");
       return;
     }
-    if (adelantoForm.source === "") {
-      toast.error("Elegí el origen del adelanto");
-      return;
-    }
     if (adelantoForm.method !== "efectivo" && adelantoForm.method !== "transferencia") {
       toast.error("Elegí el medio de pago: efectivo o transferencia");
       return;
     }
-    if (adelantoForm.source === "caja" && cajaCerrada) {
-      toast.error("La caja del día está cerrada: el adelanto solo puede salir de fondos externos");
-      return;
-    }
-    if (adelantoForm.source === "caja" && cajaDisponible) {
+    if (origen === "caja" && cajaDisponible) {
       const esEfectivo = adelantoForm.method === "efectivo";
       const disponible = esEfectivo ? cajaDisponible.cashExpected : cajaDisponible.digitalExpected;
       if (amount > disponible + 0.01) {
@@ -3887,11 +3880,11 @@ function AdelantoModal({
         p_advanced_at: new Date().toISOString(),
         p_registered_by: user.id,
         p_registered_by_name: chargedByName,
-        p_funds_source: adelantoForm.source,
+        p_funds_source: origen,
       });
       if (error) throw error;
       toast.success(
-        `Adelanto registrado para ${row.name}: ${money(amount)} · ${advanceOriginLabel(adelantoForm.source)}`,
+        `Adelanto registrado para ${row.name}: ${money(amount)} · ${advanceOriginLabel(origen)}`,
       );
       onRegistrado();
       onClose();
@@ -3910,7 +3903,7 @@ function AdelantoModal({
             if (!v) onClose();
           }}
           lockOutside={false}
-          title="Adelantar"
+          title="Registrar adelanto"
           subtitle={profesional.name}
           footer={
             <button
@@ -3920,80 +3913,56 @@ function AdelantoModal({
                 registeringAdvance ||
                 !Number.isFinite(Number(adelantoForm.amount)) ||
                 Number(adelantoForm.amount) <= 0 ||
-                adelantoForm.source === "" ||
-                adelantoForm.method === "" ||
-                (adelantoForm.source === "caja" && cajaCerrada)
+                adelantoForm.method === ""
               }
               className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
             >
-              {registeringAdvance ? "Adelantando…" : "Adelantar"}
+              {registeringAdvance ? "Registrando…" : "Registrar adelanto"}
             </button>
           }
         >
-          <div className="space-y-3">
-            <label className="space-y-1.5 text-xs font-semibold text-white/55">
+          <div className="space-y-5">
+            <label className="block space-y-2 text-sm font-semibold text-white/70">
               Monto
               <input
                 type="number"
+                inputMode="decimal"
                 min={0}
                 value={adelantoForm.amount}
                 onChange={(event) => setAdelantoForm((form) => ({ ...form, amount: event.target.value }))}
-                placeholder="Ej: 20.000"
-                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
+                placeholder="Ej. $20.000"
+                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-base text-white outline-none placeholder:text-white/30 focus:border-violet-400/50"
               />
             </label>
-            <div className="space-y-1.5 text-xs font-semibold text-white/55">
-              Origen del adelanto
+            <div className="space-y-2 text-sm font-semibold text-white/70">
+              Medio de pago
               <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { value: "externo", label: "Fondos externos" },
-                    { value: "caja", label: "Caja del día" },
-                  ] as const
-                ).map((opt) => (
+                {(["efectivo", "transferencia"] as const).map((m) => (
                   <button
-                    key={opt.value}
+                    key={m}
                     type="button"
-                    onClick={() => setAdelantoForm((form) => ({ ...form, source: opt.value }))}
-                    disabled={opt.value === "caja" && cajaCerrada}
-                    aria-pressed={adelantoForm.source === opt.value}
+                    onClick={() => setAdelantoForm((form) => ({ ...form, method: m }))}
+                    aria-pressed={adelantoForm.method === m}
                     className={cn(
-                      "h-11 rounded-2xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
-                      adelantoForm.source === opt.value
-                        ? "border-amber-300/45 bg-amber-400/12 text-amber-100"
-                        : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
+                      "h-12 rounded-full border px-3 text-sm font-bold transition",
+                      adelantoForm.method === m
+                        ? "border-violet-400/60 bg-violet-500/20 text-white"
+                        : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
                     )}
                   >
-                    {opt.label}
+                    {m === "efectivo" ? "Efectivo" : "Transferencia"}
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] font-medium leading-snug text-white/40">
-                {adelantoForm.source === "caja"
-                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero digital, según el medio de pago, y se registra en el cierre."
-                  : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
-              </p>
-              {cajaCerrada && (
-                <p className="text-[11px] font-medium leading-snug text-rose-200/70">
-                  La caja del día está cerrada: solo se puede usar Fondos externos.
-                </p>
-              )}
             </div>
-            <label className="space-y-1.5 text-xs font-semibold text-white/55">
-              Medio de pago
-              <select
-                value={adelantoForm.method}
-                onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
-                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
-              >
-                <option value="" disabled>
-                  Elegí un medio…
-                </option>
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-              </select>
-            </label>
-            <label className="block space-y-1.5 text-xs font-semibold text-white/55">
+            <NoDescontarCaja
+              tipo="adelanto"
+              externo={origen === "externo"}
+              medio={adelantoForm.method}
+              cajaCerrada={cajaCerrada}
+              onChange={(externo) => setAdelantoForm((form) => ({ ...form, source: externo ? "externo" : "caja" }))}
+            />
+            <label className="block space-y-2 text-sm font-semibold text-white/70">
               Nota
               <textarea
                 value={adelantoForm.note}
@@ -7134,7 +7103,7 @@ function NuevoGastoTab({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  // Orden: tipo → nombre → monto → origen del dinero → medio de pago → nota
+  // Orden: tipo → nombre → monto → medio de pago → «No descontar de la caja del día» → nota
   // (opcional). Tipo y nombre reemplazan a las categorías viejas (Alquiler,
   // Insumos…), que siguen en los gastos históricos sin tocarse.
   const [form, setForm] = React.useState<{
@@ -7279,44 +7248,46 @@ function NuevoGastoTab({
           </label>
 
           <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
+            {!form.later && (
+              <>
+                <div>
+                  <span className={labelCls}>Medio de pago</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["efectivo", "transferencia"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, method: m }))}
+                        className={optionBtn(form.method === m)}
+                        aria-pressed={form.method === m}
+                      >
+                        {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <NoDescontarCaja
+                  tipo="gasto"
+                  externo={form.source === "otros"}
+                  medio={form.method}
+                  onChange={(externo) => setForm((f) => ({ ...f, source: externo ? "otros" : "caja" }))}
+                />
+              </>
+            )}
+
             <div>
-              <span className={labelCls}>¿De dónde sale la plata?</span>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, source: "caja", later: false }))}
-                  className={cn(optionBtn(!form.later && form.source === "caja"), "px-1 text-[15px]")}
-                  aria-pressed={!form.later && form.source === "caja"}
-                >
-                  Caja
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, source: "otros", later: false }))}
-                  className={cn(optionBtn(!form.later && form.source === "otros"), "px-1 text-[15px] leading-tight")}
-                  aria-pressed={!form.later && form.source === "otros"}
-                >
-                  Fondos externos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, later: true }))}
-                  className={cn(optionBtn(form.later), "px-1 text-[15px]")}
-                  aria-pressed={form.later}
-                >
-                  Pago después
-                </button>
-              </div>
-              <p className={hintCls}>
-                {form.later
-                  ? "Queda en Gastos a pagar y no descuenta hasta que lo pagues."
-                  : form.source === "caja"
-                    ? "Se descuenta de la caja y entra en el cierre."
-                    : "No toca la caja ni el cierre."}
-              </p>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, later: !f.later }))}
+                className={optionBtn(form.later)}
+                aria-pressed={form.later}
+              >
+                Pago después
+              </button>
+              {form.later && <p className={hintCls}>Queda en Gastos a pagar y no descuenta hasta que lo pagues.</p>}
             </div>
 
-            {form.later ? (
+            {form.later && (
               <div className="space-y-3">
                 <label className="block">
                   <span className={labelCls}>Vence el</span>
@@ -7332,28 +7303,6 @@ function NuevoGastoTab({
                     className={inputCls}
                   />
                 </label>
-              </div>
-            ) : (
-              <div>
-                <span className={labelCls}>¿Con qué medio se pagó?</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["efectivo", "transferencia"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, method: m }))}
-                      className={optionBtn(form.method === m)}
-                      aria-pressed={form.method === m}
-                    >
-                      {m === "efectivo" ? "Efectivo" : "Transferencia"}
-                    </button>
-                  ))}
-                </div>
-                {form.source === "caja" && form.method !== "" && (
-                  <p className={hintCls}>
-                    Se descuenta de {form.method === "efectivo" ? "Efectivo en caja" : "Dinero digital"}.
-                  </p>
-                )}
               </div>
             )}
           </div>

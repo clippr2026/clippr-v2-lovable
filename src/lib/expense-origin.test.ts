@@ -102,11 +102,18 @@ describe("Gastos: tipos, etiquetas y formulario", () => {
     expect(form).toContain("funds_source: form.source");
     expect(form).toContain("name,");
     expect(form).not.toContain("GCATEGORIES");
-    const order = ["¿Qué tipo de gasto es?", "Nombre del gasto", ">Monto<", "¿De dónde sale la plata?", "¿Con qué medio se pagó?", "Nota (opcional)", "Anotar para pagar después"].map(
+    const order = ["¿Qué tipo de gasto es?", "Nombre del gasto", ">Monto<", "Medio de pago</span>", "<NoDescontarCaja", "Nota (opcional)", "Anotar para pagar después"].map(
       (t) => form.indexOf(t),
     );
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it("los tres formularios de gasto usan la casilla «No descontar de la caja del día»", () => {
+    for (const f of ["src/routes/cash-register.tsx", "src/components/cash-register/gastos-a-pagar.tsx", "src/components/cash-register/gastos-tab.tsx"]) {
+      expect(readSrc(f)).toContain('<NoDescontarCaja');
+    }
+    expect(readSrc("src/components/cash-register/gastos-tab.tsx")).toContain('funds_source: externo ? "otros" : "caja"');
   });
 
   it("Movimientos y el detalle del cierre muestran nombre, tipo y origen; hay filtro por origen", () => {

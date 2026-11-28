@@ -100,17 +100,19 @@ describe("Origen del adelanto: textos y reglas de pantalla", () => {
     expect(advanceAffectsCaja("externo")).toBe(false);
   });
 
-  it("el formulario pide el origen (Fondos externos por defecto) y lo manda al backend", () => {
+  it("el formulario descuenta de la caja salvo que se marque «No descontar de la caja del día»", () => {
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/Origen del adelanto/);
-    expect(src).toMatch(/source: "externo",\s*\n\s*\}\);/);
-    expect(src).toMatch(/p_funds_source: adelantoForm\.source/);
+    const form = src.slice(src.indexOf("function AdelantoModal("), src.indexOf("function ProfesionalesTab("));
+    expect(form).not.toContain("Origen del adelanto");
+    expect(form).toMatch(/source: "caja",\s*\n\s*\}\);/);
+    expect(form).toContain("<NoDescontarCaja");
+    expect(form).toContain("p_funds_source: origen");
   });
 
   it("con la caja del día cerrada el adelanto no puede salir de la caja", () => {
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/adelantoForm\.source === "caja" && cajaCerrada/);
-    expect(src).toMatch(/disabled=\{opt\.value === "caja" && cajaCerrada\}/);
+    expect(src).toContain('cajaCerrada || adelantoForm.source === "externo" ? "externo" : "caja"');
+    expect(readSrc("src/components/cash-register/origen-caja.tsx")).toContain("disabled={cajaCerrada}");
   });
 
   it("el retiro de stock a cuenta de adelanto no mueve plata de la caja (origen externo)", () => {

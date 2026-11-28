@@ -1,4 +1,5 @@
 import * as React from "react";
+import { NoDescontarCaja } from "@/components/cash-register/origen-caja";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { toast } from "sonner";
 import { CalendarClock, Check, Loader2, Pencil, Trash2 } from "lucide-react";
@@ -248,20 +249,7 @@ function PagarDialog({ gasto, userEmail, onClose, onPagado }: { gasto: GastoAPag
       }
     >
       <div>
-        <div className="mb-1.5 text-sm font-semibold text-white">¿De dónde sale la plata?</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={opcion(origen === "caja")} onClick={() => setOrigen("caja")}>
-            <span className="block font-semibold">Caja del día</span>
-            <span className="block text-[11px] text-muted-foreground">Descuenta y entra en el cierre.</span>
-          </button>
-          <button type="button" className={opcion(origen === "otros")} onClick={() => setOrigen("otros")}>
-            <span className="block font-semibold">Fondos externos</span>
-            <span className="block text-[11px] text-muted-foreground">No toca la caja del día.</span>
-          </button>
-        </div>
-      </div>
-      <div>
-        <div className="mb-1.5 text-sm font-semibold text-white">¿Con qué medio pagaste?</div>
+        <div className="mb-1.5 text-sm font-semibold text-white">Medio de pago</div>
         <div className="grid grid-cols-2 gap-2">
           {(["efectivo", "transferencia"] as const).map((m) => (
             <button key={m} type="button" className={opcion(medio === m)} onClick={() => setMedio(m)}>
@@ -270,6 +258,12 @@ function PagarDialog({ gasto, userEmail, onClose, onPagado }: { gasto: GastoAPag
           ))}
         </div>
       </div>
+      <NoDescontarCaja
+        tipo="gasto"
+        externo={origen === "otros"}
+        medio={medio}
+        onChange={(externo) => setOrigen(externo ? "otros" : "caja")}
+      />
       <p className="text-xs text-white/55">Se anota como un gasto de hoy y la deuda sale de esta lista.</p>
     </VentanaClippr>
   );
