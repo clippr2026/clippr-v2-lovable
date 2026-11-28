@@ -7101,7 +7101,7 @@ function NuevoGastoTab({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  // Orden: tipo → nombre → monto → medio de pago → «No descontar de la caja del día» → nota
+  // Orden: tipo → nombre → monto → medio de pago → «No descontar de los ingresos del día» → nota
   // (opcional). Tipo y nombre reemplazan a las categorías viejas (Alquiler,
   // Insumos…), que siguen en los gastos históricos sin tocarse.
   const [form, setForm] = React.useState<{

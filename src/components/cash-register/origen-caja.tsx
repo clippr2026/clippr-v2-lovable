@@ -39,7 +39,7 @@ export function NoDescontarCaja({
         {marcado && <Check className="h-3.5 w-3.5" strokeWidth={3} style={{ color: "#ffffff" }} />}
       </span>
       <span className="min-w-0">
-        <span className="block text-[15px] font-bold leading-6 text-white">No descontar de la caja del día</span>
+        <span className="block text-[15px] font-bold leading-6 text-white">No descontar de los ingresos del día</span>
         <span className="mt-1 block text-[13px] font-medium leading-snug text-white/60">
           {cajaCerrada ? DESCRIPCION_CAJA_CERRADA : DESCRIPCION_NO_DESCONTAR}
         </span>

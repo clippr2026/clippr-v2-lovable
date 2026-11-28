@@ -109,7 +109,7 @@ describe("Gastos: tipos, etiquetas y formulario", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
-  it("los tres formularios de gasto usan la casilla «No descontar de la caja del día»", () => {
+  it("los tres formularios de gasto usan la casilla «No descontar de los ingresos del día»", () => {
     for (const f of ["src/routes/cash-register.tsx", "src/components/cash-register/gastos-a-pagar.tsx", "src/components/cash-register/gastos-tab.tsx"]) {
       expect(readSrc(f)).toContain('<NoDescontarCaja');
     }

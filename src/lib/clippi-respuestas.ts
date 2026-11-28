@@ -68,7 +68,7 @@ export const CLIPPI_TEMAS: ClippiTema[] = [
   t("no-puedo-cobrar", "No me deja cobrar", ["no puedo cobrar", "no me deja hacer la venta", "error al cobrar", "por que no puedo cobrar"],
     "Revisá dos cosas: que el profesional haya fichado su entrada de hoy y que la caja del día esté abierta. Si el turno está cancelado, ya cobrado o marcado como «No asistió», tampoco se puede cobrar.", caja("resumen")),
   t("gasto", "Cargar un gasto", ["como anoto un gasto", "pague una compra", "registrar egreso", "pagar el alquiler", "nuevo gasto"],
-    "En Caja tocá «− Gasto»: elegí el tipo, el monto y el medio de pago; si la plata no salió de la caja, marcá «No descontar de la caja del día». Si todavía no lo pagaste, usá «Pago después» y poné el vencimiento.", caja("resumen")),
+    "En Caja tocá «− Gasto»: elegí el tipo, el monto y el medio de pago; si la plata no salió de la caja, marcá «No descontar de los ingresos del día». Si todavía no lo pagaste, usá «Pago después» y poné el vencimiento.", caja("resumen")),
   t("gasto-pendiente", "Gastos a pagar", ["gastos pendientes de pago", "cuentas por pagar", "vencimientos", "deudas con proveedores"],
     "Los gastos cargados con «Pago después» quedan en «Gastos a pagar», dentro de Caja, con su fecha de vencimiento.", caja("resumen")),
   t("cerrar-caja", "Cerrar la caja", ["como cierro la caja", "hacer el cierre del dia", "arqueo de caja", "terminar el dia"],

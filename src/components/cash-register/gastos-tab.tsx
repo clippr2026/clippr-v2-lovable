@@ -44,7 +44,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
     method: "",
     note: "",
   });
-  // «No descontar de la caja del día»: el gasto se registra con fondos externos.
+  // «No descontar de los ingresos del día»: el gasto se registra con fondos externos.
   const [externo, setExterno] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [showForm, setShowForm] = React.useState(createOnly);
