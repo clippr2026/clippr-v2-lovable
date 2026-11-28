@@ -100,7 +100,7 @@ describe("Origen del adelanto: textos y reglas de pantalla", () => {
     expect(advanceAffectsCaja("externo")).toBe(false);
   });
 
-  it("el formulario descuenta de la caja salvo que se marque «No descontar de los ingresos del día»", () => {
+  it("el formulario descuenta de la caja salvo que se marque «No descontar de la caja del día»", () => {
     const src = readSrc("src/routes/cash-register.tsx");
     const form = src.slice(src.indexOf("function AdelantoModal("), src.indexOf("function ProfesionalesTab("));
     expect(form).not.toContain("Origen del adelanto");
