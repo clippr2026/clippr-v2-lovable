@@ -34,7 +34,7 @@ import {
 } from "@/lib/notificaciones";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { silenciarDeuda } from "@/lib/deudas-clientes";
+import { silenciarDeuda } from "@/lib/deudas-silenciadas";
 import { CobrarDeudas } from "@/components/clients/deuda-clientes-banner";
 
 const ICONO: Record<TipoAviso, LucideIcon> = {
@@ -167,19 +167,22 @@ function CentroNotificaciones({
     void navigate({ to: aviso.to, search: aviso.search } as never);
   }
 
-  function noAvisarMas(aviso: Aviso) {
+  async function noAvisarMas(aviso: Aviso) {
     if (!businessId || !aviso.deuda) return;
     const ids = aviso.deuda.ids;
-    silenciarDeuda(businessId, ids);
-    void importantes.recargar();
+    const guardar = async (silenciar: boolean) => {
+      try {
+        await silenciarDeuda(businessId, ids, silenciar);
+        await importantes.recargar();
+        return true;
+      } catch {
+        toast.error("No se pudo guardar. Revisá la conexión y probá de nuevo.");
+        return false;
+      }
+    };
+    if (!(await guardar(true))) return;
     toast.success("No te avisamos más. La deuda aparece cuando le cobres.", {
-      action: {
-        label: "Deshacer",
-        onClick: () => {
-          silenciarDeuda(businessId, ids, false);
-          void importantes.recargar();
-        },
-      },
+      action: { label: "Deshacer", onClick: () => void guardar(false) },
     });
   }
 
@@ -298,7 +301,7 @@ function CentroNotificaciones({
                       {a.deuda && (
                         <button
                           type="button"
-                          onClick={() => noAvisarMas(a)}
+                          onClick={() => void noAvisarMas(a)}
                           className="mt-1 ml-auto flex h-8 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white/70 active:scale-95"
                         >
                           <BellOff className="h-3.5 w-3.5" /> No avisar más

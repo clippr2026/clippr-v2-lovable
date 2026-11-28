@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { findAllPendingCierres } from "@/lib/caja-cierre";
-import { agruparDeudas, leerSilenciadas, sinSilenciadas } from "@/lib/deudas-clientes";
+import { agruparDeudas, sinSilenciadas } from "@/lib/deudas-clientes";
+import { leerSilenciadas } from "@/lib/deudas-silenciadas";
 import { getTodayFichajeSummary } from "@/lib/fichaje";
 import type { PermKey } from "@/hooks/use-auth";
 
@@ -112,7 +113,7 @@ export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
           branchId,
         );
         if (error) throw error;
-        return sinSilenciadas(agruparDeudas((data ?? []) as any[]), leerSilenciadas(businessId)).map((d) => ({
+        return sinSilenciadas(agruparDeudas((data ?? []) as any[]), await leerSilenciadas(businessId)).map((d) => ({
           id: `deuda-${d.clave}-${Math.round(d.total)}`,
           tipo: "deuda" as const,
           titulo: "Saldo pendiente",

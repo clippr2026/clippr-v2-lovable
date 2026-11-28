@@ -1,5 +1,5 @@
 // Deudas de clientes: se agrupan por cliente para las notificaciones. «No avisar más» oculta el aviso (la deuda
-// sigue anotada y aparece al cobrarle); se guarda en el dispositivo, por negocio. Una deuda nueva vuelve a avisar.
+// sigue anotada y aparece al cobrarle); ver deudas-silenciadas.ts. Una deuda nueva vuelve a avisar.
 
 export type FilaDeuda = {
   id: string;
@@ -44,31 +44,3 @@ export function agruparDeudas(filas: FilaDeuda[]): DeudaCliente[] {
 /** El aviso se oculta solo si todas sus ventas fueron silenciadas. */
 export const sinSilenciadas = (deudas: DeudaCliente[], silenciadas: ReadonlySet<string>) =>
   deudas.filter((d) => d.ids.some((id) => !silenciadas.has(id)));
-
-const clave = (businessId: string) => `clippr_deudas_silenciadas:${businessId}`;
-
-export function leerSilenciadas(businessId: string): Set<string> {
-  try {
-    const guardado = JSON.parse(localStorage.getItem(clave(businessId)) ?? "[]");
-    return new Set(Array.isArray(guardado) ? guardado.map(String) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function guardar(businessId: string, ids: Set<string>) {
-  try {
-    localStorage.setItem(clave(businessId), JSON.stringify([...ids]));
-  } catch {
-    // Sin almacenamiento (modo privado): el aviso vuelve a aparecer.
-  }
-}
-
-export function silenciarDeuda(businessId: string, ids: string[], silenciar = true) {
-  const actuales = leerSilenciadas(businessId);
-  for (const id of ids) {
-    if (silenciar) actuales.add(id);
-    else actuales.delete(id);
-  }
-  guardar(businessId, actuales);
-}
