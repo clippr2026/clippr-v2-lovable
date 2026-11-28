@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 // Origen del dinero de un gasto o adelanto. Desmarcado: sale de la caja del día según el medio de pago.
 // Marcado: fondos externos (no toca Efectivo en caja, Dinero digital ni el cierre, y no es un ingreso de caja).
 
-export const DESCRIPCION_NO_DESCONTAR = "Marcá esta opción si el pago se realiza con dinero que no pertenece a la caja del día.";
+export const DESCRIPCION_NO_DESCONTAR = "Marcá esta opción si el pago se realiza con dinero que no pertenece a los ingresos de hoy.";
 export const DESCRIPCION_CAJA_CERRADA = "La caja del día está cerrada: el pago se registra sin descontar de ella.";
 
 export function NoDescontarCaja({
