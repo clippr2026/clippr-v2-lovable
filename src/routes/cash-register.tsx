@@ -198,6 +198,7 @@ import { DateClippr } from "@/components/ui/date-clippr";
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
+  disponibleParaLiquidar,
   sumPendingAdjustmentQueue,
   isWithinCutoff,
   resolveVentaDate,
@@ -4535,6 +4536,7 @@ function ProfesionalesTab({
   const allCommissionEventsAttributed = React.useMemo(
     () =>
       allCommissionEvents.map((e: any) => ({
+        record_id: String(e.commission_record_id),
         professional_id: commissionRecordProById[e.commission_record_id] ?? "",
         settlement_run_id: e.settlement_run_id,
         amount: Number(e.amount ?? 0),
@@ -4545,6 +4547,7 @@ function ProfesionalesTab({
   const allTipEventsAttributed = React.useMemo(
     () =>
       allTipEvents.map((e: any) => ({
+        record_id: String(e.tip_record_id),
         professional_id: tipRecordProById[e.tip_record_id] ?? "",
         settlement_run_id: e.settlement_run_id,
         amount: Number(e.amount ?? 0),
@@ -5581,44 +5584,38 @@ function ProfesionalesTab({
   // acá se vuelve a filtrar por fecha para poder liquidar "hasta tal día".
   // Las ventas pendientes/parciales no suman: su comisión recién entra cuando se cobra
   // (igual que prepare_settlement_run).
-  const liquidarNewCommissions = React.useMemo(() => {
-    if (!selectedRow) return 0;
-    const periodStartAt = selectedRow.periodStartAt;
-    return allCommissions
-      .filter(
-        (c: any) =>
-          String(c.professional_id) === selectedRow.id &&
-          !c.settlement_run_id &&
-          (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
-          isWithinCutoff(c.created_at, liquidarCutoffAt) &&
-          Number(c.pending_amount ?? 0) > 0 &&
-          c.payment_status !== "pendiente" &&
-          c.payment_status !== "parcial",
-      )
-      .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
-  }, [allCommissions, selectedRow, liquidarCutoffAt]);
+  const liquidarNewCommissions = React.useMemo(
+    () =>
+      selectedRow
+        ? disponibleParaLiquidar({
+            filas: allCommissions,
+            eventos: allCommissionEventsAttributed,
+            professionalId: selectedRow.id,
+            periodStartAt: selectedRow.periodStartAt,
+            cutoffAt: liquidarCutoffAt,
+          })
+        : 0,
+    [allCommissions, allCommissionEventsAttributed, selectedRow, liquidarCutoffAt],
+  );
 
   // Propinas pendientes del mismo profesional/período/corte — mismo
   // criterio exacto que liquidarNewCommissions, pero sobre tip_records.
   // Se suma a liquidarBaseTotal (abajo) pero SIEMPRE se muestra como cifra
   // aparte en la UI (tarjeta "Propinas" propia) — nunca dentro de
   // "Comisiones generadas".
-  const liquidarNewTips = React.useMemo(() => {
-    if (!selectedRow) return 0;
-    const periodStartAt = selectedRow.periodStartAt;
-    return allTips
-      .filter(
-        (t: any) =>
-          String(t.professional_id) === selectedRow.id &&
-          !t.settlement_run_id &&
-          (!periodStartAt || String(t.created_at ?? "") > periodStartAt) &&
-          isWithinCutoff(t.created_at, liquidarCutoffAt) &&
-          Number(t.pending_amount ?? 0) > 0 &&
-          t.payment_status !== "pendiente" &&
-          t.payment_status !== "parcial",
-      )
-      .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);
-  }, [allTips, selectedRow, liquidarCutoffAt]);
+  const liquidarNewTips = React.useMemo(
+    () =>
+      selectedRow
+        ? disponibleParaLiquidar({
+            filas: allTips,
+            eventos: allTipEventsAttributed,
+            professionalId: selectedRow.id,
+            periodStartAt: selectedRow.periodStartAt,
+            cutoffAt: liquidarCutoffAt,
+          })
+        : 0,
+    [allTips, allTipEventsAttributed, selectedRow, liquidarCutoffAt],
+  );
 
   const liquidarPendingAdvances = React.useMemo(() => {
     if (!selectedRow) return 0;
@@ -5711,26 +5708,9 @@ function ProfesionalesTab({
   const overviewRows = React.useMemo(() => {
     const todayStr = nowClock.toLocaleDateString("sv-SE");
     return rows.map((r) => {
-      const commissions = allCommissions
-        .filter(
-          (c: any) =>
-            String(c.professional_id) === r.id &&
-            !c.settlement_run_id &&
-            (!r.periodStartAt || String(c.created_at ?? "") > r.periodStartAt) &&
-            isWithinCutoff(c.created_at, nowClock) &&
-            Number(c.pending_amount ?? 0) > 0,
-        )
-        .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
-      const tips = allTips
-        .filter(
-          (t: any) =>
-            String(t.professional_id) === r.id &&
-            !t.settlement_run_id &&
-            (!r.periodStartAt || String(t.created_at ?? "") > r.periodStartAt) &&
-            isWithinCutoff(t.created_at, nowClock) &&
-            Number(t.pending_amount ?? 0) > 0,
-        )
-        .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);
+      const corte = { professionalId: r.id, periodStartAt: r.periodStartAt, cutoffAt: nowClock };
+      const commissions = disponibleParaLiquidar({ filas: allCommissions, eventos: allCommissionEventsAttributed, ...corte });
+      const tips = disponibleParaLiquidar({ filas: allTips, eventos: allTipEventsAttributed, ...corte });
       const nowIso = nowClock.toISOString();
       const advances = allAdvances
         .filter(
@@ -5777,7 +5757,7 @@ function ProfesionalesTab({
         total,
       };
     });
-  }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock, data.employees]);
+  }, [rows, allCommissions, allTips, allCommissionEventsAttributed, allTipEventsAttributed, allAdvances, allVentasAnuladas, allPresentismo, nowClock, data.employees]);
 
   // Cantidad de tarjetas de cifras visibles (en el celular van de a dos: si queda una sola
   // en la última fila, ocupa todo el ancho).

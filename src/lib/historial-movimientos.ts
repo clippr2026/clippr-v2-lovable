@@ -427,6 +427,45 @@ function fmtDayMonth(iso: string): string {
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
 }
 
+/**
+ * Comisiones (o propinas) que entran en la próxima liquidación hasta el corte, con la misma regla que
+ * prepare_settlement_run: las ventas normales cuentan su saldo; las que pasaron por cobros pendientes o
+ * parciales cuentan solo lo que cada cobro ya habilitó; una venta sin cobrar no suma.
+ */
+export function disponibleParaLiquidar({
+  filas,
+  eventos,
+  professionalId,
+  periodStartAt,
+  cutoffAt,
+}: {
+  filas: Array<LiquidacionPendingRow & { id: string }>;
+  eventos: Array<LiquidacionRecoveredRow & { record_id: string }>;
+  professionalId: string;
+  periodStartAt: string | null;
+  cutoffAt: Date;
+}): number {
+  const conCobros = new Set(eventos.map((e) => e.record_id));
+  const enPeriodo = (fecha: string | null | undefined) =>
+    (!periodStartAt || String(fecha ?? "") > periodStartAt) && isWithinCutoff(fecha, cutoffAt);
+  const normales = filas
+    .filter(
+      (f) =>
+        String(f.professional_id) === professionalId &&
+        !f.settlement_run_id &&
+        enPeriodo(f.created_at) &&
+        Number(f.pending_amount ?? 0) > 0 &&
+        f.payment_status !== "pendiente" &&
+        f.payment_status !== "parcial" &&
+        !conCobros.has(f.id),
+    )
+    .reduce((s, f) => s + Number(f.pending_amount ?? 0), 0);
+  const cobrados = eventos
+    .filter((e) => String(e.professional_id) === professionalId && !e.settlement_run_id && enPeriodo(e.collected_at))
+    .reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  return normales + cobrados;
+}
+
 export function computeLiquidacionSummary(
   professionalId: string,
   commissions: LiquidacionPendingRow[],
