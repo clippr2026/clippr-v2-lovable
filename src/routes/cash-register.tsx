@@ -1403,24 +1403,26 @@ function TabButton({
     <button
       onClick={() => onChange(t.id)}
       className={cn(
-        "group relative inline-flex items-center justify-center rounded-2xl font-semibold transition-all duration-200",
+        "group relative inline-flex min-w-0 items-center justify-center rounded-2xl font-semibold transition-all duration-200",
         compact
-          ? "flex-col gap-0.5 px-1 py-1.5 text-center text-[10px] leading-tight"
+          ? "flex-col gap-1 px-0.5 py-2 text-center text-[10.5px] leading-tight"
           : "gap-2 px-4 py-2 text-sm whitespace-nowrap sm:py-2.5",
         active
           ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
-          : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
+          : compact
+            ? "text-white/80 hover:bg-white/[0.045]"
+            : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
         className,
       )}
     >
       <Icon
         className={cn(
-          compact ? "size-3.5" : "size-4",
+          compact ? "size-[18px]" : "size-4",
           "transition-all",
-          active ? "text-blue-200" : "text-white/40 group-hover:text-white/70",
+          active ? "text-blue-200" : compact ? "text-white/70" : "text-white/40 group-hover:text-white/70",
         )}
       />
-      <span className={compact ? "line-clamp-2" : undefined}>{compact ? (t.shortLabel ?? t.label) : t.label}</span>
+      <span className={compact ? "max-w-full whitespace-nowrap" : undefined}>{compact ? (t.shortLabel ?? t.label) : t.label}</span>
     </button>
   );
 }
@@ -1441,19 +1443,14 @@ function Tabs({
   onCajaCerrada: (closedDate?: string) => void;
 }) {
   const tabs = TABS;
-  const [firstTab, ...restTabs] = tabs;
   return (
     <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
-      {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
-          resto se reparte en una fila 2 de 4 columnas parejas. */}
-      <div className="relative flex w-full flex-col gap-1.5 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-1.5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:hidden">
+      {/* Celular: una sola fila con las cinco, ícono arriba y nombre abajo; las de nombre largo con más ancho. */}
+      <div className="relative grid w-full grid-cols-[1fr_0.9fr_1.1fr_1.3fr_0.9fr] gap-0.5 rounded-[24px] border border-violet-400/45 bg-[#08070f] p-1 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:hidden">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
-        <TabButton t={firstTab} tab={tab} onChange={onChange} className="w-full" />
-        <div className="grid grid-cols-4 gap-1">
-          {restTabs.map((t) => (
-            <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
-          ))}
-        </div>
+        {tabs.map((t) => (
+          <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
+        ))}
       </div>
 
       {/* Desktop/tablet: fila única, sin cambios visuales. */}
