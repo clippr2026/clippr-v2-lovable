@@ -435,7 +435,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const nowIso = new Date().toISOString();
 
   // Turno con seña recibida: la seña se registra como un medio de pago más (ver applyDepositToSplits).
-  // Solo en cobros completos (un pago pendiente/parcial no se mezcla con la seña).
+  // Solo en cobros completos: en un pago pendiente/parcial la acredita la base (register_sale).
   let effectiveSplits = input.splits;
   if (input.appointmentId && (input.status ?? "cobrado") === "cobrado" && input.collectedAmount == null) {
     const { data: dep } = await (supabase.from("appointment_deposits" as any) as any)

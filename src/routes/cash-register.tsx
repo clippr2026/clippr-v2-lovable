@@ -16157,8 +16157,8 @@ export function NuevaVentaTab({
   // disponible en "Enviar a caja" (isManualFlow): ahí todavía no existe
   // ningún cobro que dejar pendiente.
   // Seña ya pagada del turno: se descuenta sola. Lo tipeado es lo que el cliente paga AHORA; si
-  // con la seña cubre el total, el monto efectivo es tipeado + seña. Un pago parcial sigue como
-  // siempre (la seña no se mezcla con parciales, ver registerPayment).
+  // con la seña cubre el total, el monto efectivo es tipeado + seña. En un pago parcial o pendiente la
+  // base acredita la seña (register_sale), así que el saldo también la descuenta.
   const depositCredit = useDepositCredit(pendingCharge?.id);
   const depositApplied = isManualFlow ? 0 : Math.min(depositCredit, subtotalAfterDiscount);
   const typedAmount = received === "" ? subtotalAfterDiscount : Number(received) || 0;
@@ -16171,6 +16171,9 @@ export function NuevaVentaTab({
   // Con cualquier medio, abonar menos del total es pago parcial (queda el
   // saldo como deuda); abonar $0 es Pago pendiente.
   const pagoPendiente = !isManualFlow && receivedAmount < subtotalAfterDiscount;
+  // Lo que queda debiendo en un pago parcial o pendiente (la seña ya está paga).
+  const saldoPorCobrar = Math.max(0, subtotalAfterDiscount - receivedAmount - depositApplied);
+  const notaSena = depositApplied > 0 ? ` La seña de $${Math.round(depositApplied).toLocaleString("es-AR")} ya está descontada.` : "";
   // Pago pendiente (nada abonado) o Sin cargo: no hay medio de pago
   // elegido. Tocar un medio vuelve al cobro normal (sale de esa modalidad).
   const sinPagoAhora = isSinCargo || (received !== "" && typedAmount === 0);
@@ -16788,7 +16791,7 @@ export function NuevaVentaTab({
         toast.success(
           pagoPendiente
             ? (pendingCollectedAmount ?? 0) > 0
-              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0) - depositApplied).toLocaleString("es-AR")}`
               : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
             : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
         );
@@ -16885,7 +16888,7 @@ export function NuevaVentaTab({
         toast.success(
           pagoPendiente
             ? (pendingCollectedAmount ?? 0) > 0
-              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0) - depositApplied).toLocaleString("es-AR")}`
               : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
             : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
         );
@@ -16956,7 +16959,7 @@ export function NuevaVentaTab({
         toast.success(
           pagoPendiente
             ? (pendingCollectedAmount ?? 0) > 0
-              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0) - depositApplied).toLocaleString("es-AR")}`
               : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
             : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
         );
@@ -18054,8 +18057,8 @@ export function NuevaVentaTab({
                       <Clock className="mt-0.5 size-3.5 shrink-0" />
                       <span>
                         {receivedAmount > 0
-                          ? `Pago parcial — abona $${Math.round(receivedAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")} pendiente de cobro.`
-                          : `No se cobra nada ahora, el total ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}) queda pendiente de cobro.`}
+                          ? `Pago parcial — abona $${Math.round(receivedAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(saldoPorCobrar).toLocaleString("es-AR")} pendiente de cobro.${notaSena}`
+                          : `No se cobra nada ahora, quedan $${Math.round(saldoPorCobrar).toLocaleString("es-AR")} pendientes de cobro.${notaSena}`}
                         {tipAmount > 0 && " La propina se cobra siempre completa, aparte."}
                       </span>
                     </p>
@@ -18429,8 +18432,8 @@ export function NuevaVentaTab({
               </h3>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {receivedAmount > 0
-                  ? `El cliente abonó $${Math.round(receivedAmount).toLocaleString("es-AR")} de $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}. Quedarán $${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")} como deuda pendiente en su cuenta.`
-                  : `Quedarán $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")} como deuda pendiente en su cuenta.`}
+                  ? `El cliente abonó $${Math.round(receivedAmount).toLocaleString("es-AR")} de $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}. Quedarán $${Math.round(saldoPorCobrar).toLocaleString("es-AR")} como deuda pendiente en su cuenta.${notaSena}`
+                  : `Quedarán $${Math.round(saldoPorCobrar).toLocaleString("es-AR")} como deuda pendiente en su cuenta.${notaSena}`}
               </p>
             </div>
             <div className="px-5 py-1">
@@ -18449,7 +18452,7 @@ export function NuevaVentaTab({
               <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
                 <span className="text-muted-foreground">Saldo pendiente</span>
                 <span className="font-semibold text-amber-300 tabular-nums">
-                  ${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")}
+                  ${Math.round(saldoPorCobrar).toLocaleString("es-AR")}
                 </span>
               </div>
               {tipAmount > 0 && (
