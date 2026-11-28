@@ -533,6 +533,7 @@ export function CobrarPendienteModal({
   onCollected,
   clientId,
   clientName,
+  soloIds,
 }: {
   businessId: string;
   branchId: string | null;
@@ -544,6 +545,8 @@ export function CobrarPendienteModal({
   /** Si se pasa, la lista muestra solo las deudas de ese cliente (ficha del cliente). */
   clientId?: string | null;
   clientName?: string | null;
+  /** Si se pasa, la lista muestra solo esas ventas (aviso de deuda o cobro de un turno). */
+  soloIds?: string[];
 }) {
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<"todos" | "pendiente" | "parcial">("todos");
@@ -569,13 +572,13 @@ export function CobrarPendienteModal({
         clientName,
         status: statusFilter,
       });
-      setDebts(rows);
+      setDebts(soloIds ? rows.filter((r) => soloIds.includes(r.id)) : rows);
     } catch (e) {
       toast.error((e as Error).message || "No se pudieron cargar los pendientes");
     } finally {
       setLoading(false);
     }
-  }, [businessId, branchId, query, statusFilter, clientId, clientName]);
+  }, [businessId, branchId, query, statusFilter, clientId, clientName, soloIds]);
 
   // Debounced — mismo criterio que ClientAutocomplete (250ms).
   React.useEffect(() => {
@@ -612,7 +615,7 @@ export function CobrarPendienteModal({
             />
           ) : (
             <div className="space-y-3">
-              {!clientId && (
+              {!clientId && !soloIds && (
               <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
                 <input

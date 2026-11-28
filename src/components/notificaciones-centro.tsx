@@ -18,6 +18,7 @@ import {
   Users,
   Package,
   Star,
+  BellOff,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
@@ -32,6 +33,9 @@ import {
   type TipoAviso,
 } from "@/lib/notificaciones";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { silenciarDeuda } from "@/lib/deudas-clientes";
+import { CobrarDeudas } from "@/components/clients/deuda-clientes-banner";
 
 const ICONO: Record<TipoAviso, LucideIcon> = {
   reserva: CalendarCheck,
@@ -47,6 +51,7 @@ const ICONO: Record<TipoAviso, LucideIcon> = {
   tardanza: AlarmClock,
   stock: Package,
   resena: Star,
+  deuda: Clock,
 };
 
 const REVISAR_MS = 120_000;
@@ -95,6 +100,8 @@ function useImportantes() {
 export function CampanitaNotificaciones() {
   const importantes = useImportantes();
   const [abierto, setAbierto] = React.useState(false);
+  // Cobro de deudas abierto desde un aviso (ids) o desde «Ver todas las deudas» (null = todas).
+  const [cobro, setCobro] = React.useState<{ ids?: string[] } | null>(null);
   return (
     <>
       <button
@@ -113,12 +120,21 @@ export function CampanitaNotificaciones() {
           </span>
         )}
       </button>
-      {abierto && <CentroNotificaciones importantes={importantes} onClose={() => setAbierto(false)} />}
+      {abierto && <CentroNotificaciones importantes={importantes} onClose={() => setAbierto(false)} onCobrar={setCobro} />}
+      {cobro && <CobrarDeudas soloIds={cobro.ids} onClose={() => setCobro(null)} onCollected={() => void importantes.recargar()} />}
     </>
   );
 }
 
-function CentroNotificaciones({ importantes, onClose }: { importantes: ReturnType<typeof useImportantes>; onClose: () => void }) {
+function CentroNotificaciones({
+  importantes,
+  onClose,
+  onCobrar,
+}: {
+  importantes: ReturnType<typeof useImportantes>;
+  onClose: () => void;
+  onCobrar: (cobro: { ids?: string[] }) => void;
+}) {
   const navigate = useNavigate();
   const [pestana, setPestana] = React.useState<"importantes" | "actividad">("importantes");
   const [actividad, setActividad] = React.useState<Aviso[] | null>(null);
@@ -147,7 +163,24 @@ function CentroNotificaciones({ importantes, onClose }: { importantes: ReturnTyp
   function abrir(aviso: Aviso) {
     if (businessId) marcarLeidas(businessId, [aviso.id]);
     onClose();
+    if (aviso.deuda) return onCobrar({ ids: aviso.deuda.ids });
     void navigate({ to: aviso.to, search: aviso.search } as never);
+  }
+
+  function noAvisarMas(aviso: Aviso) {
+    if (!businessId || !aviso.deuda) return;
+    const ids = aviso.deuda.ids;
+    silenciarDeuda(businessId, ids);
+    void importantes.recargar();
+    toast.success("No te avisamos más. La deuda aparece cuando le cobres.", {
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          silenciarDeuda(businessId, ids, false);
+          void importantes.recargar();
+        },
+      },
+    });
   }
 
   const lista = pestana === "importantes" ? importantes.avisos : actividad;
@@ -209,6 +242,18 @@ function CentroNotificaciones({ importantes, onClose }: { importantes: ReturnTyp
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
+          {pestana === "importantes" && puede("caja") && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onCobrar({});
+              }}
+              className="mb-3 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold text-white/80"
+            >
+              <Clock className="h-4 w-4" /> Ver todas las deudas
+            </button>
+          )}
           {cargando ? (
             <div className="space-y-2 pt-2" aria-label="Cargando">
               {[0, 1, 2].map((i) => (
@@ -228,8 +273,8 @@ function CentroNotificaciones({ importantes, onClose }: { importantes: ReturnTyp
                     const Icono = ICONO[a.tipo];
                     const nueva = pestana === "importantes" && !importantes.leidas.has(a.id);
                     return (
+                      <div key={a.id}>
                       <button
-                        key={a.id}
                         type="button"
                         onClick={() => abrir(a)}
                         data-nueva={nueva || undefined}
@@ -250,6 +295,16 @@ function CentroNotificaciones({ importantes, onClose }: { importantes: ReturnTyp
                         </span>
                         <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
                       </button>
+                      {a.deuda && (
+                        <button
+                          type="button"
+                          onClick={() => noAvisarMas(a)}
+                          className="mt-1 ml-auto flex h-8 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white/70 active:scale-95"
+                        >
+                          <BellOff className="h-3.5 w-3.5" /> No avisar más
+                        </button>
+                      )}
+                      </div>
                     );
                   })}
                 </div>

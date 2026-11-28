@@ -1,11 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { findAllPendingCierres } from "@/lib/caja-cierre";
+import { agruparDeudas, leerSilenciadas, sinSilenciadas } from "@/lib/deudas-clientes";
 import { getTodayFichajeSummary } from "@/lib/fichaje";
 import type { PermKey } from "@/hooks/use-auth";
 
 // Centro de notificaciones. Todo sale de los datos reales del negocio (no hay una tabla de notificaciones):
 // · Importantes: SOLO lo que pide atención o una acción (seña por aprobar, caja sin cerrar,
-//   solicitud de un profesional, liquidación sin pagar, profesional que no fichó a horario, stock bajo).
+//   saldo pendiente de un cliente, solicitud de un profesional, liquidación sin pagar, profesional que no fichó a horario, stock bajo).
 //   La campanita cuenta únicamente estos, sin leer.
 // · Actividad: lo informativo (turnos reservados, reservas online confirmadas, cancelaciones, señas aprobadas, cobros, fichajes,
 //   gastos, cierres, liquidaciones, reseñas).
@@ -25,7 +26,8 @@ export type TipoAviso =
   | "cierre"
   | "tardanza"
   | "stock"
-  | "resena";
+  | "resena"
+  | "deuda";
 
 export type Aviso = {
   id: string;
@@ -35,6 +37,8 @@ export type Aviso = {
   fecha: string; // ISO
   to: string;
   search?: Record<string, string>;
+  /** Aviso de saldo pendiente: se cobra desde el propio centro y se puede silenciar. */
+  deuda?: { ids: string[] };
 };
 
 type Contexto = {
@@ -95,6 +99,30 @@ export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
   }
 
   if (puede("caja")) {
+    tareas.push(
+      seguro(async () => {
+        const { data, error } = await porSucursal(
+          supabase
+            .from("payments")
+            .select("id,client_id,client_name,total,amount,collected_amount,created_at,branch_id")
+            .eq("business_id", businessId)
+            .in("status", ["pendiente", "parcial"])
+            .order("created_at", { ascending: false })
+            .limit(300) as any,
+          branchId,
+        );
+        if (error) throw error;
+        return sinSilenciadas(agruparDeudas((data ?? []) as any[]), leerSilenciadas(businessId)).map((d) => ({
+          id: `deuda-${d.clave}-${Math.round(d.total)}`,
+          tipo: "deuda" as const,
+          titulo: "Saldo pendiente",
+          detalle: `${d.nombre} debe ${pesos(d.total)}.`,
+          fecha: d.fecha,
+          to: "/cash-register",
+          deuda: { ids: d.ids },
+        }));
+      }),
+    );
     tareas.push(
       seguro(async () => {
         const pendientes = await findAllPendingCierres(businessId, branchId);

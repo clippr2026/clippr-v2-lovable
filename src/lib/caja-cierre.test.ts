@@ -1312,11 +1312,12 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(fnMatch![1]).not.toMatch(/dayExpected/);
   });
 
-  it("el aviso de cajas pendientes vive en Caja > Resumen (summary.pendingCierres); Inicio ya no lo muestra", () => {
+  it("el aviso de cajas pendientes vive en las notificaciones; ni Inicio ni Caja > Resumen muestran la tarjeta", () => {
     const dash = readSrc("src/routes/dashboard.tsx");
     expect(dash).not.toMatch(/caja\.pendingCierres\.length > 0 \?/);
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/summary\.pendingCierres\.length > 0 \? \(/);
+    expect(src).not.toMatch(/summary\.pendingCierres\.length > 0 \? \(/);
+    expect(readSrc("src/lib/notificaciones.ts")).toMatch(/findAllPendingCierres\(businessId, branchId\)/);
   });
 
   it("Caja > Resumen ya NO muestra la sección 'Saldos acumulados' — mismo criterio visual que Inicio", () => {
@@ -1339,13 +1340,10 @@ describe("CajaHoyCard (Inicio) — sin relleno ni saltos mientras se confirma el
     expect(src).toMatch(/pendingCierresLoading: summary\.pendingCierresLoading/);
   });
 
-  it("mientras se confirma el aviso no se pinta ningún relleno (no hay salto hacia arriba al llegar el dato) y el aviso solo aparece con pendientes reales", () => {
-    // El aviso vive en Caja > Resumen (FacturacionPanel): depende solo de que haya pendientes...
+  it("Caja > Resumen no pinta ningún esqueleto atado a las cajas pendientes", () => {
     const src = readSrc("src/routes/cash-register.tsx");
     const fnMatch = src.match(/function FacturacionPanel\(([\s\S]*?)\nfunction TransferReceiptField/);
     expect(fnMatch).not.toBeNull();
-    expect(fnMatch![1]).toMatch(/summary\.pendingCierres\.length > 0 \? \(/);
-    // ...y no queda ningún esqueleto atado a pendingCierresLoading
     expect(fnMatch![1]).not.toMatch(/summary\.pendingCierresLoading/);
   });
 
