@@ -929,6 +929,7 @@ function CashRegisterPage() {
           ? search.tab
           : "resumen",
   );
+  const [adelantoPara, setAdelantoPara] = useState<string | null>(null);
   const [pendingToCharge, setPendingToCharge] = useState<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null
   >(null);
@@ -1155,6 +1156,7 @@ function CashRegisterPage() {
           <Tabs
             tab={tab}
             onChange={(t) => {
+              setAdelantoPara(null);
               if (t !== "nueva") {
                 setPendingToCharge(null);
                 clearChargeSearchParams();
@@ -1196,6 +1198,12 @@ function CashRegisterPage() {
                 setPendingToCharge(null);
                 clearChargeSearchParams();
                 setTab("nuevo-gasto");
+              }}
+              onAdelanto={(employeeId) => {
+                setPendingToCharge(null);
+                clearChargeSearchParams();
+                setAdelantoPara(employeeId);
+                setTab("profesionales");
               }}
               userEmail={session.user.email ?? null}
               expected={expected}
@@ -1288,6 +1296,11 @@ function CashRegisterPage() {
               cajaCerrada={cajaCerrada}
               cajaDisponible={expected}
               onGoToCierres={() => setTab("cierres")}
+              adelantoPara={adelantoPara}
+              onAdelantoCerrado={() => {
+                setAdelantoPara(null);
+                setTab("resumen");
+              }}
             />
           )}
           {tab === "cierres" && (
@@ -1548,6 +1561,7 @@ function ResumenTab({
   onCobrarPendiente,
   onNuevaVenta,
   onNuevoGasto,
+  onAdelanto,
   userEmail,
   expected,
   summary,
@@ -1567,6 +1581,7 @@ function ResumenTab({
   ) => void;
   onNuevaVenta: () => void;
   onNuevoGasto: () => void;
+  onAdelanto: (employeeId: string) => void;
   userEmail: string | null;
   expected: ExpectedCashDigital;
   summary: CajaSummary;
@@ -1660,6 +1675,7 @@ function ResumenTab({
             pendientesTheme={pendientesTheme}
             onNuevaVenta={onNuevaVenta}
             onNuevoGasto={onNuevoGasto}
+            onAdelanto={onAdelanto}
           />
           <MovimientosUnificados
             data={data}
@@ -3786,6 +3802,8 @@ function ProfesionalesTab({
   cajaCerrada = false,
   cajaDisponible,
   onGoToCierres,
+  adelantoPara = null,
+  onAdelantoCerrado,
 }: {
   businessId: string | null;
   chargedByName: string;
@@ -3798,6 +3816,10 @@ function ProfesionalesTab({
   // pendientes — lleva directo a la pestaña Cierres (ya lista el backlog
   // pendiente por su cuenta, acá no hace falta pasarle las fechas).
   onGoToCierres: () => void;
+  // Ficha «Adelanto» de Resumen: profesional para el que se abre «Adelantar» al entrar.
+  adelantoPara?: string | null;
+  // Se llama al cerrar ese «Adelantar» (registrado o no), para volver a Resumen.
+  onAdelantoCerrado?: () => void;
 }) {
   // Antes esta pestaña llamaba a su propia useCajaData(), que vuelve a
   // pedir todo (servicios, empleados, pagos, gastos) cada vez que se monta
@@ -3923,6 +3945,17 @@ function ProfesionalesTab({
   function resetAdelantoForm() {
     setAdelantoModalOpen(false);
     setAdelantoForm({ amount: "", method: "", note: "", source: "externo" });
+  }
+
+  React.useEffect(() => {
+    if (!adelantoPara) return;
+    setSelectedEmployeeId(adelantoPara);
+    setAdelantoModalOpen(true);
+  }, [adelantoPara]);
+  // Cerrar la ventana que se abrió desde Resumen devuelve a Resumen.
+  function cerrarAdelanto() {
+    resetAdelantoForm();
+    if (adelantoPara) onAdelantoCerrado?.();
   }
 
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
@@ -5327,6 +5360,7 @@ function ProfesionalesTab({
       );
       resetAdelantoForm();
       setCommissionsVersion((v) => v + 1);
+      if (adelantoPara) onAdelantoCerrado?.();
       // El adelanto de "Caja del día" descuenta del efectivo/dinero en
       // cuenta y aparece en Movimientos: sin este refresh() había que
       // recargar la página para verlo en Resumen.
@@ -6548,7 +6582,7 @@ function ProfesionalesTab({
           open={adelantoModalOpen}
           premium
           onOpenChange={(v) => {
-            if (!v) resetAdelantoForm();
+            if (!v) cerrarAdelanto();
           }}
           lockOutside={false}
           title="Adelantar"
@@ -13481,6 +13515,7 @@ function FacturacionPanel({
   pendientesTheme,
   onNuevaVenta,
   onNuevoGasto,
+  onAdelanto,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -13492,6 +13527,7 @@ function FacturacionPanel({
   cajaRangeStartDate: string;
   onNuevaVenta: () => void;
   onNuevoGasto: () => void;
+  onAdelanto: (employeeId: string) => void;
   onCajaCerrada: (closedDate?: string) => void;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
@@ -13511,6 +13547,7 @@ function FacturacionPanel({
   };
 }) {
   const [movType, setMovType] = React.useState<"ingreso" | "retiro" | null>(null);
+  const [eligiendoAdelanto, setEligiendoAdelanto] = React.useState(false);
   // "Ingresar dinero" ahora abre una elección (Nuevo ingreso vs Cobrar
   // pendiente) en vez de ir directo al modal de movimiento — ese modal
   // (RegistrarMovimientoModal, vía movType="ingreso") sigue intacto para
@@ -13552,7 +13589,7 @@ function FacturacionPanel({
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
       <div className={`mt-4 space-y-3.5 ${cajaCerrada ? "hidden" : ""}`}>
         {/* Dos acciones principales como fichas: lo que entra (verde) y lo que sale (rojo). */}
-        <div className="grid grid-cols-2 gap-3 sm:mx-auto sm:max-w-md">
+        <div className="grid grid-cols-3 gap-3 sm:mx-auto sm:max-w-xl">
           <button type="button" onClick={onNuevaVenta} className="caja-accion caja-accion-venta">
             <span className="caja-accion-circulo"><Plus className="size-7" strokeWidth={2} /></span>
             Venta
@@ -13560,6 +13597,10 @@ function FacturacionPanel({
           <button type="button" onClick={onNuevoGasto} className="caja-accion caja-accion-gasto">
             <span className="caja-accion-circulo"><Minus className="size-7" strokeWidth={2} /></span>
             Gasto
+          </button>
+          <button type="button" onClick={() => setEligiendoAdelanto(true)} className="caja-accion caja-accion-adelanto">
+            <span className="caja-accion-circulo"><HandCoins className="size-7" strokeWidth={2} /></span>
+            Adelanto
           </button>
         </div>
         {/* Ingresar / retirar dinero: acciones secundarias, más chicas. */}
@@ -13717,6 +13758,31 @@ function FacturacionPanel({
           </div>,
           document.body,
         )}
+
+      {eligiendoAdelanto && (
+        <VentanaClippr titulo="Adelanto" subtitulo="¿A quién?" onClose={() => setEligiendoAdelanto(false)}>
+          {data.employees.length === 0 ? (
+            <p className="py-8 text-center text-sm text-white/50">Todavía no hay profesionales cargados en Equipo.</p>
+          ) : (
+            <div className="space-y-2">
+              {data.employees.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => {
+                    setEligiendoAdelanto(false);
+                    onAdelanto(String(e.id));
+                  }}
+                  className="flex h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-left text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                >
+                  {e.name}
+                  <ChevronRight className="size-4 shrink-0 text-white/40" />
+                </button>
+              ))}
+            </div>
+          )}
+        </VentanaClippr>
+      )}
 
       {showCobrarPendiente && data.businessId && (
         <CobrarPendienteModal

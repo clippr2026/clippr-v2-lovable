@@ -1866,9 +1866,11 @@ html.modo-claro button[class*="from-blue-400"][class*="to-violet-500"] svg { col
 .caja-accion:hover { filter: brightness(1.15); }
 .caja-accion:active { transform: scale(0.98); }
 .caja-accion-gasto { --c: #fb7185; }
+.caja-accion-adelanto { --c: #a78bfa; }
 .caja-accion-circulo { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 9999px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 html.modo-claro .caja-accion { --c: #0d9488; background: #ffffff; border-color: #e6e3f1; color: #17172b; box-shadow: 0 10px 24px -18px rgba(23, 23, 43, 0.35); }
 html.modo-claro .caja-accion:hover { filter: brightness(0.98); }
 html.modo-claro .caja-accion-gasto { --c: #be185d; }
+html.modo-claro .caja-accion-adelanto { --c: #491a89; }
 html.modo-claro .caja-accion-circulo { background: color-mix(in srgb, var(--c) 13%, #ffffff); }
 
