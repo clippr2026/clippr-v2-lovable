@@ -1895,3 +1895,33 @@ html.modo-claro .fg-seccion + .fg-seccion { border-top-color: #ecebf3; }
 html.modo-claro .fg-principal, html.modo-claro .fg-principal svg { background-color: #491a89; color: #ffffff !important; }
 html.modo-claro .fg-principal svg { background: transparent; }
 
+/* ───── Caja: un solo sistema de diseño para sus secciones ─────
+   Superficies sólidas y bordes discretos; violeta para lo elegido, verde para efectivo y disponible,
+   amarillo para promociones y pendientes, rojo para descuentos y faltantes. */
+.cj-tarjeta { background: #121019; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 20px; }
+.cj-menu { background: #121019; border: 1px solid rgba(255, 255, 255, 0.07); }
+.cj-chip { flex-shrink: 0; white-space: nowrap; border-radius: 9999px; padding: 0.45rem 0.9rem; font-size: 0.8rem; font-weight: 700; color: rgba(255, 255, 255, 0.62); transition: background 0.15s; }
+.cj-chip[aria-pressed="true"] { background: rgba(124, 58, 237, 0.3); color: #ddd6fe; }
+.cj-seccion { display: flex; height: 2.75rem; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.07); background: #121019; font-size: 0.95rem; font-weight: 700; color: rgba(255, 255, 255, 0.65); }
+.cj-seccion[aria-pressed="true"] { background: rgba(124, 58, 237, 0.3); border-color: rgba(167, 139, 250, 0.35); color: #ffffff; }
+.cj-linea { border-color: rgba(255, 255, 255, 0.08); }
+.cj-suave { color: rgba(255, 255, 255, 0.55); }
+.cj-texto { color: #ffffff; }
+.cj-verde { color: #6ee7b7; }
+.cj-amarillo { color: #fcd34d; }
+.cj-rojo { color: #fda4af; }
+.cj-gris { color: rgba(255, 255, 255, 0.45); }
+.cj-promo { color: #fcd34d; }
+html.modo-claro .cj-tarjeta, html.modo-claro .cj-menu, html.modo-claro .cj-seccion { background: #ffffff; border-color: #e6e3f1; }
+html.modo-claro .cj-chip { color: #5a5870; }
+html.modo-claro .cj-chip[aria-pressed="true"] { background: #ede9fe; color: #491a89; }
+html.modo-claro .cj-seccion { color: #5a5870; }
+html.modo-claro .cj-seccion[aria-pressed="true"] { background: #ede9fe; border-color: #c9bdf0; color: #491a89; }
+html.modo-claro .cj-linea { border-color: #ecebf3; }
+html.modo-claro .cj-suave { color: #6b6980 !important; }
+html.modo-claro .cj-texto { color: #17172b !important; }
+html.modo-claro .cj-verde, html.modo-claro .cj-verde svg { color: #047857 !important; }
+html.modo-claro .cj-amarillo, html.modo-claro .cj-amarillo svg, html.modo-claro .cj-promo, html.modo-claro .cj-promo svg { color: #a16207 !important; }
+html.modo-claro .cj-rojo, html.modo-claro .cj-rojo svg { color: #be123c !important; }
+html.modo-claro .cj-gris { color: #9a98ad !important; }
+

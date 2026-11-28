@@ -1446,16 +1446,14 @@ function Tabs({
   return (
     <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
       {/* Celular: una sola fila con las cinco, ícono arriba y nombre abajo; las de nombre largo con más ancho. */}
-      <div className="relative grid w-full grid-cols-[1fr_0.9fr_1.1fr_1.3fr_0.9fr] gap-0.5 rounded-[24px] border border-violet-400/45 bg-[#08070f] p-1 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:hidden">
-        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+      <div className="relative grid w-full grid-cols-[1fr_0.9fr_1.1fr_1.3fr_0.9fr] gap-0.5 rounded-[24px] cj-menu p-1 sm:hidden">
         {tabs.map((t) => (
           <TabButton key={t.id} t={t} tab={tab} onChange={onChange} compact />
         ))}
       </div>
 
       {/* Desktop/tablet: fila única, sin cambios visuales. */}
-      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] p-1.5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:flex-none">
-        <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
+      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-[28px] cj-menu p-1.5 sm:flex-none">
         {tabs.map((t) => {
           const active = t.id === tab;
           const Icon = t.icon;
@@ -1555,7 +1553,7 @@ const SearchBox = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-11 w-full rounded-full border border-violet-400/25 bg-white/[0.04] pl-10 pr-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/50 focus:ring-2 focus:ring-violet-400/15"
+      className="cj-menu h-11 w-full rounded-full pl-10 pr-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
     />
   </div>
 );
@@ -1830,10 +1828,8 @@ function PreciosTab({
         onClick={() => setOpenPromoSvc(open ? null : item.id)}
         aria-expanded={open}
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-2 text-[11px] font-bold transition",
-          open
-            ? "border-amber-300/50 bg-amber-400/20 text-amber-200"
-            : "border-amber-300/25 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20",
+          "cj-promo inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold transition",
+          open ? "bg-amber-400/15" : "hover:bg-amber-400/10",
         )}
       >
         <Tag className="size-3.5" />
@@ -1890,43 +1886,13 @@ function PreciosTab({
     );
   const catalogCategory = (item: any) => String(item.category || "Productos");
 
-  const PriceBadge = ({
-    label,
-    value,
-    tone = "violet",
-    compact = false,
-  }: {
-    label: string;
-    value: number;
-    tone?: "violet" | "green";
-    compact?: boolean;
-  }) => (
-    <div
-      className={cn(
-        "rounded-xl border text-left shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]",
-        compact ? "min-w-[62px] px-2 py-1.5" : "min-w-[90px] px-3 py-2",
-        tone === "green"
-          ? "border-emerald-400/22 bg-emerald-400/[0.045]"
-          : "border-violet-300/18 bg-violet-400/[0.055]",
-      )}
-    >
-      <div
-        className={cn(
-          "font-bold uppercase tracking-[0.14em]",
-          compact ? "text-[8px]" : "text-[9px]",
-          tone === "green" ? "text-emerald-300" : "text-violet-200",
-        )}
-      >
-        {label}
+  // Precio sin recuadro: lista en el color del texto y efectivo en verde.
+  const PriceBadge = ({ label, value, tone = "violet" }: { label: string; value: number; tone?: "violet" | "green" }) => (
+    <div className="min-w-[92px] text-left">
+      <div className={cn("text-[11px] font-semibold", tone === "green" ? "cj-verde" : "cj-suave")}>
+        {label === "Lista" ? "Precio lista" : "Precio efectivo"}
       </div>
-      <div
-        className={cn(
-          "mt-0.5 font-bold tabular-nums text-white",
-          compact ? "text-xs" : "text-sm",
-        )}
-      >
-        {money(value)}
-      </div>
+      <div className={cn("mt-0.5 text-base font-bold tabular-nums", tone === "green" ? "cj-verde" : "cj-texto")}>{money(value)}</div>
     </div>
   );
 
@@ -1934,7 +1900,7 @@ function PreciosTab({
     <ServiceImage
       src={itemImage(item)}
       alt={item.name ?? ""}
-      className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_20px_rgba(139,92,246,0.12)]"
+      className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-violet-500/10 text-lg text-violet-200"
       imgClassName="h-full w-full object-cover object-center"
       fallback={<span>{fallback}</span>}
     />
@@ -2040,44 +2006,40 @@ function PreciosTab({
   // continua con líneas divisorias — SOLO mobile, la versión de escritorio
   // (ServiceRow/CatalogRow de arriba) no cambia.
   const ServiceRowMobile = ({ item }: { item: any }) => (
-    <div className="overflow-hidden rounded-2xl border border-violet-400/20 bg-white/[0.03]" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-      <div className="flex items-center gap-2.5 px-3 py-2.5 active:bg-white/[0.045]">
+    <div className="cj-tarjeta overflow-hidden">
+      <div className="flex items-center gap-3 px-3.5 pt-3">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-white">
-            {item.name ?? "Servicio"}
-          </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-white/55">
-            <Clock className="size-3.5" />
-            {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
-          </div>
-          <div className="mt-1.5 empty:hidden">
+          <div className="cj-texto break-words text-[15px] font-bold leading-snug">{item.name ?? "Servicio"}</div>
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <span className="cj-suave flex items-center gap-1.5 text-xs">
+              <Clock className="size-3.5" />
+              {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
+            </span>
             <PromoButton item={item} />
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
-          <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
-        </div>
+      </div>
+      <div className="cj-linea mx-3.5 mt-2.5 grid grid-cols-2 gap-3 border-t py-2.5">
+        <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
       </div>
       <PromoPanel item={item} />
     </div>
   );
 
   const CatalogRowMobile = ({ item }: { item: any }) => (
-    <div className="flex items-center gap-2.5 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-      <Thumb item={item} fallback="□" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-bold text-white">
-          {item.name ?? "Producto"}
-        </div>
-        <div className="mt-0.5 text-[11px] text-white/50">
-          {catalogCategory(item)}
+    <div className="cj-tarjeta overflow-hidden">
+      <div className="flex items-center gap-3 px-3.5 pt-3">
+        <Thumb item={item} fallback="□" />
+        <div className="min-w-0 flex-1">
+          <div className="cj-texto break-words text-[15px] font-bold leading-snug">{item.name ?? "Producto"}</div>
+          <div className="cj-suave mt-0.5 text-xs">{catalogCategory(item)}</div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
-        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
+      <div className="cj-linea mx-3.5 mt-2.5 grid grid-cols-2 gap-3 border-t py-2.5">
+        <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
+        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
       </div>
     </div>
   );
@@ -2104,12 +2066,8 @@ function PreciosTab({
             key={id}
             type="button"
             onClick={() => setMobileSection(id)}
-            className={cn(
-              "flex h-14 items-center justify-center gap-2.5 rounded-full border text-base font-semibold transition-all",
-              mobileSection === id
-                ? "border-violet-300/50 bg-gradient-to-b from-sky-400/25 to-violet-500/35 text-white shadow-[0_0_18px_-6px_rgba(139,92,246,0.7)]"
-                : "border-white/10 bg-white/[0.04] text-white/60 active:bg-white/[0.08]",
-            )}
+            aria-pressed={mobileSection === id}
+            className="cj-seccion"
           >
             {icon}
             {label}
@@ -2118,26 +2076,9 @@ function PreciosTab({
       </div>
       <div className="grid h-auto min-h-0 grid-cols-1 gap-5 sm:h-full xl:grid-cols-2">
         <section
-          className={cn(
-            // El intento anterior (degradado con background-size fijo de
-            // 320px) seguía viviendo en el MISMO elemento que crece con el
-            // contenido, así que el punto de recorte del degradado también
-            // se recalculaba. Ahora el degradado vive en una capa aparte,
-            // absolutamente posicionada con un alto fijo (100dvh) que NUNCA
-            // depende de cuánto mida la sección — la sección solo recorta
-            // (overflow-hidden + rounded) la parte de esa capa que le
-            // corresponde según su alto real, pero el degradado en sí
-            // siempre mapea sus colores a la MISMA franja de 100dvh sin
-            // importar si la sección mide 400px o 2000px. Por eso la zona
-            // de categorías (a una distancia fija del techo) cae siempre en
-            // el mismo punto de esa franja fija. Desktop no cambia: sigue
-            // usando su propio degradado estirado al 100% de su alto fijo.
-            "relative min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:flex sm:bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))]",
-            mobileSection === "servicios" ? "flex" : "hidden",
-          )}
+          className={cn("min-h-0 flex-col sm:flex", mobileSection === "servicios" ? "flex" : "hidden")}
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
-          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
+          <div className="flex shrink-0 flex-col gap-3 pb-1">
             {/* self-start + max-w-full: antes este contenedor se estiraba
                 al 100% del ancho (comportamiento por defecto de un hijo
                 dentro de un flex-column) sin importar cuántas categorías
@@ -2164,8 +2105,8 @@ function PreciosTab({
                 de scroll (elemento de adentro, sin fondo propio — no hay
                 color que se pinte distinto sin importar qué capa use
                 WebKit para él). Mismo resultado visual y funcional. */}
-            <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
-              <div className="flex min-w-0 gap-2 overflow-x-auto">
+            <div className="flex max-w-full self-start">
+              <div className="flex min-w-0 gap-1.5 overflow-x-auto">
                 {/* Mientras `data.loading` es true, `serviceCategories`
                     todavía no tiene los datos reales y colapsa a solo
                     ["Todos"] (ver el useMemo de arriba). Un skeleton con el
@@ -2186,12 +2127,8 @@ function PreciosTab({
                         key={cat}
                         type="button"
                         onClick={() => setServiceFilter(cat)}
-                        className={cn(
-                          "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                          active
-                            ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                            : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
-                        )}
+                        aria-pressed={active}
+                        className="cj-chip"
                       >
                         {cat}
                       </button>
@@ -2206,9 +2143,9 @@ function PreciosTab({
               placeholder="Buscar servicio"
             />
           </div>
-          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto py-2 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {/* Desktop: caja continua de siempre, sin cambios. */}
-            <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
+            <div className="cj-tarjeta hidden overflow-hidden sm:block">
               {data.loading ? (
                 <RowSkeleton />
               ) : filteredServices.length === 0 ? (
@@ -2246,24 +2183,16 @@ function PreciosTab({
         </section>
 
         <section
-          className={cn(
-            // Ver comentario detallado en la sección de Servicios: el
-            // degradado vive en una capa aparte, absolutamente posicionada
-            // con alto fijo (100dvh) que nunca depende de cuánto mida la
-            // sección. Desktop no cambia.
-            "relative min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)] sm:flex sm:bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))]",
-            mobileSection === "catalogo" ? "flex" : "hidden",
-          )}
+          className={cn("min-h-0 flex-col sm:flex", mobileSection === "catalogo" ? "flex" : "hidden")}
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[100dvh] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] sm:hidden" />
-          <div className="flex shrink-0 flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
+          <div className="flex shrink-0 flex-col gap-3 pb-1">
             {/* Ver comentario detallado en la lista de Servicios: mismo
                 bug de WebKit (fondo translúcido + overflow-x-auto en el
                 mismo elemento cambia de composición según si hay scroll o
                 no) y mismo fix (separar fondo/borde del mecanismo de
                 scroll en dos elementos). */}
-            <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
-              <div className="flex min-w-0 gap-2 overflow-x-auto">
+            <div className="flex max-w-full self-start">
+              <div className="flex min-w-0 gap-1.5 overflow-x-auto">
                 {data.loading ? (
                   [0, 1, 2, 3].map((i) => (
                     <div
@@ -2279,12 +2208,8 @@ function PreciosTab({
                         key={cat}
                         type="button"
                         onClick={() => setCatalogFilter(cat)}
-                        className={cn(
-                          "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                          active
-                            ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                            : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
-                        )}
+                        aria-pressed={active}
+                        className="cj-chip"
                       >
                         {cat}
                       </button>
@@ -2299,9 +2224,9 @@ function PreciosTab({
               placeholder="Buscar producto"
             />
           </div>
-          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-3 py-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+          <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto py-2 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
             {/* Desktop: caja continua de siempre, sin cambios. */}
-            <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
+            <div className="cj-tarjeta hidden overflow-hidden sm:block">
               {data.loading ? (
                 <RowSkeleton />
               ) : filteredCatalog.length === 0 ? (
@@ -2620,28 +2545,25 @@ function InventarioTab({
       .includes(normalizedStockQuery);
   });
 
-  // El color del badge ya comunica el estado (verde = hay stock, rojo =
-  // sin stock) — no hace falta un texto "Disponible"/"Sin stock" aparte.
-  const StockBadge = ({ stock }: { stock: number }) => (
-    <span
-      className={cn(
-        "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1",
-        stock > 0
-          ? "bg-emerald-400/12 text-emerald-300 ring-emerald-400/24"
-          : "bg-rose-500/12 text-rose-300 ring-rose-400/24",
-      )}
-    >
-      <span className="size-2 rounded-full bg-current" />
-      Stock {stock}
-    </span>
-  );
+  // Verde si hay, amarillo si llegó al stock mínimo cargado en el artículo, rojo si no queda.
+  const StockBadge = ({ item }: { item: any }) => {
+    const stock = stockNumber(item);
+    const minimo = Number(item.stock_min) || 0;
+    const tono = stock <= 0 ? "cj-rojo" : minimo > 0 && stock <= minimo ? "cj-amarillo" : "cj-verde";
+    return (
+      <span className="flex min-w-[44px] flex-col items-center leading-none">
+        <span className="cj-suave text-[10px] font-semibold">Stock</span>
+        <span className={cn("mt-1 text-xl font-bold tabular-nums", tono)}>{stock}</span>
+      </span>
+    );
+  };
 
   const Thumb = ({ item }: { item: any }) => (
     <ServiceImage
       src={itemImage(item)}
       alt={item.name ?? ""}
       position={item.image_position ?? item.imagePosition}
-      className="size-10 rounded-xl border border-violet-300/12 bg-violet-500/10 text-lg text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.14)]"
+      className="size-11 shrink-0 rounded-2xl bg-violet-500/10 text-lg text-violet-200"
       fallback={<span>□</span>}
     />
   );
@@ -3047,24 +2969,27 @@ function InventarioTab({
 
   return (
     <div className="mt-3 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:-mt-5 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
-      <section className="flex min-h-0 flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
+      <section className="flex min-h-0 flex-col overflow-visible sm:overflow-hidden">
+        <div className="flex flex-col gap-3 pb-1">
           {/* Mobile: "Últimos movimientos" pasa a un modal (ver botón +
               modal más abajo, fuera de esta sección) en vez de listarse
               fijo en pantalla. Acceso rápido desde acá mismo. */}
-          <button
-            type="button"
-            onClick={() => setMovementsModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.045] px-4 py-2.5 text-sm font-semibold text-white/85 transition active:bg-white/[0.08] sm:hidden"
-          >
-            <ArrowRight className="size-4" />
-            Ver últimos movimientos
-          </button>
+          <div className="flex items-center justify-between gap-3 sm:hidden">
+            <h3 className="cj-texto text-xl font-bold tracking-tight">Inventario</h3>
+            <button
+              type="button"
+              onClick={() => setMovementsModalOpen(true)}
+              className="cj-menu inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-violet-200 active:scale-[0.98]"
+            >
+              <Clock className="size-4" />
+              Movimientos
+            </button>
+          </div>
           {/* Mismo fix de WebKit que en Precios: fondo/borde afuera (sin
               overflow, nunca se promueve a capa de scroll) y el mecanismo
               de scroll adentro (sin fondo propio). */}
-          <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
-            <div className="flex min-w-0 gap-2 overflow-x-auto">
+          <div className="flex max-w-full self-start">
+            <div className="flex min-w-0 gap-1.5 overflow-x-auto">
               {stockCategories.map((cat) => {
                 const active = stockFilter === cat;
                 return (
@@ -3072,12 +2997,8 @@ function InventarioTab({
                     key={cat}
                     type="button"
                     onClick={() => setStockFilter(cat)}
-                    className={cn(
-                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
-                      active
-                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                        : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
-                    )}
+                    aria-pressed={active}
+                    className="cj-chip"
                   >
                     {cat}
                   </button>
@@ -3091,10 +3012,10 @@ function InventarioTab({
             placeholder="Buscar artículo"
           />
         </div>
-        <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+        <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto py-2 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           {/* Desktop: tabla. En mobile, tarjetas verticales debajo — mismos
               datos y mismas acciones de ajustar stock. */}
-          <div className="hidden overflow-hidden rounded-3xl border border-white/[0.065] bg-white/[0.018] sm:block">
+          <div className="cj-tarjeta hidden overflow-hidden sm:block">
             <div className="grid grid-cols-[minmax(190px,1fr)_140px_140px] gap-4 border-b border-white/[0.065] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
               <div>Artículo</div>
               <div>Stock</div>
@@ -3127,7 +3048,7 @@ function InventarioTab({
                         </div>
                       </div>
                     </div>
-                    <StockBadge stock={stock} />
+                    <StockBadge item={item} />
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
@@ -3160,7 +3081,7 @@ function InventarioTab({
                 Sin artículos.
               </div>
             ) : (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-2">
                 {filteredStock.map((item: any) => {
                   const stock = stockNumber(item);
                   const id = itemId(item);
@@ -3168,25 +3089,24 @@ function InventarioTab({
                   return (
                     <div
                       key={`mobile-${id}`}
-                      className="flex min-w-0 items-center gap-3 rounded-2xl border border-violet-400/20 bg-white/[0.03] p-2.5"
-                      style={{ backgroundImage: CLIPPR_CARD_GLOW }}
+                      className="cj-tarjeta flex min-w-0 items-center gap-3 p-2.5"
                     >
                       <Thumb item={item} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-bold text-white">
+                        <div className="cj-texto break-words text-[15px] font-bold leading-snug">
                           {item.name ?? "Producto"}
                         </div>
-                        <div className="mt-0.5 text-xs text-white/50">
+                        <div className="cj-suave mt-0.5 text-xs">
                           {catalogCategory(item)}
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <StockBadge stock={stock} />
+                        <StockBadge item={item} />
                         <button
                           type="button"
                           onClick={() => openStockAdjustment(item, "out")}
                           disabled={loading || cajaCerrada}
-                          className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
+                          className="grid size-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-white/70 transition active:bg-rose-500/15 active:text-rose-200 disabled:opacity-50"
                         >
                           <Minus className="size-4" />
                         </button>
@@ -3194,7 +3114,7 @@ function InventarioTab({
                           type="button"
                           onClick={() => openStockAdjustment(item, "in")}
                           disabled={loading || cajaCerrada}
-                          className="grid size-8 shrink-0 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.16)] transition active:bg-emerald-400/18 disabled:opacity-50"
+                          className="grid size-9 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-200 transition active:bg-emerald-400/25 disabled:opacity-50"
                         >
                           <Plus className="size-4" />
                         </button>
@@ -3208,7 +3128,7 @@ function InventarioTab({
         </div>
       </section>
 
-      <section className="hidden min-h-0 flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(59,130,246,0.34)] sm:flex">
+      <section className="cj-tarjeta hidden min-h-0 flex-col overflow-hidden sm:flex">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
@@ -3312,7 +3232,7 @@ function InventarioTab({
               está abierto y restaura el scrollY exacto al cerrar — evita
               los saltos/huecos negros que aparecían antes. */}
           <div
-            className="flex max-h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.4)]"
+            className="cj-menu flex max-h-full w-full flex-col overflow-hidden rounded-3xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4">
@@ -5840,9 +5760,24 @@ function ProfesionalesTab({
         .reduce((sum: number, p: any) => sum + Number(p.discount_amount_applied ?? 0), 0);
       const total =
         r.previousBalance + commissions + tips + queue.pendingCredits - advances - queue.pendingDeductions - presentismo - r.previousAdvanceDebt;
-      return { id: r.id, name: r.name, role: r.role, commissions, tips, advances, advancesPrev: r.previousAdvanceDebt, presentismo, total };
+      const foto = ((data.employees ?? []) as any[]).find((e) => String(e.id) === r.id)?.avatar_url ?? null;
+      return {
+        id: r.id,
+        name: r.name,
+        role: r.role,
+        foto: foto as string | null,
+        commissions,
+        tips,
+        advances,
+        advancesPrev: r.previousAdvanceDebt,
+        presentismo,
+        saldoAnterior: r.previousBalance,
+        creditos: queue.pendingCredits,
+        deducciones: queue.pendingDeductions,
+        total,
+      };
     });
-  }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock]);
+  }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock, data.employees]);
 
   // Cantidad de tarjetas de cifras visibles (en el celular van de a dos: si queda una sola
   // en la última fila, ocupa todo el ancho).
@@ -5863,7 +5798,7 @@ function ProfesionalesTab({
           recién after se terminaba de pintar, dando la sensación de que
           "prende la luz" al cargar. Desktop no cambia (shadow doble original
           vía `sm:`). */}
-      <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
+      <section className="flex flex-col overflow-visible sm:h-full sm:overflow-hidden">
         <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", (liqDetalle || !selectedRow) && "hidden", liqDetalle && selectedRow && "sm:flex")}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {/* Celular: en vez del desplegable, volver atrás a la lista del equipo. */}
@@ -6558,92 +6493,78 @@ function ProfesionalesTab({
             Todavía no hay profesionales cargados en Equipo.
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-            <div
-              className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-3"
-              style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)", boxShadow: "0 0 30px -14px rgba(16,185,129,.55)" }}
-            >
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  Total a pagar al equipo
-                </div>
-                <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300">
-                  {money(overviewRows.reduce((sum, r) => sum + Math.max(r.total, 0), 0))}
-                </div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-2 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            <div className="cj-tarjeta mb-3 px-4 py-3">
+              <div className="cj-suave text-sm font-semibold">Total a pagar al equipo</div>
+              <div className="cj-verde mt-0.5 text-2xl font-bold tabular-nums">
+                {money(overviewRows.reduce((sum, r) => sum + Math.max(r.total, 0), 0))}
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              {overviewRows.map((r) => (
-                <div
-                  key={r.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => selectEmployee(r.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") selectEmployee(r.id);
-                  }}
-                  className="cursor-pointer rounded-2xl border border-violet-400/20 bg-white/[0.03] px-4 py-3 transition hover:bg-white/[0.05]"
-                  style={{ backgroundImage: CLIPPR_CARD_GLOW }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 truncate text-base font-semibold text-white">{r.name}</div>
-                    <div className={cn("shrink-0 text-xl font-bold tabular-nums", r.total > 0 ? "text-emerald-300" : r.total < 0 ? "text-rose-300" : "text-white/40")}>
-                      {r.total < 0 ? `−${money(-r.total)}` : money(r.total)}
-                    </div>
-                  </div>
-                  <div className="mt-2.5 divide-y divide-white/[0.07] rounded-xl bg-white/[0.03] px-3 ring-1 ring-white/[0.07]">
-                    {(
-                      [
-                        ["Comisiones", money(r.commissions), "text-white"],
-                        ...(r.tips > 0 ? [["Propinas", money(r.tips), "text-white"]] : []),
-                        ...(r.advancesPrev > 0.5
-                          ? [
-                              ["Adelantos pendientes", `−${money(r.advancesPrev)}`, "text-rose-300"],
-                              ...(r.advances > 0 ? [["Adelantos actuales", `−${money(r.advances)}`, "text-rose-300"]] : []),
-                            ]
-                          : r.advances > 0
-                            ? [["Adelantos", `−${money(r.advances)}`, "text-rose-300"]]
-                            : []),
-                        ...(r.presentismo !== 0
-                          ? [
-                              [
-                                "Puntualidad",
-                                `${r.presentismo > 0 ? "−" : "+"}${money(Math.abs(r.presentismo))}`,
-                                r.presentismo > 0 ? "text-rose-300" : "text-emerald-300",
-                              ],
-                            ]
-                          : []),
-                      ] as Array<[string, string, string]>
-                    ).map(([nombre, monto, color]) => (
-                      <div key={nombre} className="flex items-center justify-between gap-3 py-2 text-sm">
-                        <span className="text-white/60">{nombre}</span>
-                        <span className={cn("font-semibold tabular-nums", color)}>{monto}</span>
+              {overviewRows.map((r) => {
+                const enCero = Math.round(r.total) === 0;
+                const negativo = !enCero && r.total < 0;
+                // Concepto, importe y color. Los descuentos van en rojo.
+                const lineas: Array<[string, string, string]> = [["Comisiones", money(r.commissions), "cj-texto"]];
+                if (r.saldoAnterior >= 0.5) lineas.push(["Saldo anterior", money(r.saldoAnterior), "cj-texto"]);
+                if (r.tips > 0) lineas.push(["Propinas", money(r.tips), "cj-texto"]);
+                if (r.creditos >= 0.5) lineas.push(["Créditos", money(r.creditos), "cj-texto"]);
+                if (r.advancesPrev > 0.5) lineas.push(["Adelantos pendientes", `−${money(r.advancesPrev)}`, "cj-rojo"]);
+                if (r.advances > 0) lineas.push([r.advancesPrev > 0.5 ? "Adelantos actuales" : "Adelantos", `−${money(r.advances)}`, "cj-rojo"]);
+                if (r.deducciones >= 0.5) lineas.push(["Deducciones", `−${money(r.deducciones)}`, "cj-rojo"]);
+                if (r.presentismo !== 0)
+                  lineas.push(["Puntualidad", `${r.presentismo > 0 ? "−" : "+"}${money(Math.abs(r.presentismo))}`, r.presentismo > 0 ? "cj-rojo" : "cj-verde"]);
+                const abrirPago = (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  selectEmployee(r.id);
+                  setLiquidarModalOpen(true);
+                };
+                return (
+                  <div
+                    key={r.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectEmployee(r.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") selectEmployee(r.id);
+                    }}
+                    className="cj-tarjeta cursor-pointer px-3.5 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
+                        {r.foto ? <img src={r.foto} alt="" className="h-full w-full object-cover" /> : r.name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <div className="cj-texto min-w-0 flex-1 truncate text-base font-semibold">{r.name}</div>
+                      <div className={cn("shrink-0 text-xl font-bold tabular-nums", enCero ? "cj-gris" : negativo ? "cj-rojo" : "cj-verde")}>
+                        {negativo ? `−${money(-r.total)}` : money(enCero ? 0 : r.total)}
                       </div>
-                    ))}
+                    </div>
+                    <div className="cj-linea mt-2.5 border-t pt-1.5">
+                      {lineas.map(([nombre, monto, color]) => (
+                        <div key={nombre} className="flex items-center justify-between gap-3 py-0.5 text-[13px]">
+                          <span className="cj-suave">{nombre}</span>
+                          <span className={cn("font-semibold tabular-nums", color)}>{monto}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="cj-linea mt-2 flex items-center justify-between gap-3 border-t pt-2.5">
+                      <span className="cj-suave inline-flex items-center gap-1 text-sm font-medium">
+                        Ver detalle <ChevronRight className="size-4" />
+                      </span>
+                      {negativo ? (
+                        <button type="button" onClick={abrirPago} className="cj-menu cj-rojo h-9 rounded-full px-4 text-sm font-bold">
+                          Cerrar período
+                        </button>
+                      ) : !enCero ? (
+                        <button type="button" onClick={abrirPago} className="h-9 rounded-full bg-emerald-600 px-5 text-sm font-bold text-white transition hover:brightness-110">
+                          Liquidar
+                        </button>
+                      ) : null}
+                    </div>
+                    {negativo && <p className="cj-suave mt-1.5 text-right text-xs">El saldo se descontará en la próxima liquidación</p>}
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-white/65">
-                      Ver detalle <ChevronRight className="size-4" />
-                    </span>
-                    {r.total < 0 && (
-                      <span className="min-w-0 text-right text-xs text-white/55">El saldo se descontará en la próxima liquidación</span>
-                    )}
-                    {r.total > 0 && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          selectEmployee(r.id);
-                          setLiquidarModalOpen(true);
-                        }}
-                        className="h-10 rounded-full bg-emerald-500 px-6 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
-                      >
-                        Pagar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -10388,7 +10309,7 @@ function CierresTab({
 
   return (
     <div className="-mt-3 space-y-4">
-      <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
+      <section className="pt-3">
         <div className={cn("flex justify-start", subtab === "historial" && "hidden")}>
           <button
             type="button"
@@ -10420,7 +10341,7 @@ function CierresTab({
           </div>
         ) : loading ? (
           <div className="pt-5">
-            <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
+            <div className="cj-tarjeta overflow-hidden">
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
@@ -10435,7 +10356,7 @@ function CierresTab({
             </div>
           </div>
         ) : cierres.length === 0 && pendingCierres.length === 0 ? (
-          <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground">
+          <div className="cj-tarjeta py-12 text-center text-sm text-muted-foreground">
             Sin cierres registrados todavía.
           </div>
         ) : (
@@ -10469,57 +10390,83 @@ function CierresTab({
               // aparecen como "Cerrada" solo porque el día ya terminó (ver
               // sección 4 del pedido). Tocar uno abre la vista previa, no
               // CierreDetalleView (no hay snapshot guardado todavía).
-              <div className="flex flex-col gap-2.5">
-                {historialRows.map((row) =>
-                  row.kind === "pendiente" ? (
-                    <button
-                      key={`pendiente-${row.date}`}
-                      type="button"
-                      onClick={() => {
-                        setSubtab("dia");
-                        setJumpToDate(row.date);
-                      }}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-400/35 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
-                      style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(251,191,36,.14), transparent 62%)" }}
-                    >
-                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.date)}</span>
-                      <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
-                        Pendiente de revisión
-                      </span>
-                    </button>
-                  ) : row.kind === "fuera" ? (
-                    <button
-                      key={`fuera-${row.date}`}
-                      type="button"
-                      onClick={() => setFueraDeJornadaSel(row.date)}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
-                    >
-                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.date)}</span>
-                      <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-bold text-white/75 ring-1 ring-white/15">
-                        Fuera de jornada
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      key={row.cierre.id}
-                      type="button"
-                      onClick={() => setSelected(row.cierre)}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
-                      style={{ backgroundImage: CLIPPR_CARD_GLOW }}
-                    >
-                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.cierre.fecha)}</span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        {fechasConAjuste.has(String(row.cierre.fecha)) && (
-                          <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
-                            Ajuste posterior
+              (() => {
+                const pendientes = historialRows.filter((r) => r.kind === "pendiente");
+                const historial = historialRows.filter((r) => r.kind !== "pendiente");
+                // Una fila: fecha, estado (según el registro guardado) y flecha.
+                const fila = (clave: string, fecha: string, estado: React.ReactNode, abrir: () => void) => (
+                  <button
+                    key={clave}
+                    type="button"
+                    onClick={abrir}
+                    className="cj-tarjeta flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition active:scale-[0.99]"
+                  >
+                    <CalendarDays className="cj-suave size-5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="cj-texto block truncate text-sm font-semibold">{fecha}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs font-semibold">{estado}</span>
+                    </span>
+                    <ChevronRight className="cj-suave size-4 shrink-0" />
+                  </button>
+                );
+                return (
+                  <div className="space-y-4">
+                    <h3 className="cj-texto text-xl font-bold tracking-tight">Cierres de caja</h3>
+                    {pendientes.length > 0 && (
+                      <>
+                        <div className="cj-tarjeta flex items-center gap-3 px-3.5 py-3">
+                          <AlertTriangle className="cj-amarillo size-5 shrink-0 text-amber-300" />
+                          <span className="min-w-0">
+                            <span className="cj-amarillo block text-sm font-bold">
+                              {pendientes.length === 1 ? "1 caja pendiente" : `${pendientes.length} cajas pendientes`}
+                            </span>
+                            <span className="cj-suave block text-xs">
+                              {pendientes.length === 1 ? "Revisala y cerrala." : "Revisá y cerrá las cajas pendientes."}
+                            </span>
                           </span>
-                        )}
-                        <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                      </span>
-                    </button>
-                  ),
-                )}
-              </div>
+                        </div>
+                        <div className="space-y-2">
+                          <h4 className="cj-texto text-sm font-bold">Pendientes de revisión</h4>
+                          {pendientes.map((row) =>
+                            row.kind === "pendiente"
+                              ? fila(`pendiente-${row.date}`, fechaDetalleLabel(row.date), <span className="cj-amarillo">Pendiente de revisión</span>, () => {
+                                  setSubtab("dia");
+                                  setJumpToDate(row.date);
+                                })
+                              : null,
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {historial.length > 0 && (
+                      <div className={cn("space-y-2", pendientes.length > 0 && "cj-linea border-t pt-4")}>
+                        <h4 className="cj-texto text-sm font-bold">Historial de cierres</h4>
+                        {historial.map((row) => {
+                          if (row.kind === "fuera")
+                            return fila(`fuera-${row.date}`, fechaDetalleLabel(row.date), <span className="cj-suave">Fuera de jornada</span>, () => setFueraDeJornadaSel(row.date));
+                          if (row.kind !== "cierre") return null;
+                          const reabierta = row.cierre.estado === "reabierta";
+                          return fila(
+                            String(row.cierre.id),
+                            fechaDetalleLabel(row.cierre.fecha),
+                            <>
+                              {reabierta ? (
+                                <span className="cj-amarillo">Reabierta</span>
+                              ) : (
+                                <span className="cj-verde inline-flex items-center gap-1">
+                                  <CheckCircle2 className="size-3.5" /> Caja cerrada
+                                </span>
+                              )}
+                              {fechasConAjuste.has(String(row.cierre.fecha)) && <span className="cj-amarillo">· Ajuste posterior</span>}
+                            </>,
+                            () => setSelected(row.cierre),
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </div>
         )}
