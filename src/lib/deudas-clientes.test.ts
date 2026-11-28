@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agruparDeudas, sinSilenciadas, type FilaDeuda } from "./deudas-clientes";
+import { agruparDeudas, type FilaDeuda } from "./deudas-clientes";
 
 const fila = (id: string, extra: Partial<FilaDeuda> = {}): FilaDeuda => ({
   id,
@@ -25,15 +25,5 @@ describe("agruparDeudas", () => {
     ]);
     expect(lista).toHaveLength(1);
     expect(lista[0].ids).toEqual(["a", "b"]);
-  });
-});
-
-describe("sinSilenciadas", () => {
-  const deudas = agruparDeudas([fila("a"), fila("b")]);
-  it("oculta el aviso si se silenció todo", () => {
-    expect(sinSilenciadas(deudas, new Set(["a", "b"]))).toEqual([]);
-  });
-  it("una deuda nueva vuelve a avisar", () => {
-    expect(sinSilenciadas(deudas, new Set(["a"]))).toHaveLength(1);
   });
 });

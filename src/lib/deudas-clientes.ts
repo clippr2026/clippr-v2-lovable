@@ -1,5 +1,4 @@
-// Deudas de clientes: se agrupan por cliente para las notificaciones. «No avisar más» oculta el aviso (la deuda
-// sigue anotada y aparece al cobrarle); ver deudas-silenciadas.ts. Una deuda nueva vuelve a avisar.
+// Deudas de clientes: se agrupan por cliente para las notificaciones. El aviso está mientras haya saldo.
 
 export type FilaDeuda = {
   id: string;
@@ -40,7 +39,3 @@ export function agruparDeudas(filas: FilaDeuda[]): DeudaCliente[] {
   }
   return [...grupos.values()];
 }
-
-/** El aviso se oculta solo si todas sus ventas fueron silenciadas. */
-export const sinSilenciadas = (deudas: DeudaCliente[], silenciadas: ReadonlySet<string>) =>
-  deudas.filter((d) => d.ids.some((id) => !silenciadas.has(id)));

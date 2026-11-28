@@ -1,7 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { findAllPendingCierres } from "@/lib/caja-cierre";
-import { agruparDeudas, sinSilenciadas } from "@/lib/deudas-clientes";
-import { leerSilenciadas } from "@/lib/deudas-silenciadas";
+import { agruparDeudas } from "@/lib/deudas-clientes";
 import { getTodayFichajeSummary } from "@/lib/fichaje";
 import type { PermKey } from "@/hooks/use-auth";
 
@@ -38,7 +37,7 @@ export type Aviso = {
   fecha: string; // ISO
   to: string;
   search?: Record<string, string>;
-  /** Aviso de saldo pendiente: se cobra desde el propio centro y se puede silenciar. */
+  /** Aviso de saldo pendiente: se cobra desde el propio centro. */
   deuda?: { ids: string[] };
 };
 
@@ -113,7 +112,7 @@ export async function cargarImportantes(ctx: Contexto): Promise<Aviso[]> {
           branchId,
         );
         if (error) throw error;
-        return sinSilenciadas(agruparDeudas((data ?? []) as any[]), await leerSilenciadas(businessId)).map((d) => ({
+        return agruparDeudas((data ?? []) as any[]).map((d) => ({
           id: `deuda-${d.clave}-${Math.round(d.total)}`,
           tipo: "deuda" as const,
           titulo: "Saldo pendiente",

@@ -18,7 +18,6 @@ import {
   Users,
   Package,
   Star,
-  BellOff,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
@@ -33,8 +32,6 @@ import {
   type TipoAviso,
 } from "@/lib/notificaciones";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { silenciarDeuda } from "@/lib/deudas-silenciadas";
 import { CobrarDeudas } from "@/components/clients/deuda-clientes-banner";
 
 const ICONO: Record<TipoAviso, LucideIcon> = {
@@ -167,25 +164,6 @@ function CentroNotificaciones({
     void navigate({ to: aviso.to, search: aviso.search } as never);
   }
 
-  async function noAvisarMas(aviso: Aviso) {
-    if (!businessId || !aviso.deuda) return;
-    const ids = aviso.deuda.ids;
-    const guardar = async (silenciar: boolean) => {
-      try {
-        await silenciarDeuda(businessId, ids, silenciar);
-        await importantes.recargar();
-        return true;
-      } catch {
-        toast.error("No se pudo guardar. Revisá la conexión y probá de nuevo.");
-        return false;
-      }
-    };
-    if (!(await guardar(true))) return;
-    toast.success("No te avisamos más. La deuda aparece cuando le cobres.", {
-      action: { label: "Deshacer", onClick: () => void guardar(false) },
-    });
-  }
-
   const lista = pestana === "importantes" ? importantes.avisos : actividad;
   const cargando = pestana === "importantes" ? importantes.cargando : actividad === null;
   const grupos = React.useMemo(() => {
@@ -276,8 +254,8 @@ function CentroNotificaciones({
                     const Icono = ICONO[a.tipo];
                     const nueva = pestana === "importantes" && !importantes.leidas.has(a.id);
                     return (
-                      <div key={a.id}>
                       <button
+                        key={a.id}
                         type="button"
                         onClick={() => abrir(a)}
                         data-nueva={nueva || undefined}
@@ -298,16 +276,6 @@ function CentroNotificaciones({
                         </span>
                         <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
                       </button>
-                      {a.deuda && (
-                        <button
-                          type="button"
-                          onClick={() => void noAvisarMas(a)}
-                          className="mt-1 ml-auto flex h-8 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white/70 active:scale-95"
-                        >
-                          <BellOff className="h-3.5 w-3.5" /> No avisar más
-                        </button>
-                      )}
-                      </div>
                     );
                   })}
                 </div>
