@@ -13734,11 +13734,11 @@ function FacturacionPanel({
         )}
 
       {eligiendoAdelanto && (
-        <VentanaClippr titulo="Adelanto" subtitulo="¿A quién?" onClose={() => setEligiendoAdelanto(false)}>
+        <VentanaClippr titulo="Adelanto" subtitulo="¿A quién?" ancho="max-w-sm" centrada onClose={() => setEligiendoAdelanto(false)}>
           {data.employees.length === 0 ? (
             <p className="py-8 text-center text-sm text-white/50">Todavía no hay profesionales cargados en Equipo.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {data.employees.map((e) => (
                 <button
                   key={e.id}
@@ -13747,7 +13747,7 @@ function FacturacionPanel({
                     setEligiendoAdelanto(false);
                     onAdelanto(String(e.id));
                   }}
-                  className="flex h-14 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-left text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  className="flex h-11 w-full items-center justify-between gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 text-left text-sm font-semibold text-white transition hover:bg-white/[0.08]"
                 >
                   {e.name}
                   <ChevronRight className="size-4 shrink-0 text-white/40" />

@@ -13,6 +13,7 @@ export function VentanaClippr({
   footer,
   ancho = "max-w-lg",
   conCruz = false,
+  centrada = false,
   children,
 }: {
   titulo: React.ReactNode;
@@ -24,6 +25,8 @@ export function VentanaClippr({
   ancho?: string;
   /** Avisos y preguntas: se cierran con una X. El resto lleva la flecha para volver. */
   conCruz?: boolean;
+  /** Ventanas cortas sin campos para escribir: también en el celular van al medio de la pantalla. */
+  centrada?: boolean;
   children: React.ReactNode;
 }) {
   // La ventana solo existe mientras está abierta: se congela el fondo para que no se mueva por detrás.
@@ -39,7 +42,7 @@ export function VentanaClippr({
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      className={`fixed inset-0 z-[300] flex ${centrada ? "items-center" : "items-start sm:items-center"} justify-center bg-black/75 backdrop-blur-sm p-4`}
       style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
       onClick={onClose}
     >
