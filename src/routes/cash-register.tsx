@@ -3956,9 +3956,7 @@ function AdelantoModal({
               </div>
             </div>
             <NoDescontarCaja
-              tipo="adelanto"
               externo={origen === "externo"}
-              medio={adelantoForm.method}
               cajaCerrada={cajaCerrada}
               onChange={(externo) => setAdelantoForm((form) => ({ ...form, source: externo ? "externo" : "caja" }))}
             />
@@ -7267,9 +7265,7 @@ function NuevoGastoTab({
                   </div>
                 </div>
                 <NoDescontarCaja
-                  tipo="gasto"
                   externo={form.source === "otros"}
-                  medio={form.method}
                   onChange={(externo) => setForm((f) => ({ ...f, source: externo ? "otros" : "caja" }))}
                 />
               </>

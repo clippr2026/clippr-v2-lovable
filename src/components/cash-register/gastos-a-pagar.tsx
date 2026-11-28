@@ -259,9 +259,7 @@ function PagarDialog({ gasto, userEmail, onClose, onPagado }: { gasto: GastoAPag
         </div>
       </div>
       <NoDescontarCaja
-        tipo="gasto"
         externo={origen === "otros"}
-        medio={medio}
         onChange={(externo) => setOrigen(externo ? "otros" : "caja")}
       />
       <p className="text-xs text-white/55">Se anota como un gasto de hoy y la deuda sale de esta lista.</p>

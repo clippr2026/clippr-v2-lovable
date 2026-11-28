@@ -163,7 +163,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
                 ))}
               </select>
             </div>
-            <NoDescontarCaja tipo="gasto" externo={externo} medio={form.method} onChange={setExterno} />
+            <NoDescontarCaja externo={externo} onChange={setExterno} />
             <input
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -258,7 +258,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
               ))}
             </select>
           </div>
-          <NoDescontarCaja tipo="gasto" externo={externo} medio={form.method} onChange={setExterno} />
+          <NoDescontarCaja externo={externo} onChange={setExterno} />
           <input
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
